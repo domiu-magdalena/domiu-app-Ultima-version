@@ -96,16 +96,18 @@ export default function MarketplaceAdmin() {
   }, [sb, fetchPedidos]);
 
   const cambiarEstado = async (id: string, nuevoEstado: string) => {
+    const pedido = pedidos.find(p => p.id === id);
+    const costoEnvio = pedido?.domicilio || pedido?.costo_envio || 0;
     const update: any = { estado: nuevoEstado, actualizado_en: new Date().toISOString() };
     if (nuevoEstado === "en_preparacion") update.estado_negocio = "en_preparacion";
     if (nuevoEstado === "listo_para_recoger") update.estado_negocio = "listo_para_recoger";
     if (nuevoEstado === "asignado" || nuevoEstado === "en_camino" || nuevoEstado === "entregado") {
-      update.estado_negocio = nuevoEstado === "asignado" ? "listo_para_recoger" : nuevoEstado === "en_camino" ? "listo_para_recoger" : "listo_para_recoger";
+      update.estado_negocio = "listo_para_recoger";
     }
-    const comision = Math.round((update.costo_envio || 0) * 0.2);
     if (nuevoEstado === "entregado") {
+      const comision = Math.round(costoEnvio * 0.2);
       update.comision_empresa = comision;
-      update.pago_repartidor = (update.costo_envio || 0) - comision;
+      update.pago_repartidor = costoEnvio - comision;
       update.ganancia_empresa = comision;
     }
     await sb.from("pedidos_cliente").update(update).eq("id", id);

@@ -10,13 +10,14 @@ import {
   ChevronRight, Shield, Truck, FileText, Store
 } from "lucide-react";
 import RiderMarketplace from "@/components/RiderMarketplace";
+import ChatRepartidor from "@/components/ChatRepartidor";
 
 /* ======================== UTILIDADES ======================== */
 function fmt(v: number) { return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(v || 0); }
 function fechaCorta(f: string) { return new Date(f).toLocaleString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
 const EMPRESA_PHONE = "3113748405";
 
-type TabType = "inicio" | "pedidos" | "mapa" | "liquidacion" | "turnos" | "gps" | "marketplace" | "perfil";
+type TabType = "inicio" | "pedidos" | "mapa" | "liquidacion" | "turnos" | "gps" | "chat" | "marketplace" | "perfil";
 
 /* ======================== COMPONENTE ======================== */
 export default function RiderAppPage() {
@@ -849,6 +850,13 @@ function RiderAppContent({ user, profile, logout }: { user: any; profile: any; l
         </div>
       )}
 
+      {/* CHAT */}
+      {tab === "chat" && (
+        <div style={{ padding: "16px 0 0" }}>
+          <ChatRepartidor riderId={riderData.id} riderNombre={riderData.nombre} />
+        </div>
+      )}
+
       {/* MARKETPLACE */}
       {tab === "marketplace" && (
         <div style={{ padding: "16px 16px 0" }}>
@@ -927,6 +935,7 @@ function RiderAppContent({ user, profile, logout }: { user: any; profile: any; l
           { id: "liquidacion" as TabType, icon: DollarSign, label: "Liquidación" },
           { id: "turnos" as TabType, icon: Clock, label: "Turnos" },
           { id: "marketplace" as TabType, icon: Store, label: "Market" },
+          { id: "chat" as TabType, icon: MessageCircle, label: "Chat" },
           { id: "gps" as TabType, icon: Navigation, label: "GPS" },
           { id: "perfil" as TabType, icon: User, label: "Perfil" },
         ]).map((t) => (

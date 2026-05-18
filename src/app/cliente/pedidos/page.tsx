@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardList, Package, Search, Clock, ChevronRight } from "lucide-react";
+import { ClipboardList, Package, Search, Clock, ChevronRight, CreditCard, Banknote, Smartphone } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Pedido = {

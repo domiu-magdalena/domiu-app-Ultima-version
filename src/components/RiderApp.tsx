@@ -290,7 +290,7 @@ export default function RiderApp() {
               <h2 className="text-xl font-bold text-white mb-2">GPS {gpsActivo ? "Activo" : "Inactivo"}</h2>
               <p className="text-slate-400 text-sm mb-4">
                 {gpsStatus === "esperando" && "Presiona activar para comenzar"}
-                {gpsStatus === "activo" && `Lat: ${gpsLat?.toFixed(6)}, Lng: ${gpsLng?.toFixed(6)}`}
+                {gpsStatus === "activo" && "GPS activo - enviando ubicacion al servidor"}
                 {gpsStatus === "detenido" && "GPS detenido"}
                 {gpsStatus === "error" && "Error al obtener ubicación"}
               </p>
@@ -315,11 +315,10 @@ export default function RiderApp() {
                 {gpsActivo ? "DETENER GPS" : "ACTIVAR GPS"}
               </button>
 
-              {gpsActivo && gpsLat && gpsLng && (
+              {gpsActivo && (
                 <div className="mt-4 bg-slate-800 p-3 rounded-lg text-left">
                   <p className="text-xs text-slate-400">Ubicación actual:</p>
-                  <p className="text-sm text-white">Latitud: {gpsLat.toFixed(8)}</p>
-                  <p className="text-sm text-white">Longitud: {gpsLng.toFixed(8)}</p>
+                  <p className="text-sm text-white">GPS activo - ubicación enviada al servidor</p>
                 </div>
               )}
             </div>

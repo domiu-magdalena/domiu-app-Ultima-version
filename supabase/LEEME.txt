@@ -1,0 +1,50 @@
+====================================
+DOMIU MAGDALENA - INSTRUCCIONES
+====================================
+
+Los siguientes features NUEVOS fueron agregados al código:
+
+1. SEGUIMIENTO GPS EN VIVO (para clientes)
+   - Página: /cliente/seguimiento/[codigo]
+   - Muestra un mapa con la ubicación del repartidor en tiempo real
+   - Tiempo estimado de llegada
+   - Se actualiza cada 8 segundos
+
+2. CHAT EN TIEMPO REAL
+   - Cliente: /cliente/chat/[codigo]
+   - Repartidor: Botón "Chat" en la app del repartidor (nuevo tab)
+   - Negocio: /negocio/chat
+   - Mensajería en tiempo real con Supabase Realtime
+
+3. VALORACIONES (Calificaciones)
+   - Cliente: /cliente/calificar/[codigo] (después de entregado)
+   - Califica: Repartidor (1-5 estrellas), Negocio, Productos
+   - Comentario opcional
+
+4. MÉTODOS DE PAGO
+   - Checkout: Selección de método (Efectivo, Transferencia, Nequi, DaviPlata)
+   - Perfil cliente: /cliente/perfil - Gestionar métodos guardados
+   - Se guarda el método seleccionado en cada pedido
+
+====================================
+PASO IMPORTANTE: EJECUTAR EN SUPABASE
+====================================
+
+Para que funcionen estos features, debes ejecutar el archivo:
+   supabase/rappylike_features.sql
+
+En el SQL Editor de Supabase (https://supabase.com)
+Esto creará las tablas necesarias:
+- calificaciones
+- mensajes_chat  
+- metodos_pago
+- promociones
+- favoritos_cliente
+Y agrega columnas a tablas existentes.
+
+====================================
+NUEVAS RUTAS AGREGADAS
+====================================
+/cliente/chat/[codigo]      - Chat del cliente
+/cliente/calificar/[codigo] - Calificar pedido
+/negocio/chat               - Chat del negocio

@@ -200,21 +200,23 @@ export default function AdminApp() {
 
   useEffect(() => { load(); }, [load]);
 
-  // NO POLLING - Solo Realtime
-  // Polling cada 60 segundos (respaldo del realtime)
-  // useEffect(() => {
-  //   const interval = setInterval(() => load(), 60000);
-  //   return () => clearInterval(interval);
-  // }, [load]);
+  // Polling cada 30 segundos (respaldo mientras Realtime no funcione)
+  useEffect(() => {
+    const interval = setInterval(() => load(), 30000);
+    return () => clearInterval(interval);
+  }, [load]);
 
   /* Realtime */
   const subRef = useRef<any>(null);
   useEffect(() => {
     if (!user) return;
     if (subRef.current) sb.removeChannel(subRef.current);
-    // Only listen for changes to refresh data every 60 seconds, not on every change
-    // We'll rely on manual refresh or longer polling
-    return () => { if (subRef.current) sb.removeChannel(subRef.current); };
+    const sub = sb.channel("admin-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "pedidos" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "repartidores" }, () => load())
+      .subscribe();
+    subRef.current = sub;
+    return () => { sb.removeChannel(sub); };
   }, [user]);
 
   /* ======================== TURNOS ======================== */

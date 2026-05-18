@@ -2,8 +2,15 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle, Package, Clock, MapPin, Bike } from "lucide-react";
+import { CheckCircle, Package, Clock, MapPin, Bike, CreditCard, Banknote, Smartphone } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase";
+
+const metodosLabels: Record<string, { label: string; icon: any }> = {
+  efectivo: { label: "Efectivo", icon: Banknote },
+  transferencia: { label: "Transferencia", icon: CreditCard },
+  nequi: { label: "Nequi", icon: Smartphone },
+  daviplata: { label: "DaviPlata", icon: Smartphone },
+};
 
 type Pedido = {
   id: string;
@@ -14,6 +21,7 @@ type Pedido = {
   domicilio: number;
   total: number;
   estado: string;
+  metodo_pago: string;
   created_at: string;
   negocios: { nombre: string } | null;
 };
@@ -73,12 +81,17 @@ function ConfirmacionContent() {
                 <Bike size={14} className="text-white/40" />
                 <span className="text-white/70">Domicilio: ${pedido.domicilio.toLocaleString()}</span>
               </div>
+              <div className="flex items-center gap-2 text-sm">
+                <CreditCard size={14} className="text-white/40" />
+                <span className="text-white/70">
+                  {pedido.metodo_pago ? (metodosLabels[pedido.metodo_pago]?.label || pedido.metodo_pago) : "Pago contra entrega"}
+                </span>
+              </div>
               <div className="h-px bg-white/10 my-2" />
               <div className="flex justify-between font-bold">
                 <span>Total</span>
                 <span className="text-domi-yellow">${pedido.total.toLocaleString()}</span>
               </div>
-              <p className="text-xs text-white/30 pt-1">Pago contra entrega</p>
             </div>
           )}
         </div>

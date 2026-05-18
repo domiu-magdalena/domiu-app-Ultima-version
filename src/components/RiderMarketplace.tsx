@@ -5,7 +5,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import {
   Package, MapPin, Phone, MessageCircle, Check, Navigation,
   Clock, DollarSign, TrendingUp, Wallet, Truck, AlertTriangle,
-  Copy, RefreshCw, User, Store, ChevronRight
+  RefreshCw, User, Store
 } from "lucide-react";
 
 const estadoLabel: Record<string, string> = {

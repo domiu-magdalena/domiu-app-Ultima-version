@@ -44,10 +44,13 @@ function NewOrderNotification() {
   );
 }
 
+import { MessageCircle } from "lucide-react";
+
 const tabs = [
   { href: "/negocio", label: "Inicio", icon: LayoutDashboard },
   { href: "/negocio/pedidos", label: "Pedidos", icon: ClipboardList },
   { href: "/negocio/productos", label: "Productos", icon: Package },
+  { href: "/negocio/chat", label: "Chat", icon: MessageCircle },
   { href: "/negocio/perfil", label: "Perfil", icon: Settings },
 ];
 

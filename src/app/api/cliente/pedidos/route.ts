@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     });
 
     const body = await req.json();
-    const { cliente_nombre, cliente_telefono, cliente_direccion, cliente_barrio, nota, negocio_id, domicilio, items } = body;
+    const { cliente_nombre, cliente_telefono, cliente_direccion, cliente_barrio, nota, negocio_id, domicilio, metodo_pago, items } = body;
 
     if (!cliente_nombre || !cliente_telefono || !cliente_direccion || !negocio_id || !items || items.length === 0) {
       return NextResponse.json({ error: "Faltan datos requeridos" }, { status: 400 });
@@ -39,6 +39,7 @@ export async function POST(req: Request) {
         domicilio: domicilio || 0,
         total,
         estado: "recibido",
+        metodo_pago: metodo_pago || "efectivo",
       })
       .select("id, codigo")
       .single();
