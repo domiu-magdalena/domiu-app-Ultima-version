@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardList, Package, Search, Clock, ChevronRight, Filter } from "lucide-react";
-import { getSupabaseClient } from "@/lib/supabase";
+import { fetchData } from "@/lib/client-data";
 
 type Pedido = {
   id: string; codigo: string; total: number; estado: string; created_at: string;
@@ -34,12 +34,14 @@ export default function PedidosPage() {
     e.preventDefault();
     if (!telefono.trim()) return;
     setLoading(true); setSearched(true);
-    const { data } = await getSupabaseClient()
-      .from("pedidos_cliente")
-      .select("*, negocios(nombre)")
-      .eq("cliente_telefono", telefono.trim())
-      .order("created_at", { ascending: false });
-    if (data) setPedidos(data);
+    try {
+      const data = await fetchData("pedidos_cliente", {
+        select: "*, negocios(nombre)",
+        filters: [{ method: "eq", column: "cliente_telefono", value: telefono.trim() }],
+        order: [{ column: "created_at", ascending: false }],
+      });
+      if (data) setPedidos(data);
+    } catch {}
     setLoading(false);
   };
 

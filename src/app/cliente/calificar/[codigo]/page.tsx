@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Star, MessageCircle, Bike, Store, ThumbsUp, Sparkles, Heart } from "lucide-react";
-import { getSupabaseClient } from "@/lib/supabase";
+import { ArrowLeft, Star, MessageCircle, Bike, Store, ThumbsUp } from "lucide-react";
+import { fetchData } from "@/lib/client-data";
 
 type PedidoData = {
   id: string; codigo: string; repartidor_id: string; negocio_id: string;
@@ -28,25 +28,34 @@ export default function CalificarPage() {
 
   useEffect(() => {
     if (!codigo) return;
-    getSupabaseClient()
-      .from("pedidos_cliente")
-      .select("*, negocios(nombre)")
-      .eq("codigo", codigo)
-      .single()
-      .then(async ({ data }) => {
+    (async () => {
+      try {
+        const data = await fetchData("pedidos_cliente", {
+          select: "*, negocios(nombre)",
+          filters: [{ method: "eq", column: "codigo", value: codigo }],
+          single: true,
+        });
         if (data) {
           setPedido(data);
           setStep(data.calificado_repartidor ? "negocio" : "repartidor");
           if (data.id) {
-            const { data: prods } = await getSupabaseClient()
-              .from("detalle_pedido_cliente")
-              .select("id, producto_id, producto_nombre")
-              .eq("pedido_id", data.id);
+            const prods = await fetchData("detalle_pedido_cliente", {
+              select: "id, producto_id, producto_nombre",
+              filters: [{ method: "eq", column: "pedido_id", value: data.id }],
+            });
             if (prods) setProductos(prods);
           }
         }
-      });
+      } catch {}
+    })();
   }, [codigo]);
+
+  const apiOp = async (table: string, action: string, data: any, id?: string) => {
+    await fetch("/api/data", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ table, action, data, ...(id ? { id } : {}) }),
+    });
+  };
 
   const guardarCalificacion = async (tipo: string, idRef: string | null, punt: number) => {
     if (!pedido || punt === 0) return;
@@ -54,7 +63,7 @@ export default function CalificarPage() {
     if (tipo === "repartidor") payload.repartidor_id = pedido.repartidor_id;
     if (tipo === "negocio") payload.negocio_id = pedido.negocio_id;
     if (tipo === "producto" && idRef) payload.producto_id = idRef;
-    await getSupabaseClient().from("calificaciones").insert(payload);
+    await apiOp("calificaciones", "insert", payload);
   };
 
   const siguiente = async () => {
@@ -62,11 +71,11 @@ export default function CalificarPage() {
     setSaving(true);
     if (step === "repartidor" && puntRepartidor > 0) {
       await guardarCalificacion("repartidor", null, puntRepartidor);
-      await getSupabaseClient().from("pedidos_cliente").update({ calificado_repartidor: true }).eq("id", pedido.id);
+      await apiOp("pedidos_cliente", "update", { calificado_repartidor: true }, pedido.id);
       setStep("negocio");
     } else if (step === "negocio" && puntNegocio > 0) {
       await guardarCalificacion("negocio", null, puntNegocio);
-      await getSupabaseClient().from("pedidos_cliente").update({ calificado_negocio: true }).eq("id", pedido.id);
+      await apiOp("pedidos_cliente", "update", { calificado_negocio: true }, pedido.id);
       setStep("productos");
     } else if (step === "productos") {
       for (const p of productos) { if (puntProductos[p.id]) await guardarCalificacion("producto", p.producto_id, puntProductos[p.id]); }

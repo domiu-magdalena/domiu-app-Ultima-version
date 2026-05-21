@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Search, UtensilsCrossed, Store, Wine, Pill, Percent, Bell, Star, Clock, Bike, ChevronRight, Zap, TrendingUp, Gift, MapPin } from "lucide-react";
-import { getSupabaseClient } from "@/lib/supabase";
+import { fetchData } from "@/lib/client-data";
 import { useNotificaciones } from "@/context/NotificationContext";
 
 type Negocio = {
@@ -28,15 +28,13 @@ export default function ClienteHome() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getSupabaseClient()
-      .from("negocios")
-      .select("*")
-      .eq("activo", true)
-      .order("destacado", { ascending: false })
-      .then(({ data }) => {
-        if (data) setNegocios(data);
-        setLoading(false);
-      });
+    fetchData("negocios", {
+      filters: [{ method: "eq", column: "activo", value: true }],
+      order: [{ column: "destacado", ascending: false }],
+    }).then((data: any) => {
+      if (data) setNegocios(data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, []);
 
   const destacados = negocios.filter((n) => n.destacado);

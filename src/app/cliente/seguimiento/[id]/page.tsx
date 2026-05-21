@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Package, CookingPot, UserCheck, Bike, Home, Star, MessageCircle, MapPin, Clock, Phone, Navigation } from "lucide-react";
-import { getSupabaseClient } from "@/lib/supabase";
+import { fetchData } from "@/lib/client-data";
 import MapaRepartidorCliente from "@/components/MapaRepartidorCliente";
 
 type Pedido = {
@@ -31,18 +31,15 @@ export default function SeguimientoPage() {
 
   useEffect(() => {
     if (!id) return;
-    const fetchPedido = () => {
-      getSupabaseClient()
-        .from("pedidos_cliente")
-        .select("*, negocios(nombre, logo, latitud, longitud), repartidores(nombre, telefono)")
-        .eq("codigo", id)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            setPedido(data);
-            setCurrentStep(stepIndex[data.estado] ?? -1);
-          }
+    const fetchPedido = async () => {
+      try {
+        const data = await fetchData("pedidos_cliente", {
+          select: "*, negocios(nombre, logo, latitud, longitud), repartidores(nombre, telefono)",
+          filters: [{ method: "eq", column: "codigo", value: id }],
+          single: true,
         });
+        if (data) { setPedido(data); setCurrentStep(stepIndex[data.estado] ?? -1); }
+      } catch {}
     };
     fetchPedido();
     const interval = setInterval(fetchPedido, 10000);

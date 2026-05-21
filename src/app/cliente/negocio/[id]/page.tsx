@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ShoppingCart, Star, Clock, Bike, Plus, Minus, MapPin, Phone, ChevronDown, Sparkles } from "lucide-react";
-import { getSupabaseClient } from "@/lib/supabase";
+import { fetchData } from "@/lib/client-data";
 import { useCart } from "@/context/CartContext";
 
 type Negocio = {
@@ -27,11 +27,11 @@ export default function NegocioDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    getSupabaseClient().from("negocios").select("*").eq("id", id).single().then(({ data }) => { if (data) setNegocio(data); });
-    getSupabaseClient().from("productos").select("*").eq("negocio_id", id).eq("disponible", true).then(({ data }) => {
+    fetchData("negocios", { filters: [{ method: "eq", column: "id", value: id }], single: true }).then((data: any) => { if (data) setNegocio(data); });
+    fetchData("productos", { filters: [{ method: "eq", column: "negocio_id", value: id }, { method: "eq", column: "disponible", value: true }] }).then((data: any) => {
       if (data) {
         setProductos(data);
-        const cats = [...new Set(data.map((p) => p.categoria_producto))];
+        const cats = [...new Set(data.map((p: any) => p.categoria_producto))];
         if (cats.length > 0) setSelectedCat(cats[0]);
       }
     });

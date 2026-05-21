@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { User, Bell, MapPin, CreditCard, HelpCircle, ChevronRight, Plus, Trash2, CheckCircle, Banknote, Smartphone, LogOut, BellRing, BellOff, Settings, Gift } from "lucide-react";
-import { getSupabaseClient } from "@/lib/supabase";
+import { fetchData } from "@/lib/client-data";
 import { useNotificaciones } from "@/context/NotificationContext";
 
 const metodoIcons: Record<string, any> = { efectivo: Banknote, transferencia: CreditCard, nequi: Smartphone, daviplata: Smartphone, tarjeta: CreditCard };
@@ -28,29 +28,40 @@ export default function PerfilPage() {
     const saved = localStorage.getItem("cliente_telefono");
     if (saved) {
       setTelefono(saved);
-      getSupabaseClient().from("metodos_pago").select("*").eq("cliente_telefono", saved).then(({ data }) => {
+      fetchData("metodos_pago", { filters: [{ method: "eq", column: "cliente_telefono", value: saved }] }).then((data: any) => {
         if (data) setMetodos(data);
-      });
+      }).catch(() => {});
     }
   }, []);
 
   const guardarTelefono = () => {
     if (!telefono.trim()) return;
     localStorage.setItem("cliente_telefono", telefono);
-    getSupabaseClient().from("metodos_pago").select("*").eq("cliente_telefono", telefono.trim()).then(({ data }) => {
+    fetchData("metodos_pago", { filters: [{ method: "eq", column: "cliente_telefono", value: telefono.trim() }] }).then((data: any) => {
       if (data) setMetodos(data);
-    });
+    }).catch(() => {});
   };
 
   const agregarMetodo = async () => {
     if (!telefono) return;
-    const { data } = await getSupabaseClient().from("metodos_pago").insert({ cliente_telefono: telefono, tipo: newTipo, titular: newTitular || null }).select().single();
-    if (data) { setMetodos(prev => [...prev, data]); setShowAdd(false); setNewTitular(""); }
+    try {
+      const res = await fetch("/api/data", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table: "metodos_pago", action: "insert", data: { cliente_telefono: telefono, tipo: newTipo, titular: newTitular || null } }),
+      });
+      const result = await res.json();
+      if (result) { setMetodos(prev => [...prev, result]); setShowAdd(false); setNewTitular(""); }
+    } catch {}
   };
 
   const eliminarMetodo = async (id: string) => {
-    await getSupabaseClient().from("metodos_pago").delete().eq("id", id);
-    setMetodos(prev => prev.filter(m => m.id !== id));
+    try {
+      await fetch("/api/data", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table: "metodos_pago", action: "delete", id }),
+      });
+      setMetodos(prev => prev.filter(m => m.id !== id));
+    } catch {}
   };
 
   const pedidosCount = metodos.length > 0 ? "12" : "—";

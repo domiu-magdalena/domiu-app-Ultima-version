@@ -2,7 +2,7 @@
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Search, Star, Clock, Bike, ChevronRight, TrendingUp, SlidersHorizontal } from "lucide-react";
-import { getSupabaseClient } from "@/lib/supabase";
+import { fetchData } from "@/lib/client-data";
 
 type Negocio = {
   id: string; nombre: string; categoria: string; descripcion: string;
@@ -21,20 +21,18 @@ function NegociosContent() {
 
   useEffect(() => {
     setLoading(true);
-    getSupabaseClient()
-      .from("negocios")
-      .select("*")
-      .eq("activo", true)
-      .order("destacado", { ascending: false })
-      .then(({ data }) => {
-        if (!data) return;
-        let f = data;
-        if (categoria) f = f.filter((n) => n.categoria === categoria);
-        if (busqueda) { const q = busqueda.toLowerCase(); f = f.filter((n) => n.nombre.toLowerCase().includes(q) || n.descripcion.toLowerCase().includes(q)); }
-        setNegocios(f);
-        setFilter(categoria);
-        setLoading(false);
-      });
+    fetchData("negocios", {
+      filters: [{ method: "eq", column: "activo", value: true }],
+      order: [{ column: "destacado", ascending: false }],
+    }).then((data: any) => {
+      if (!data) return;
+      let f = data;
+      if (categoria) f = f.filter((n) => n.categoria === categoria);
+      if (busqueda) { const q = busqueda.toLowerCase(); f = f.filter((n) => n.nombre.toLowerCase().includes(q) || n.descripcion.toLowerCase().includes(q)); }
+      setNegocios(f);
+      setFilter(categoria);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, [categoria, busqueda]);
 
   const categories = ["", "Restaurantes", "Tiendas", "Licoreras", "Droguerias", "Promociones"];
