@@ -57,7 +57,7 @@ export default function CheckoutPage() {
     <div className="min-h-screen bg-[var(--bg-primary)] pb-8 animate-fade-in">
       <div className="px-5 pt-5 pb-2">
         <div className="flex items-center gap-3 mb-1">
-          <button onClick={() => router.back()} className="w-11 h-11 rounded-2xl bg-[var(--bg-card)] flex items-center justify-center border border-white/5 hover:border-[var(--primary)]/30 transition-all active:scale-90">
+          <button onClick={() => router.back()} className="w-11 h-11 rounded-2xl bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)] active:scale-90 transition-all">
             <ArrowLeft size={18} className="text-[var(--text-secondary)]" />
           </button>
           <div>
@@ -69,23 +69,20 @@ export default function CheckoutPage() {
 
       <form onSubmit={handleSubmit} className="px-5">
         {error && (
-          <div className="bg-[var(--error)]/10 border border-[var(--error)]/30 rounded-xl px-4 py-3 mb-5 animate-fade-up">
-            <p className="text-[var(--error)] text-sm font-medium">{error}</p>
+          <div className="p-4 mb-5 rounded-xl animate-fade-up" style={{ background: "var(--error)10", border: "1px solid", borderColor: "var(--error)30" }}>
+            <p className="text-sm font-medium" style={{ color: "var(--error)" }}>{error}</p>
           </div>
         )}
 
-        {/* Order summary */}
         <div className="glass-card p-5 mb-5 animate-fade-up">
-          <div className="flex items-center gap-2 mb-4">
-            <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-[1.5px]">Resumen del pedido</h3>
-          </div>
+          <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-[1.5px] mb-4">Resumen del pedido</h3>
           {items.map((item) => (
             <div key={item.productId} className="flex justify-between text-sm mb-2.5 last:mb-0">
               <span className="text-[var(--text-secondary)]">{item.cantidad}x {item.nombre}</span>
               <span className="font-semibold">${(item.precio * item.cantidad).toLocaleString()}</span>
             </div>
           ))}
-          <div className="h-px bg-gradient-to-r from-white/5 via-white/10 to-transparent my-3" />
+          <div className="h-px my-3" style={{ background: "var(--border-color)" }} />
           <div className="flex justify-between text-sm mb-1">
             <span className="text-[var(--text-secondary)]">Subtotal</span>
             <span>${subtotal.toLocaleString()}</span>
@@ -94,13 +91,12 @@ export default function CheckoutPage() {
             <span className="text-[var(--text-secondary)]">Domicilio</span>
             <span>${domicilio.toLocaleString()}</span>
           </div>
-          <div className="flex justify-between font-bold text-base mt-3 pt-3 border-t border-white/5">
+          <div className="flex justify-between font-bold text-base mt-3 pt-3" style={{ borderTop: "1px solid var(--border-color)" }}>
             <span>Total</span>
-            <span className="gradient-text">${total.toLocaleString()}</span>
+            <span style={{ color: "var(--primary)" }}>${total.toLocaleString()}</span>
           </div>
         </div>
 
-        {/* Payment method */}
         <div className="glass-card p-5 mb-5 animate-fade-up" style={{ animationDelay: "80ms" }}>
           <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-[1.5px] mb-4">Método de pago</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -111,24 +107,24 @@ export default function CheckoutPage() {
                 <button key={mp.id} type="button" onClick={() => setMetodoPago(mp.id)}
                   className={`relative flex flex-col items-center gap-2 p-4 rounded-2xl border text-left transition-all active:scale-[0.97] ${
                     selected
-                      ? "bg-[var(--primary)]/10 border-[var(--primary)] shadow-lg shadow-[var(--primary)]/10"
-                      : "bg-[var(--bg-card)] border-white/5 text-[var(--text-secondary)] hover:border-white/20"
-                  }`}>
+                      ? "border shadow-lg"
+                      : "bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-secondary)]"
+                  }`}
+                  style={selected ? { background: "var(--primary)10", borderColor: "var(--primary)", boxShadow: "0 0 20px var(--primary)15" } : {}}>
                   {selected && (
-                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[var(--primary)] flex items-center justify-center">
-                      <CheckCircle size={12} className="text-black" />
+                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--primary)" }}>
+                      <CheckCircle size={12} color="white" />
                     </div>
                   )}
                   <Icon size={24} style={{ color: selected ? "var(--primary)" : mp.color }} />
-                  <span className={`text-xs font-bold ${selected ? "text-[var(--primary)]" : ""}`}>{mp.label}</span>
-                  <span className={`text-[9px] text-center leading-tight ${selected ? "text-[var(--primary)]/70" : "text-[var(--text-muted)]/60"}`}>{mp.desc}</span>
+                  <span className={`text-xs font-bold ${selected ? "" : ""}`} style={selected ? { color: "var(--primary)" } : {}}>{mp.label}</span>
+                  <span className="text-[9px] text-center leading-tight" style={selected ? { color: "var(--primary)bb" } : { color: "var(--text-muted)" }}>{mp.desc}</span>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Client data */}
         <div className="glass-card p-5 mb-5 animate-fade-up" style={{ animationDelay: "160ms" }}>
           <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-[1.5px] mb-4">Tus datos</h3>
           <div className="space-y-3.5">
@@ -138,30 +134,29 @@ export default function CheckoutPage() {
               { icon: MapPin, placeholder: "Barrio (opcional)", val: barrio, set: setBarrio, type: "text" },
             ].map((f) => (
               <div key={f.placeholder} className="relative">
-                <f.icon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]/50" />
+                <f.icon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" style={{ opacity: 0.5 }} />
                 <input type={f.type} placeholder={f.placeholder} value={f.val} onChange={(e) => f.set(e.target.value)}
                   className="input-field" />
               </div>
             ))}
             <div className="relative">
-              <FileText size={16} className="absolute left-4 top-4 text-[var(--text-muted)]/50" />
+              <FileText size={16} className="absolute left-4 top-4 text-[var(--text-muted)]" style={{ opacity: 0.5 }} />
               <textarea placeholder="Nota para el negocio (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} rows={2}
                 className="input-field resize-none pt-4" />
             </div>
           </div>
         </div>
 
-        {/* Security note */}
         <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] mb-5 animate-fade-up" style={{ animationDelay: "240ms" }}>
           <Lock size={12} />
           <span>Tus datos están seguros. Solo se usan para procesar tu pedido.</span>
         </div>
 
         <button type="submit" disabled={loading}
-          className="btn-primary w-full text-sm disabled:opacity-40 active:scale-[0.98] transition-all shadow-lg shadow-[var(--primary)]/20">
+          className="btn-primary w-full text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
           {loading ? (
             <span className="flex items-center justify-center gap-2">
-              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               Procesando...
             </span>
           ) : `Confirmar pedido — $${total.toLocaleString()}`}

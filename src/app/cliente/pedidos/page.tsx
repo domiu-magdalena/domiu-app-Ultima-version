@@ -10,12 +10,12 @@ type Pedido = {
 };
 
 const estadoColor: Record<string, string> = {
-  recibido: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20",
-  preparacion: "text-blue-400 bg-blue-500/10 border-blue-500/20",
-  asignado: "text-purple-400 bg-purple-500/10 border-purple-500/20",
-  camino: "text-orange-400 bg-orange-500/10 border-orange-500/20",
-  entregado: "text-green-400 bg-green-500/10 border-green-500/20",
-  cancelado: "text-red-400 bg-red-500/10 border-red-500/20",
+  recibido: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  preparacion: "bg-blue-50 text-blue-700 border-blue-200",
+  asignado: "bg-purple-50 text-purple-700 border-purple-200",
+  camino: "bg-orange-50 text-orange-700 border-orange-200",
+  entregado: "bg-green-50 text-green-700 border-green-200",
+  cancelado: "bg-red-50 text-red-700 border-red-200",
 };
 
 const estadoLabel: Record<string, string> = {
@@ -47,17 +47,15 @@ export default function PedidosPage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] px-5 pt-6 pb-6 animate-fade-in">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[var(--primary)]/20 to-[var(--primary)]/5 flex items-center justify-center">
-            <ClipboardList size={20} className="text-[var(--primary)]" />
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "var(--primary)10" }}>
+            <ClipboardList size={20} style={{ color: "var(--primary)" }} />
           </div>
           <h1 className="text-xl font-bold">Mis pedidos</h1>
         </div>
       </div>
 
-      {/* Search */}
       <form onSubmit={handleSearch} className="relative mb-6">
         <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
         <input type="tel" placeholder="Buscar por tu teléfono..." value={telefono} onChange={(e) => setTelefono(e.target.value)}
@@ -66,14 +64,14 @@ export default function PedidosPage() {
 
       {loading && (
         <div className="flex items-center justify-center py-8">
-          <div className="w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
         </div>
       )}
 
       {!searched && !loading && (
         <div className="text-center py-20 animate-fade-up">
-          <div className="w-20 h-20 rounded-3xl bg-[var(--bg-card)] flex items-center justify-center mx-auto mb-4">
-            <Search size={36} className="text-[var(--text-muted)]/30" />
+          <div className="w-20 h-20 rounded-3xl bg-[var(--bg-secondary)] flex items-center justify-center mx-auto mb-4">
+            <Search size={36} className="text-[var(--text-muted)]" style={{ opacity: 0.3 }} />
           </div>
           <p className="text-[var(--text-secondary)] font-medium">Busca tus pedidos</p>
           <p className="text-xs text-[var(--text-muted)] mt-1">Ingresa tu número de teléfono</p>
@@ -82,8 +80,8 @@ export default function PedidosPage() {
 
       {searched && !loading && pedidos.length === 0 && (
         <div className="text-center py-20 animate-fade-up">
-          <div className="w-20 h-20 rounded-3xl bg-[var(--bg-card)] flex items-center justify-center mx-auto mb-4">
-            <Package size={36} className="text-[var(--text-muted)]/30" />
+          <div className="w-20 h-20 rounded-3xl bg-[var(--bg-secondary)] flex items-center justify-center mx-auto mb-4">
+            <Package size={36} className="text-[var(--text-muted)]" style={{ opacity: 0.3 }} />
           </div>
           <p className="text-[var(--text-secondary)] font-medium">No encontramos pedidos</p>
           <p className="text-xs text-[var(--text-muted)] mt-1">Verifica el número de teléfono</p>
@@ -97,7 +95,7 @@ export default function PedidosPage() {
               className="glass-card p-5 text-left w-full active:scale-[0.98] transition-all animate-fade-up" style={{ animationDelay: `${idx * 60}ms` }}>
               <div className="flex items-center justify-between mb-3">
                 <span className="font-bold text-sm">#{p.codigo}</span>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${estadoColor[p.estado] || "text-[var(--text-secondary)] bg-[var(--bg-card)] border-white/5"}`}>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${estadoColor[p.estado] || "text-[var(--text-secondary)] bg-[var(--bg-secondary)] border-[var(--border-color)]"}`}>
                   {estadoLabel[p.estado] || p.estado}
                 </span>
               </div>
@@ -110,7 +108,7 @@ export default function PedidosPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold gradient-text text-sm">${p.total.toLocaleString()}</span>
+                  <span className="font-bold text-sm" style={{ color: "var(--primary)" }}>${p.total.toLocaleString()}</span>
                   <ChevronRight size={16} className="text-[var(--text-muted)]" />
                 </div>
               </div>

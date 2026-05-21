@@ -89,7 +89,8 @@ export default function CalificarPage() {
       {[1, 2, 3, 4, 5].map(v => (
         <button key={v} type="button" onClick={() => onChange(v)}
           className="p-1 transition-all duration-200 active:scale-110 hover:scale-110">
-          <Star size={40} className={`transition-all duration-200 ${v <= value ? "text-[var(--primary)] fill-[var(--primary)] drop-shadow-lg" : "text-[var(--text-muted)]/30"}`} />
+          <Star size={40} className={`transition-all duration-200 ${v <= value ? "drop-shadow-lg" : "text-[var(--text-muted)]"}`}
+            style={v <= value ? { color: "var(--primary)", fill: "var(--primary)" } : { opacity: 0.3 }} />
         </button>
       ))}
     </div>
@@ -97,17 +98,17 @@ export default function CalificarPage() {
 
   if (!pedido) return (
     <div className="flex items-center justify-center min-h-screen bg-[var(--bg-primary)]">
-      <div className="w-10 h-10 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+      <div className="w-10 h-10 border-2 rounded-full animate-spin" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
     </div>
   );
 
   if (step === "fin") {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col items-center justify-center px-6 animate-fade-in">
-        <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-[var(--primary)]/20 to-[var(--primary)]/5 flex items-center justify-center mb-6 animate-float">
-          <ThumbsUp size={52} className="text-[var(--primary)]" />
+        <div className="w-28 h-28 rounded-3xl flex items-center justify-center mb-6" style={{ background: "var(--primary)10" }}>
+          <ThumbsUp size={52} style={{ color: "var(--primary)" }} />
         </div>
-        <h1 className="text-3xl font-black mb-2 gradient-text">¡Gracias!</h1>
+        <h1 className="text-3xl font-black mb-2" style={{ color: "var(--primary)" }}>¡Gracias!</h1>
         <p className="text-[var(--text-secondary)] text-sm mb-8 text-center">Tu opinión nos ayuda a mejorar</p>
         <button onClick={() => router.push("/cliente")} className="btn-primary w-full max-w-xs text-sm">
           Volver al inicio
@@ -121,9 +122,8 @@ export default function CalificarPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] animate-fade-in">
       <div className="px-5 pt-5 pb-8">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-8">
-          <button onClick={() => router.back()} className="w-11 h-11 rounded-2xl bg-[var(--bg-card)] flex items-center justify-center border border-white/5 hover:border-[var(--primary)]/30 transition-all active:scale-90">
+          <button onClick={() => router.back()} className="w-11 h-11 rounded-2xl bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)] active:scale-90 transition-all">
             <ArrowLeft size={18} className="text-[var(--text-secondary)]" />
           </button>
           <h1 className="text-xl font-bold">Calificar</h1>
@@ -132,8 +132,8 @@ export default function CalificarPage() {
         <div className="glass-card p-8 text-center animate-fade-up">
           {step === "repartidor" && (
             <>
-              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[var(--primary)]/15 to-[var(--primary)]/5 flex items-center justify-center mx-auto mb-5">
-                <Bike size={48} className="text-[var(--primary)]" />
+              <div className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-5" style={{ background: "var(--primary)10" }}>
+                <Bike size={48} style={{ color: "var(--primary)" }} />
               </div>
               <h2 className="text-2xl font-black mb-2">Califica al repartidor</h2>
               <p className="text-[var(--text-secondary)] text-sm mb-6">¿Cómo fue el servicio?</p>
@@ -144,8 +144,8 @@ export default function CalificarPage() {
 
           {step === "negocio" && (
             <>
-              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[var(--primary)]/15 to-[var(--primary)]/5 flex items-center justify-center mx-auto mb-5">
-                <Store size={48} className="text-[var(--primary)]" />
+              <div className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-5" style={{ background: "var(--primary)10" }}>
+                <Store size={48} style={{ color: "var(--primary)" }} />
               </div>
               <h2 className="text-2xl font-black mb-2">Califica al negocio</h2>
               <p className="text-[var(--text-secondary)] text-sm mb-1">{pedido.negocios?.nombre || "Negocio"}</p>
@@ -156,13 +156,13 @@ export default function CalificarPage() {
 
           {step === "productos" && productos.length > 0 && (
             <>
-              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[var(--primary)]/15 to-[var(--primary)]/5 flex items-center justify-center mx-auto mb-5">
-                <Star size={48} className="text-[var(--primary)]" />
+              <div className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-5" style={{ background: "var(--primary)10" }}>
+                <Star size={48} style={{ color: "var(--primary)" }} />
               </div>
               <h2 className="text-2xl font-black mb-6">Califica los productos</h2>
               <div className="space-y-5">
                 {productos.map(p => (
-                  <div key={p.id} className="p-5 rounded-2xl bg-[var(--bg-card)] border border-white/5">
+                  <div key={p.id} className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)]">
                     <p className="font-bold text-sm mb-3">{p.producto_nombre}</p>
                     <Stars value={puntProductos[p.id] || 0} onChange={v => setPuntProductos(prev => ({ ...prev, [p.id]: v }))} />
                   </div>
@@ -172,12 +172,11 @@ export default function CalificarPage() {
           )}
         </div>
 
-        {/* Comment */}
         <div className="mt-6 mb-6 animate-fade-up">
           <div className="glass-card p-4">
             <MessageCircle size={16} className="text-[var(--text-muted)] mb-2" />
             <textarea placeholder="Escribe un comentario (opcional)..." value={comentario} onChange={e => setComentario(e.target.value)} rows={3}
-              className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)]/50 outline-none resize-none" />
+              className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none resize-none" />
           </div>
         </div>
 
@@ -185,7 +184,7 @@ export default function CalificarPage() {
           className="btn-primary w-full text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
           {saving ? (
             <span className="flex items-center justify-center gap-2">
-              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               Guardando...
             </span>
           ) : step === "productos" ? "Finalizar" : "Siguiente"}

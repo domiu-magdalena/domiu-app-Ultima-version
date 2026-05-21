@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, ShoppingCart, Star, Clock, Bike, Plus, Minus, MapPin, Phone, ChevronDown, Sparkles } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Star, Clock, Bike, Plus, Minus, MapPin, Phone, Sparkles } from "lucide-react";
 import { fetchData } from "@/lib/client-data";
 import { useCart } from "@/context/CartContext";
 
@@ -50,7 +50,7 @@ export default function NegocioDetailPage() {
 
   if (!negocio) return (
     <div className="flex items-center justify-center min-h-screen bg-[var(--bg-primary)]">
-      <div className="w-10 h-10 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
     </div>
   );
 
@@ -59,33 +59,33 @@ export default function NegocioDetailPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] pb-28 animate-fade-in">
       {/* Banner */}
-      <div className="relative h-52 bg-gradient-to-br from-[var(--primary)]/10 via-[var(--bg-primary)] to-[var(--primary)]/5 flex items-end overflow-hidden">
-        <div className="absolute inset-0 opacity-5" style={{backgroundImage: "radial-gradient(circle at 20% 50%, var(--primary) 0%, transparent 50%), radial-gradient(circle at 80% 20%, var(--primary) 0%, transparent 50%)"}} />
+      <div className="relative h-48 flex items-end overflow-hidden" style={{ background: "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)" }}>
+        <div className="absolute inset-0 opacity-10" style={{backgroundImage: "radial-gradient(circle at 20% 50%, white 0%, transparent 50%), radial-gradient(circle at 80% 20%, white 0%, transparent 50%)"}} />
         <button onClick={() => router.back()}
-          className="absolute top-4 left-4 w-11 h-11 rounded-2xl bg-black/30 flex items-center justify-center backdrop-blur-md z-10 border border-white/10 hover:bg-black/50 transition-all active:scale-90">
+          className="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/20 flex items-center justify-center backdrop-blur-md z-10 border border-white/20 active:scale-90 transition-all text-white">
           <ArrowLeft size={18} />
         </button>
         <div className="absolute bottom-4 left-5 right-5">
           <div className="flex items-start gap-4">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[var(--primary)]/30 to-[var(--primary)]/5 flex items-center justify-center text-[var(--primary)] font-bold text-3xl shrink-0 backdrop-blur-sm border border-white/10 shadow-2xl">
+            <div className="w-20 h-20 rounded-2xl bg-white/20 flex items-center justify-center text-white font-bold text-3xl shrink-0 backdrop-blur-sm border border-white/20 shadow-lg">
               {negocio.nombre[0]}
             </div>
-            <div className="flex-1 min-w-0 pt-1">
-              <h1 className="text-2xl font-black drop-shadow-lg">{negocio.nombre}</h1>
+            <div className="flex-1 min-w-0 pt-1 text-white">
+              <h1 className="text-2xl font-bold drop-shadow-lg">{negocio.nombre}</h1>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs font-medium text-[var(--text-secondary)] bg-white/5 px-2.5 py-0.5 rounded-full backdrop-blur-sm">{negocio.categoria}</span>
-                <span className={`badge ${negocio.abierto ? "badge-success" : "badge-error"}`}>
+                <span className="text-xs font-medium bg-white/20 px-2.5 py-0.5 rounded-full">{negocio.categoria}</span>
+                <span className={`badge ${negocio.abierto ? "bg-white/20 text-white" : "bg-red-500/20 text-red-200"}`}>
                   {negocio.abierto ? "Abierto" : "Cerrado"}
                 </span>
               </div>
               <div className="flex items-center gap-4 mt-2">
-                <span className="flex items-center gap-1 text-xs text-[var(--primary)] font-bold bg-[var(--primary)]/10 px-2 py-1 rounded-full">
-                  <Star size={11} fill="var(--primary)" stroke="none" /> {negocio.rating || negocio.calificacion || "—"}
+                <span className="flex items-center gap-1 text-xs text-white font-bold bg-white/20 px-2 py-1 rounded-full">
+                  <Star size={11} fill="white" stroke="none" /> {negocio.rating || negocio.calificacion || "—"}
                 </span>
-                <span className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
+                <span className="flex items-center gap-1 text-xs text-white/80">
                   <Clock size={11} /> {negocio.tiempo_estimado}
                 </span>
-                <span className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
+                <span className="flex items-center gap-1 text-xs text-white/80">
                   <Bike size={11} /> ${negocio.domicilio_cost.toLocaleString()}
                 </span>
               </div>
@@ -95,14 +95,14 @@ export default function NegocioDetailPage() {
       </div>
 
       {/* Info bar */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-white/5">
-        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] bg-[var(--bg-card)] px-3 py-2 rounded-xl flex-1 min-w-0">
-          <MapPin size={13} className="text-[var(--primary)] shrink-0" />
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--border-color)]">
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] bg-[var(--bg-secondary)] px-3 py-2 rounded-xl flex-1 min-w-0">
+          <MapPin size={13} className="shrink-0" style={{ color: "var(--primary)" }} />
           <span className="truncate">{negocio.direccion}</span>
         </div>
         {negocio.telefono && (
           <a href={`tel:${negocio.telefono}`}
-            className="w-9 h-9 rounded-xl bg-[var(--primary)]/10 flex items-center justify-center text-[var(--primary)] shrink-0 hover:bg-[var(--primary)]/20 transition-all active:scale-90">
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 active:scale-90 transition-all" style={{ background: "var(--primary)10", color: "var(--primary)" }}>
             <Phone size={15} />
           </a>
         )}
@@ -110,11 +110,11 @@ export default function NegocioDetailPage() {
 
       {/* Category tabs */}
       {categories.length > 1 && (
-        <div className="sticky top-0 z-30 bg-[var(--bg-primary)]/80 backdrop-blur-xl border-b border-white/5">
-          <div className="flex gap-2 overflow-x-auto px-5 py-3 scroll-hide">
+        <div className="sticky top-0 z-30 bg-[var(--bg-primary)]/95 backdrop-blur-xl border-b border-[var(--border-color)]">
+          <div className="h-scroll px-5 py-3">
             {categories.map((cat) => (
               <button key={cat} onClick={() => scrollToCat(cat)}
-                className={`chip whitespace-nowrap transition-all active:scale-95 ${selectedCat === cat ? "chip-active" : "chip-inactive"}`}>
+                className={`chip shrink-0 transition-all active:scale-95 ${selectedCat === cat ? "chip-active" : "chip-inactive"}`}>
                 {cat}
               </button>
             ))}
@@ -131,39 +131,37 @@ export default function NegocioDetailPage() {
             return (
               <div key={cat} ref={(el) => { catRefs.current[cat] = el; }} className="mb-6 animate-fade-up">
                 <div className="flex items-center gap-2 mb-4">
-                  <Sparkles size={14} className="text-[var(--primary)]" />
+                  <Sparkles size={14} style={{ color: "var(--primary)" }} />
                   <h3 className="font-bold text-sm">{cat}</h3>
-                  <span className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-card)] px-2 py-0.5 rounded-full">{catProducts.length}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-secondary)] px-2 py-0.5 rounded-full">{catProducts.length}</span>
                 </div>
                 <div className="grid gap-2">
                   {catProducts.map((p, idx) => {
                     const qty = getItemQty(p.id);
                     return (
                       <div key={p.id} className="glass-card p-4 flex items-center gap-4 active:scale-[0.99] transition-all" style={{ animationDelay: `${idx * 50}ms` }}>
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--primary)]/10 to-transparent flex items-center justify-center text-2xl shrink-0 border border-white/5 shadow-inner">
+                        <div className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl shrink-0 border border-[var(--border-color)]" style={{ background: "var(--primary)05" }}>
                           🍽️
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <h4 className="font-semibold text-sm truncate">{p.nombre}</h4>
-                          </div>
+                          <h4 className="font-semibold text-sm truncate">{p.nombre}</h4>
                           {p.descripcion && <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-2">{p.descripcion}</p>}
                           <div className="flex items-center justify-between mt-2">
-                            <span className="font-bold text-base gradient-text">${p.precio.toLocaleString()}</span>
+                            <span className="font-bold text-base" style={{ color: "var(--primary)" }}>${p.precio.toLocaleString()}</span>
                             {qty === 0 ? (
                               <button onClick={(e) => { e.stopPropagation(); addItem({ productId: p.id, negocioId: negocio.id, negocioNombre: negocio.nombre, nombre: p.nombre, precio: p.precio, descripcion: p.descripcion || "" }); }}
-                                className="w-9 h-9 rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-black font-bold flex items-center justify-center hover:brightness-110 transition-all active:scale-90 shadow-lg shadow-[var(--primary)]/25">
+                                className="w-9 h-9 rounded-xl text-white font-bold flex items-center justify-center active:scale-90 transition-all" style={{ background: "var(--primary)" }}>
                                 <Plus size={18} />
                               </button>
                             ) : (
-                              <div className="flex items-center gap-2 bg-[var(--bg-card)] rounded-xl p-0.5 border border-white/5">
+                              <div className="flex items-center gap-2 bg-[var(--bg-secondary)] rounded-xl p-0.5 border border-[var(--border-color)]">
                                 <button onClick={(e) => { e.stopPropagation(); updateQuantity(p.id, qty - 1); }}
-                                  className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-black font-bold flex items-center justify-center hover:brightness-110 transition-all active:scale-90">
+                                  className="w-8 h-8 rounded-lg text-white font-bold flex items-center justify-center active:scale-90 transition-all" style={{ background: "var(--primary)" }}>
                                   <Minus size={14} />
                                 </button>
                                 <span className="text-sm font-bold w-6 text-center text-[var(--text-primary)]">{qty}</span>
                                 <button onClick={(e) => { e.stopPropagation(); updateQuantity(p.id, qty + 1); }}
-                                  className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-black font-bold flex items-center justify-center hover:brightness-110 transition-all active:scale-90">
+                                  className="w-8 h-8 rounded-lg text-white font-bold flex items-center justify-center active:scale-90 transition-all" style={{ background: "var(--primary)" }}>
                                   <Plus size={14} />
                                 </button>
                               </div>
@@ -178,34 +176,33 @@ export default function NegocioDetailPage() {
             );
           })
         ) : (
-          /* Single category - flat list */
           <div className="grid gap-2">
             {filtered.map((p, idx) => {
               const qty = getItemQty(p.id);
               return (
                 <div key={p.id} className="glass-card p-4 flex items-center gap-4 active:scale-[0.99] transition-all animate-fade-up" style={{ animationDelay: `${idx * 50}ms` }}>
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--primary)]/10 to-transparent flex items-center justify-center text-2xl shrink-0 border border-white/5 shadow-inner">
+                  <div className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl shrink-0 border border-[var(--border-color)]" style={{ background: "var(--primary)05" }}>
                     🍽️
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-semibold text-sm truncate">{p.nombre}</h4>
                     {p.descripcion && <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-2">{p.descripcion}</p>}
                     <div className="flex items-center justify-between mt-2">
-                      <span className="font-bold text-base gradient-text">${p.precio.toLocaleString()}</span>
+                      <span className="font-bold text-base" style={{ color: "var(--primary)" }}>${p.precio.toLocaleString()}</span>
                       {qty === 0 ? (
                         <button onClick={(e) => { e.stopPropagation(); addItem({ productId: p.id, negocioId: negocio.id, negocioNombre: negocio.nombre, nombre: p.nombre, precio: p.precio, descripcion: p.descripcion || "" }); }}
-                          className="w-9 h-9 rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-black font-bold flex items-center justify-center hover:brightness-110 transition-all active:scale-90 shadow-lg shadow-[var(--primary)]/25">
+                          className="w-9 h-9 rounded-xl text-white font-bold flex items-center justify-center active:scale-90 transition-all" style={{ background: "var(--primary)" }}>
                           <Plus size={18} />
                         </button>
                       ) : (
-                        <div className="flex items-center gap-2 bg-[var(--bg-card)] rounded-xl p-0.5 border border-white/5">
+                        <div className="flex items-center gap-2 bg-[var(--bg-secondary)] rounded-xl p-0.5 border border-[var(--border-color)]">
                           <button onClick={(e) => { e.stopPropagation(); updateQuantity(p.id, qty - 1); }}
-                            className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-black font-bold flex items-center justify-center hover:brightness-110 transition-all active:scale-90">
+                            className="w-8 h-8 rounded-lg text-white font-bold flex items-center justify-center active:scale-90 transition-all" style={{ background: "var(--primary)" }}>
                             <Minus size={14} />
                           </button>
-                          <span className="text-sm font-bold w-6 text-center">{qty}</span>
+                          <span className="text-sm font-bold w-6 text-center text-[var(--text-primary)]">{qty}</span>
                           <button onClick={(e) => { e.stopPropagation(); updateQuantity(p.id, qty + 1); }}
-                            className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-black font-bold flex items-center justify-center hover:brightness-110 transition-all active:scale-90">
+                            className="w-8 h-8 rounded-lg text-white font-bold flex items-center justify-center active:scale-90 transition-all" style={{ background: "var(--primary)" }}>
                             <Plus size={14} />
                           </button>
                         </div>
@@ -218,10 +215,9 @@ export default function NegocioDetailPage() {
           </div>
         )}
 
-        {/* Empty */}
         {productos.length === 0 && (
           <div className="text-center py-20 animate-fade-up">
-            <div className="w-20 h-20 rounded-3xl bg-[var(--bg-card)] flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-[var(--bg-secondary)] flex items-center justify-center mx-auto mb-4 text-3xl">
               🍽️
             </div>
             <p className="text-[var(--text-secondary)] font-medium">No hay productos disponibles</p>
@@ -231,17 +227,13 @@ export default function NegocioDetailPage() {
 
       {/* Floating cart */}
       {totalItems > 0 && (
-        <div className="fixed bottom-20 left-0 right-0 z-40 p-4 pb-3 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent pointer-events-none">
+        <div className="fixed bottom-16 left-0 right-0 z-40 p-4 pb-3 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent pointer-events-none">
           <button onClick={() => router.push("/cliente/carrito")}
-            className="floating-cart pointer-events-auto w-full active:scale-[0.97] transition-all">
-            <div className="w-8 h-8 rounded-lg bg-black/20 flex items-center justify-center">
-              <ShoppingCart size={16} />
-            </div>
-            <span className="font-semibold">Ver carrito</span>
-            <div className="flex items-center gap-2">
-              <span className="bg-black/20 px-2 py-0.5 rounded-md text-xs font-bold">{totalItems}</span>
-              <span className="font-bold">${totalPrice.toLocaleString()}</span>
-            </div>
+            className="floating-cart-btn pointer-events-auto w-full justify-center">
+            <ShoppingCart size={16} />
+            <span>Ver carrito</span>
+            <span className="bg-white/20 px-2 py-0.5 rounded-md text-xs font-bold">{totalItems}</span>
+            <span className="font-bold">${totalPrice.toLocaleString()}</span>
           </button>
         </div>
       )}

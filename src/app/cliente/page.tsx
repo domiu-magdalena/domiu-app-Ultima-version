@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, UtensilsCrossed, Store, Wine, Pill, Percent, Bell, Star, Clock, Bike, ChevronRight, Zap, TrendingUp, Gift, MapPin } from "lucide-react";
+import { Search, MapPin, ChevronRight, Star, Clock, Bike, Bell, Store, Smartphone, Globe, MessageCircle, AtSign, ExternalLink } from "lucide-react";
 import { fetchData } from "@/lib/client-data";
 import { useNotificaciones } from "@/context/NotificationContext";
 
@@ -12,20 +12,25 @@ type Negocio = {
 };
 
 const categories = [
-  { label: "Restaurantes", icon: UtensilsCrossed, color: "#FF6B35", emoji: "🍔" },
-  { label: "Tiendas", icon: Store, color: "#00E676", emoji: "🛒" },
-  { label: "Licoreras", icon: Wine, color: "#D500F9", emoji: "🍷" },
-  { label: "Droguerías", icon: Pill, color: "#448AFF", emoji: "💊" },
-  { label: "Promociones", icon: Percent, color: "#FF5252", emoji: "🔥" },
+  { label: "Restaurantes", icon: "🍔", bg: "#ff441f", slug: "Restaurantes" },
+  { label: "Mercado", icon: "🛒", bg: "#29d884", slug: "Mercado" },
+  { label: "Farmacia", icon: "💊", bg: "#007aff", slug: "Droguerias" },
+  { label: "Bebidas", icon: "🥤", bg: "#9b59b6", slug: "Bebidas" },
+  { label: "Mascotas", icon: "🐾", bg: "#e67e22", slug: "Mascotas" },
+  { label: "Licores", icon: "🍷", bg: "#2c3e50", slug: "Licoreras" },
+  { label: "RappiFácil", icon: "⚡", bg: "#1abc9c", slug: "RappiFacil" },
+  { label: "Envíos", icon: "📦", bg: "#e91e63", slug: "Envios" },
 ];
+
+const topBuscados = ["Pizza", "Hamburguesa", "Pollo", "Sushi", "Mexicana", "Postres", "Café", "Helado"];
 
 export default function ClienteHome() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [negocios, setNegocios] = useState<Negocio[]>([]);
   const [loading, setLoading] = useState(true);
-  const { noLeidas, solicitarPermiso } = useNotificaciones();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [cookieOk, setCookieOk] = useState(false);
+  const { noLeidas } = useNotificaciones();
 
   useEffect(() => {
     fetchData("negocios", {
@@ -35,225 +40,281 @@ export default function ClienteHome() {
       if (data) setNegocios(data);
       setLoading(false);
     }).catch(() => setLoading(false));
+    if (typeof window !== "undefined") {
+      setCookieOk(localStorage.getItem("cookie_ok") === "true");
+    }
   }, []);
 
+  const aceptarCookies = () => {
+    setCookieOk(true);
+    localStorage.setItem("cookie_ok", "true");
+  };
+
   const destacados = negocios.filter((n) => n.destacado);
-  const filtered = search ? negocios.filter((n) => n.nombre.toLowerCase().includes(search.toLowerCase())) : [];
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)]">
-      {/* Header premium */}
-      <div className="px-5 pt-5 pb-2">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] flex items-center justify-center text-black font-black text-lg shadow-lg shadow-[var(--primary)]/25 animate-scale-in">
-              D
-            </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight">
-                Domi<span className="gradient-text">U</span>
-              </h1>
-              <p className="text-[11px] text-[var(--text-muted)] font-medium -mt-0.5">Magdalena</p>
-            </div>
+    <div className="min-h-screen bg-[var(--bg-primary)] pb-20">
+      {/* Hero */}
+      <div className="hero-section">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-black text-lg">D</div>
+          <div className="flex-1">
+            <h2>Si tienes <span>DomiU,</span></h2>
+            <h2 className="font-bold">tienes Todo.</h2>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--bg-card)] border border-white/5 text-xs text-[var(--text-secondary)]">
-              <MapPin size={12} className="text-[var(--success)]" />
-              Santa Marta
-            </div>
-            <button onClick={() => { solicitarPermiso(); }} className="relative w-10 h-10 rounded-2xl bg-[var(--bg-card)] flex items-center justify-center border border-white/5 hover:border-[var(--primary)]/30 transition-all active:scale-90">
-              <Bell size={18} className="text-[var(--text-secondary)]" />
-              {noLeidas > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br from-[var(--error)] to-[#FF1744] text-white text-[9px] font-bold flex items-center justify-center shadow-lg shadow-red-500/30 animate-scale-in">
-                  {noLeidas > 9 ? "9+" : noLeidas}
-                </span>
-              )}
-            </button>
-          </div>
+          <button className="relative w-10 h-10 rounded-full bg-white/15 flex items-center justify-center">
+            <Bell size={20} className="text-white" />
+            {noLeidas > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-white text-[var(--primary)] text-[9px] font-bold flex items-center justify-center shadow-lg">
+                {noLeidas > 9 ? "9+" : noLeidas}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Hero Section */}
-        <div className="hero-section p-5 mb-6 relative overflow-hidden">
-          <div className="relative z-10">
-            <h2 className="text-2xl font-black mb-1 leading-tight">
-              ¿Qué vas a pedir <span className="gradient-text">hoy</span>?
-            </h2>
-            <p className="text-sm text-[var(--text-secondary)] mb-5">Descubre los mejores negocios cerca de ti</p>
-            <form onSubmit={(e) => { e.preventDefault(); if (search.trim()) router.push(`/cliente/negocios?busqueda=${encodeURIComponent(search.trim())}`); }} className="relative">
-              <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <input type="text" placeholder="Buscar negocios, productos..." value={search} onChange={(e) => setSearch(e.target.value)}
-                className="search-bar pl-12" />
-            </form>
-          </div>
+        <div className="location-input bg-white/15 border border-white/20 mb-4">
+          <MapPin size={18} />
+          <span>Santa Marta, Magdalena</span>
+          <ChevronRight size={16} />
         </div>
 
-        {/* Search Results */}
+        <div className="hero-search">
+          <Search size={18} />
+          <input
+            type="text"
+            placeholder="Buscar negocios, productos..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
         {search && (
-          <div className="mb-6 animate-fade-up">
-            <p className="text-sm text-[var(--text-secondary)] mb-3 font-medium">Resultados para &quot;{search}&quot;</p>
-            {filtered.length === 0 ? (
-              <div className="glass-card p-8 text-center">
-                <Search size={40} className="mx-auto text-[var(--text-muted)]/30 mb-3" />
-                <p className="text-[var(--text-secondary)]">No encontramos resultados</p>
+          <div className="mt-4 animate-fade-up">
+            <p className="text-sm text-white/70 mb-2">Resultados para &quot;{search}&quot;</p>
+            {negocios.filter(n => n.nombre.toLowerCase().includes(search.toLowerCase())).length === 0 ? (
+              <div className="bg-white/10 rounded-xl p-6 text-center">
+                <Search size={32} className="mx-auto text-white/30 mb-2" />
+                <p className="text-white/60 text-sm">No encontramos resultados</p>
               </div>
             ) : (
-              <div className="grid gap-2">
-                {filtered.map((n) => (
+              <div className="space-y-2">
+                {negocios.filter(n => n.nombre.toLowerCase().includes(search.toLowerCase())).map(n => (
                   <button key={n.id} onClick={() => router.push(`/cliente/negocio/${n.id}`)}
-                    className="glass-card flex items-center gap-4 p-4 text-left w-full active:scale-[0.98] transition-all">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--primary)]/20 to-[var(--primary)]/5 flex items-center justify-center text-[var(--primary)] font-bold text-lg shrink-0 shadow-inner">
-                      {n.nombre[0]}
-                    </div>
+                    className="w-full bg-white/10 rounded-xl p-3 flex items-center gap-3 active:scale-[0.98] transition-all text-left">
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm">{n.nombre[0]}</div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-[15px] truncate">{n.nombre}</p>
-                      <p className="text-xs text-[var(--text-secondary)] mt-0.5">{n.categoria}</p>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <span className="flex items-center gap-1 text-[11px] text-[var(--primary)] font-semibold">★ {n.rating || n.calificacion || "—"}</span>
-                        <span className="text-[11px] text-[var(--text-muted)]">🕐 {n.tiempo_estimado}</span>
-                      </div>
+                      <p className="font-semibold text-sm text-white truncate">{n.nombre}</p>
+                      <p className="text-xs text-white/60">{n.categoria} · 🕐 {n.tiempo_estimado}</p>
                     </div>
-                    <ChevronRight size={16} className="text-[var(--text-muted)] shrink-0" />
+                    <ChevronRight size={16} className="text-white/40" />
                   </button>
                 ))}
               </div>
             )}
           </div>
         )}
+      </div>
 
-        {/* Quick categories */}
-        {!search && (
-          <>
-            <div className="mb-7">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-[1.5px]">Categorías</h3>
-              </div>
-              <div className="cat-grid">
-                {categories.map((cat) => {
-                  const Icon = cat.icon;
-                  const catKey = cat.label === "Droguerías" ? "Droguerias" : cat.label;
-                  return (
-                    <button key={cat.label} onClick={() => router.push(`/cliente/negocios?categoria=${catKey}`)}
-                      className="cat-item">
-                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: `${cat.color}15` }}>
-                        {cat.emoji}
-                      </div>
-                      <span className="text-[11px] font-semibold text-[var(--text-secondary)] leading-tight text-center">{cat.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Promo Banner */}
-            <div className="mb-7">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap size={14} className="text-[var(--primary)]" />
-                <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-[1.5px]">Promociones</h3>
-              </div>
-              <div className="glass-card p-5 bg-gradient-to-r from-[var(--primary)]/5 to-transparent flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--primary)]/20 to-[var(--primary)]/5 flex items-center justify-center text-2xl animate-float">
-                  🎉
+      {!search && (
+        <>
+          {/* Category Circles (Rappi exact style) */}
+          <div className="h-scroll px-5 mt-5" style={{ paddingTop: "24px" }}>
+            {categories.map(cat => (
+              <button key={cat.label} onClick={() => router.push(`/cliente/negocios?categoria=${cat.slug}`)}
+                className="flex flex-col items-center gap-2 min-w-[75px]">
+                <div className="cat-circle" style={{ background: cat.bg + "15" }}>
+                  <span className="text-2xl">{cat.icon}</span>
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-bold text-base">¡Bienvenido!</h4>
-                  <p className="text-sm text-[var(--text-secondary)] mt-1">Usa <span className="font-bold text-[var(--primary)]">BIENVENIDO10</span> y obtén 10% OFF</p>
-                  <button onClick={() => router.push("/cliente/negocios")}
-                    className="mt-2 px-4 py-1.5 rounded-full bg-[var(--primary)] text-black text-xs font-bold hover:brightness-110 transition-all active:scale-95">
-                    Ordenar ahora
-                  </button>
-                </div>
-              </div>
-            </div>
+                <span className="text-[11px] font-bold text-center leading-tight" style={{ color: "var(--text-primary)" }}>{cat.label}</span>
+              </button>
+            ))}
+          </div>
 
-            {/* Featured */}
+          {/* Promo Banner */}
+          <div className="promo-banner mt-6">
+            <div className="promo-banner-icon" style={{ background: "#fff5e5" }}>🎉</div>
+            <div className="flex-1">
+              <p className="font-bold text-sm">¡Bienvenido!</p>
+              <p className="text-xs text-[var(--text-secondary)]">Usa <strong style={{ color: "var(--primary)" }}>BIENVENIDO10</strong> y obtén 10% OFF</p>
+            </div>
+            <button onClick={() => router.push("/cliente/negocios")} className="btn-primary text-xs px-4 py-2 whitespace-nowrap">Ordenar</button>
+          </div>
+
+          {/* Top searched */}
+          <div className="mt-6 px-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-bold text-lg">Lo más buscado</p>
+              <button onClick={() => router.push("/cliente/negocios")} className="text-xs font-semibold" style={{ color: "var(--primary)" }}>Ver todo</button>
+            </div>
+            <div className="h-scroll">
+              {topBuscados.map(t => (
+                <button key={t} onClick={() => router.push(`/cliente/negocios?busqueda=${t}`)} className="chip chip-inactive shrink-0">{t}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Featured stores */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between px-5 mb-3">
+              <p className="font-bold text-lg">Negocios destacados</p>
+              <button onClick={() => router.push("/cliente/negocios")} className="text-sm font-semibold flex items-center gap-1" style={{ color: "var(--primary)" }}>
+                Ver todos <ChevronRight size={14} />
+              </button>
+            </div>
             {loading ? (
-              <div className="grid gap-3">
-                {[1,2,3].map((i) => (
-                  <div key={i} className="card-modern p-4">
-                    <div className="flex gap-3">
-                      <div className="skeleton w-16 h-16 rounded-2xl" />
-                      <div className="flex-1 space-y-2">
-                        <div className="skeleton h-4 w-3/4" />
-                        <div className="skeleton h-3 w-1/2" />
-                        <div className="skeleton h-3 w-1/3" />
-                      </div>
+              <div className="h-scroll px-5">
+                {[1,2,3].map(i => (
+                  <div key={i} className="store-card animate-fade-up">
+                    <div className="store-card-img skeleton" />
+                    <div className="store-card-body">
+                      <div className="skeleton h-4 w-3/4 mb-2" />
+                      <div className="skeleton h-3 w-1/2" />
                     </div>
                   </div>
                 ))}
               </div>
             ) : destacados.length > 0 ? (
-              <div className="mb-7">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp size={14} className="text-[var(--primary)]" />
-                    <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-[1.5px]">Destacados</h3>
-                  </div>
-                  <button onClick={() => router.push("/cliente/negocios")} className="text-xs text-[var(--primary)] font-semibold flex items-center gap-1 hover:underline">
-                    Ver todos <ChevronRight size={12} />
-                  </button>
-                </div>
-                <div className="grid gap-3">
-                  {destacados.map((n, idx) => (
-                    <button key={n.id} onClick={() => router.push(`/cliente/negocio/${n.id}`)}
-                      className="biz-card p-4 text-left w-full animate-fade-up" style={{ animationDelay: `${idx * 80}ms` }}>
-                      <div className="flex items-start gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--primary)]/20 to-[var(--primary)]/5 flex items-center justify-center text-[var(--primary)] font-bold text-xl shrink-0 shadow-inner">
-                          {n.nombre[0]}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <h4 className="font-bold text-[15px] truncate">{n.nombre}</h4>
-                            <span className={`badge shrink-0 ${n.abierto ? "badge-success" : "badge-error"}`}>
-                              {n.abierto ? "Abierto" : "Cerrado"}
-                            </span>
-                          </div>
-                          <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-1">{n.descripcion}</p>
-                          <div className="flex items-center gap-4 mt-2.5">
-                            <span className="flex items-center gap-1 text-xs text-[var(--primary)] font-semibold">
-                              <Star size={12} fill="var(--primary)" stroke="none" /> {n.rating || n.calificacion || "—"}
-                            </span>
-                            <span className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
-                              <Clock size={12} /> {n.tiempo_estimado}
-                            </span>
-                            <span className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
-                              <Bike size={12} /> ${n.domicilio_cost?.toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
+              <div className="h-scroll px-5">
+                {destacados.map((n, i) => (
+                  <button key={n.id} onClick={() => router.push(`/cliente/negocio/${n.id}`)}
+                    className="store-card animate-fade-up" style={{ animationDelay: `${i * 80}ms` }}>
+                    <div className="store-card-img" style={{ background: "linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%)" }}>
+                      <span className="text-5xl opacity-30">{n.nombre[0]}</span>
+                      <div className="store-card-logo">{n.nombre[0]}</div>
+                    </div>
+                    <div className="store-card-body text-left">
+                      <h4>{n.nombre}</h4>
+                      <div className="meta">
+                        <span className="flex items-center gap-0.5"><Star size={11} style={{ color: "var(--primary)" }} />{n.rating || n.calificacion || "—"}</span>
+                        <span className="flex items-center gap-0.5"><Clock size={11} />{n.tiempo_estimado}</span>
+                        <span className="flex items-center gap-0.5"><Bike size={11} />${n.domicilio_cost?.toLocaleString()}</span>
                       </div>
-                    </button>
-                  ))}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="px-5">
+                <div className="glass-card p-6 text-center">
+                  <Store size={36} className="mx-auto text-[var(--text-muted)]/40 mb-2" />
+                  <p className="text-[var(--text-secondary)] text-sm">No hay negocios destacados</p>
                 </div>
               </div>
-            ) : null}
+            )}
+          </div>
 
-            {/* All businesses CTA */}
+          {/* More stores CTA */}
+          <div className="mx-5 mt-4">
+            <button onClick={() => router.push("/cliente/negocios")} className="btn-tertiary w-full flex items-center justify-center gap-2 text-sm py-3">
+              Explorar todos los negocios <ChevronRight size={16} />
+            </button>
+          </div>
+
+          {/* CTA Join section */}
+          <div className="mt-8 px-5">
             <div className="text-center mb-6">
-              <button onClick={() => router.push("/cliente/negocios")}
-                className="btn-primary w-full text-sm flex items-center justify-center gap-2">
-                Explorar todos los negocios <ChevronRight size={16} />
-              </button>
+              <h3 className="text-2xl font-bold">Únete a <span style={{ color: "var(--primary)" }}>DomiU</span></h3>
             </div>
-          </>
-        )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="glass-card overflow-hidden">
+                <div className="h-32 flex items-center justify-center text-4xl" style={{ background: "linear-gradient(135deg, #ff441f15, #ff441f08)" }}>🍕</div>
+                <div className="p-5 text-center">
+                  <h4 className="font-bold text-sm mb-2">Registra tu negocio</h4>
+                  <p className="text-xs text-[var(--text-secondary)] mb-3">Descubre los beneficios de trabajar con DomiU</p>
+                  <button className="btn-secondary text-xs w-full py-2">Conocer más</button>
+                </div>
+              </div>
+              <div className="glass-card overflow-hidden">
+                <div className="h-32 flex items-center justify-center text-4xl" style={{ background: "linear-gradient(135deg, #29d88415, #29d88408)" }}>🛒</div>
+                <div className="p-5 text-center">
+                  <h4 className="font-bold text-sm mb-2">Registra tu tienda</h4>
+                  <p className="text-xs text-[var(--text-secondary)] mb-3">Accede a miles de clientes en Magdalena</p>
+                  <button className="btn-secondary text-xs w-full py-2">Conocer más</button>
+                </div>
+              </div>
+              <div className="glass-card overflow-hidden">
+                <div className="h-32 flex items-center justify-center text-4xl" style={{ background: "linear-gradient(135deg, #9b59b615, #9b59b608)" }}>🛵</div>
+                <div className="p-5 text-center">
+                  <h4 className="font-bold text-sm mb-2">Únete como repartidor</h4>
+                  <p className="text-xs text-[var(--text-secondary)] mb-3">Gana dinero extra entregando domicilios</p>
+                  <button className="btn-secondary text-xs w-full py-2">Más info</button>
+                </div>
+              </div>
+            </div>
+          </div>
 
-        {/* Skeleton for home */}
-        {!search && loading && (
-          <div className="space-y-3 mb-6">
-            {[1,2,3,4].map((i) => (
-              <div key={i} className="card-modern p-4 animate-fade-up">
-                <div className="flex gap-3">
-                  <div className="skeleton w-16 h-16 rounded-2xl" />
-                  <div className="flex-1 space-y-2">
-                    <div className="skeleton h-4 w-2/3" />
-                    <div className="skeleton h-3 w-1/2" />
+          {/* Footer (Rappi style) */}
+          <div className="app-footer mt-10">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg text-white" style={{ background: "var(--primary)" }}>D</div>
+                <div>
+                  <p className="font-bold text-base">DomiU Magdalena</p>
+                  <p className="text-xs text-[var(--text-secondary)]">Tu domicilio, más rápido que Rappi</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+                <div>
+                  <h4 className="font-bold text-sm mb-4">Compañía</h4>
+                  <div className="space-y-2.5">
+                    <a href="#" className="block text-sm">Sobre DomiU</a>
+                    <a href="#" className="block text-sm">Trabaja con nosotros</a>
+                    <a href="#" className="block text-sm">Repartidores</a>
+                    <a href="#" className="block text-sm">Prensa</a>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm mb-4">Ayuda</h4>
+                  <div className="space-y-2.5">
+                    <a href="#" className="block text-sm">Centro de ayuda</a>
+                    <a href="#" className="block text-sm">Términos y condiciones</a>
+                    <a href="#" className="block text-sm">Política de privacidad</a>
+                    <a href="#" className="block text-sm">Tratamiento de datos</a>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm mb-4">Descarga la app</h4>
+                  <div className="space-y-3">
+                    <button className="btn-tertiary w-full text-xs py-3 flex items-center justify-center gap-2">
+                      <Smartphone size={16} /> App Store
+                    </button>
+                    <button className="btn-tertiary w-full text-xs py-3 flex items-center justify-center gap-2">
+                      <Smartphone size={16} /> Google Play
+                    </button>
                   </div>
                 </div>
               </div>
-            ))}
+
+              <div className="flex gap-4 mb-6" style={{ color: "var(--text-muted)" }}>
+                <a href="#" className="hover:opacity-80 transition-opacity"><MessageCircle size={20} /></a>
+                <a href="#" className="hover:opacity-80 transition-opacity"><AtSign size={20} /></a>
+                <a href="#" className="hover:opacity-80 transition-opacity"><Globe size={20} /></a>
+                <a href="#" className="hover:opacity-80 transition-opacity"><ExternalLink size={20} /></a>
+              </div>
+
+              <div className="flex items-center gap-2 mb-4 text-xs" style={{ color: "var(--text-muted)" }}>
+                <span>Paga con:</span>
+                <span className="text-base">💳</span>
+                <span className="text-base">📱</span>
+                <span className="text-base">💵</span>
+              </div>
+
+              <p className="text-xs" style={{ color: "var(--text-muted)", opacity: 0.6 }}>
+                © 2026 DomiU Magdalena. Hecho en Colombia 🇨🇴 con amor.
+              </p>
+            </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
+
+      {/* Cookie bar */}
+      {!cookieOk && (
+        <div className="cookie-bar">
+          <p>Usamos cookies para asegurarnos que tengas la mejor experiencia. <a href="#">Más información</a></p>
+          <button onClick={aceptarCookies}>Ok, entendido</button>
+        </div>
+      )}
     </div>
   );
 }
