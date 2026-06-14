@@ -13,6 +13,7 @@ const config: Config = {
           black: "#121212",
           dark: "#1F1F1F",
           yellow: "#FACC15",
+          emerald: "#10B981",
           white: "#FFFFFF",
         },
       },

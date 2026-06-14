@@ -1,7 +1,7 @@
 "use client";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Home, Store, ClipboardList, User, ShoppingCart, Bell, MapPin } from "lucide-react";
+import { Home, Store, ClipboardList, User, ShoppingCart, Bell, MapPin, Headphones } from "lucide-react";
 import { CartProvider, useCart } from "@/context/CartContext";
 import { NotificationProvider, useNotificaciones } from "@/context/NotificationContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,14 +14,14 @@ function NavBoton({ href, icon: Icon, label, badge }: { href: string; icon: any;
   return (
     <button onClick={() => router.push(href)} className="relative flex flex-col items-center gap-0.5 py-1 px-4 min-w-0 transition-all active:scale-90">
       <div className="relative p-1.5 rounded-xl transition-all">
-        <Icon size={22} className={`transition-colors ${isActive ? "text-yellow-400" : "text-slate-500"}`} />
+        <Icon size={22} className={`transition-all duration-200 ${isActive ? "text-[#10B981] drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "text-slate-500"}`} />
         {badge && badge > 0 ? (
-          <span className="absolute -top-0.5 -right-0.5 w-[18px] h-[18px] rounded-full bg-yellow-400 text-slate-900 text-[9px] font-bold flex items-center justify-center shadow-lg animate-scale-in">
+          <span className="absolute -top-0.5 -right-0.5 w-[18px] h-[18px] rounded-full bg-[#10B981] text-white text-[9px] font-bold flex items-center justify-center shadow-lg shadow-[#10B981]/30 animate-scale-in">
             {badge > 9 ? "9+" : badge}
           </span>
         ) : null}
       </div>
-      <span className={`text-[10px] font-semibold tracking-wide transition-colors ${isActive ? "text-yellow-400" : "text-slate-500"}`}>{label}</span>
+      <span className={`text-[10px] font-semibold tracking-wide transition-colors duration-200 ${isActive ? "text-[#10B981]" : "text-slate-500"}`}>{label}</span>
     </button>
   );
 }
@@ -38,11 +38,11 @@ function TopHeader() {
   return (
     <header className="fixed top-0 left-0 right-0 z-40 h-14 flex items-center justify-between px-4 bg-[#0F172A]/90 backdrop-blur-xl border-b border-white/5">
       <button onClick={() => router.push("/cliente")} className="flex items-center gap-2 active:scale-95 transition-all">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center font-black text-base text-slate-900 shadow-lg shadow-yellow-400/20">D</div>
-        <span className="text-sm font-black text-white">Domi<span className="text-yellow-400">U</span></span>
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#10B981] to-[#059669] flex items-center justify-center font-black text-base text-white shadow-lg shadow-[#10B981]/20">D</div>
+        <span className="text-sm font-black text-white">Domi<span className="text-[#10B981]">U</span></span>
       </button>
       <button onClick={() => router.push("/cliente")} className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 active:scale-95 transition-all">
-        <MapPin size={12} className="text-yellow-400" />
+        <MapPin size={12} className="text-[#10B981]" />
         <span className="text-xs font-semibold text-slate-300 truncate max-w-[140px]">Santa Marta, Magdalena</span>
       </button>
       <div className="flex items-center gap-1.5">
@@ -52,7 +52,7 @@ function TopHeader() {
         <button className="relative w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all">
           <Bell size={16} className="text-slate-400" />
           {noLeidas > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-yellow-400 text-slate-900 text-[8px] font-bold flex items-center justify-center px-1 shadow-lg">
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-[#10B981] text-white text-[8px] font-bold flex items-center justify-center px-1 shadow-lg">
               {noLeidas > 9 ? "9+" : noLeidas}
             </span>
           )}
@@ -60,7 +60,7 @@ function TopHeader() {
         <button onClick={() => router.push("/cliente/carrito")} className="relative w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all">
           <ShoppingCart size={16} className="text-slate-400" />
           {totalItems > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-yellow-400 text-slate-900 text-[8px] font-bold flex items-center justify-center px-1 shadow-lg">
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-[#10B981] text-white text-[8px] font-bold flex items-center justify-center px-1 shadow-lg">
               {totalItems > 9 ? "9+" : totalItems}
             </span>
           )}
@@ -75,12 +75,11 @@ function NavContent() {
   const { noLeidas } = useNotificaciones();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50">
-      <div className="bottom-nav flex items-center justify-around h-[64px] max-w-lg mx-auto">
+    <nav className="fixed bottom-4 left-4 right-4 z-50">
+      <div className="flex items-center justify-around h-[64px] bg-[#0F172A]/85 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl shadow-black/30 max-w-lg mx-auto">
         <NavBoton href="/cliente" icon={Home} label="Inicio" />
-        <NavBoton href="/cliente/negocios" icon={Store} label="Explorar" />
-        <NavBoton href="/cliente/carrito" icon={ShoppingCart} label="Carrito" badge={totalItems} />
         <NavBoton href="/cliente/pedidos" icon={ClipboardList} label="Pedidos" />
+        <NavBoton href="/cliente/soporte" icon={Headphones} label="Soporte" />
         <NavBoton href="/cliente/perfil" icon={User} label="Perfil" badge={noLeidas} />
       </div>
     </nav>
