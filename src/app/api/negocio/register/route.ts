@@ -40,19 +40,23 @@ export async function POST(req: Request) {
     });
     if (profileError) throw profileError;
 
-    // Crear negocio vinculado al usuario
+    // Crear negocio vinculado al usuario (con fallback si columnas no existen)
+    const negocioData: any = { nombre, telefono, abierto: true, activo: true };
     const { data: negocio, error: negocioError } = await supabase
       .from("negocios")
-      .insert({
-        nombre,
-        categoria,
-        telefono,
-        usuario_id: authData.user.id,
-        abierto: true,
-        activo: true,
-      })
+      .insert({ ...negocioData, categoria, usuario_id: authData.user.id })
       .select("id")
       .single();
+
+    if (negocioError && (negocioError.message?.includes("categoria") || negocioError.message?.includes("usuario_id"))) {
+      const { data: n2, error: e2 } = await supabase
+        .from("negocios")
+        .insert(negocioData)
+        .select("id")
+        .single();
+      if (e2) throw e2;
+      return NextResponse.json({ success: true, userId: authData.user.id, negocioId: n2.id });
+    }
 
     if (negocioError) throw negocioError;
 

@@ -67,6 +67,7 @@ export default function MarketplaceAdmin() {
   const [detalle, setDetalle] = useState<string | null>(null);
   const [asignando, setAsignando] = useState<string | null>(null);
   const [repartidorSel, setRepartidorSel] = useState("");
+  const [pubId, setPubId] = useState<string | null>(null);
 
   const fetchPedidos = useCallback(async () => {
     try {
@@ -286,6 +287,29 @@ export default function MarketplaceAdmin() {
                               ) : (
                                 <button onClick={(e) => { e.stopPropagation(); setAsignando(p.id); }} className="px-4 py-2 rounded-xl bg-yellow-400/10 text-yellow-400 text-xs font-semibold border border-yellow-400/20 hover:bg-yellow-400/20">
                                   Asignar repartidor
+                                </button>
+                              )}
+                              {!p.repartidores && (
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    setPubId(p.id);
+                                    try {
+                                      const res = await fetch("/api/domicilios/publicar", {
+                                        method: "POST", headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ pedido_cliente_id: p.id, negocio_id: (p as any).negocio_id }),
+                                      });
+                                      const data = await res.json();
+                                      if (!res.ok) throw new Error(data.error || "Error");
+                                      fetchPedidos();
+                                    } catch (err: any) {
+                                      console.error(err);
+                                    } finally { setPubId(null); }
+                                  }}
+                                  disabled={pubId === p.id}
+                                  className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-amber-400/10 text-amber-400 text-xs font-bold border border-amber-400/20 hover:bg-amber-400/20 disabled:opacity-40 transition"
+                                >
+                                  {pubId === p.id ? "Publicando..." : "Publicar domicilio (InDriver)"}
                                 </button>
                               )}
                             </div>

@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Send, Phone, User, Store, MessageCircle } from "lucide-react";
+import { ArrowLeft, Send, MessageCircle } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
 
 type Mensaje = {
   id: string; remitente_tipo: string; remitente_nombre: string;
@@ -12,6 +13,7 @@ type Mensaje = {
 export default function ChatPage() {
   const { codigo } = useParams<{ codigo: string }>();
   const router = useRouter();
+  const { user, initialized } = useAuth();
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [texto, setTexto] = useState("");
   const [telefono, setTelefono] = useState("");
@@ -24,8 +26,26 @@ export default function ChatPage() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [mensajes]);
 
-  const iniciarChat = async () => {
-    if (!telefono.trim() || !nombre.trim()) return;
+  useEffect(() => {
+    if (!initialized || !user) return;
+    getSupabaseClient()
+      .from("profiles")
+      .select("nombre, telefono")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.nombre && data?.telefono) {
+          setNombre(data.nombre);
+          setTelefono(data.telefono);
+          iniciarChat(data.nombre, data.telefono);
+        }
+      });
+  }, [initialized, user]);
+
+  const iniciarChat = async (nom?: string, tel?: string) => {
+    const n = nom || nombre;
+    const t = tel || telefono;
+    if (!t.trim() || !n.trim()) return;
     setLoading(true);
     const { data: pedido } = await getSupabaseClient()
       .from("pedidos_cliente")
@@ -83,15 +103,9 @@ export default function ChatPage() {
               </div>
             </div>
             <div className="space-y-3">
-              <div className="relative">
-                <User size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                <input type="text" placeholder="Tu nombre" value={nombre} onChange={e => setNombre(e.target.value)} className="input-field" />
-              </div>
-              <div className="relative">
-                <Phone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                <input type="tel" placeholder="Tu teléfono" value={telefono} onChange={e => setTelefono(e.target.value)} className="input-field" />
-              </div>
-              <button onClick={iniciarChat} disabled={loading || !nombre || !telefono}
+              <input type="text" placeholder="Tu nombre" value={nombre} onChange={e => setNombre(e.target.value)} className="input-field" />
+              <input type="tel" placeholder="Tu teléfono" value={telefono} onChange={e => setTelefono(e.target.value)} className="input-field" />
+              <button onClick={() => iniciarChat()} disabled={loading || !nombre || !telefono}
                 className="btn-primary w-full text-sm disabled:opacity-40 active:scale-[0.98]">
                 {loading ? "Cargando..." : "Iniciar chat"}
               </button>

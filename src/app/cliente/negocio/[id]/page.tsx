@@ -4,6 +4,9 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ShoppingCart, Star, Clock, Bike, Plus, Minus, MapPin, Phone, Sparkles } from "lucide-react";
 import { fetchData } from "@/lib/client-data";
 import { useCart } from "@/context/CartContext";
+import MenuOlmaWings from "@/components/MenuOlmaWings";
+
+const OLMA_WINGS_ID = "58ed85d5-94a7-4433-afab-3b9bf7de8d6f";
 
 type Negocio = {
   id: string; nombre: string; categoria: string; descripcion: string;
@@ -19,7 +22,7 @@ type Producto = {
 export default function NegocioDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { items, addItem, updateQuantity } = useCart();
+  const { items, negocioId: cartNegocioId, negocioNombre: cartNegocioNombre, addItem, forceAdd, updateQuantity } = useCart();
   const [negocio, setNegocio] = useState<Negocio | null>(null);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [selectedCat, setSelectedCat] = useState("");
@@ -28,14 +31,24 @@ export default function NegocioDetailPage() {
   useEffect(() => {
     if (!id) return;
     fetchData("negocios", { filters: [{ method: "eq", column: "id", value: id }], single: true }).then((data: any) => { if (data) setNegocio(data); });
-    fetchData("productos", { filters: [{ method: "eq", column: "negocio_id", value: id }, { method: "eq", column: "disponible", value: true }] }).then((data: any) => {
-      if (data) {
-        setProductos(data);
-        const cats = [...new Set(data.map((p: any) => p.categoria_producto))];
-        if (cats.length > 0) setSelectedCat(cats[0]);
-      }
-    });
+    if (id !== OLMA_WINGS_ID) {
+      fetchData("productos", { filters: [{ method: "eq", column: "negocio_id", value: id }, { method: "eq", column: "disponible", value: true }] }).then((data: any) => {
+        if (data) {
+          setProductos(data);
+          const cats = [...new Set(data.map((p: any) => p.categoria_producto))];
+          if (cats.length > 0) setSelectedCat(cats[0]);
+        }
+      });
+    }
   }, [id]);
+
+  if (!negocio) return (
+    <div className="flex items-center justify-center min-h-screen bg-[var(--bg-primary)]">
+      <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
+    </div>
+  );
+
+  if (id === OLMA_WINGS_ID) return <MenuOlmaWings negocio={negocio} />;
 
   const categories = [...new Set(productos.map((p) => p.categoria_producto))];
   const filtered = selectedCat ? productos.filter((p) => p.categoria_producto === selectedCat) : productos;
@@ -48,27 +61,31 @@ export default function NegocioDetailPage() {
     catRefs.current[cat]?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  if (!negocio) return (
-    <div className="flex items-center justify-center min-h-screen bg-[var(--bg-primary)]">
-      <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
-    </div>
-  );
-
   const getItemQty = (productId: string) => items.find((i) => i.productId === productId)?.cantidad || 0;
+
+  const handleAddProduct = (p: Producto) => {
+    if (cartNegocioId && cartNegocioId !== negocio.id) {
+      const ok = window.confirm(`Tienes productos de "${cartNegocioNombre}" en tu carrito. ¿Deseas vaciarlo y agregar productos de "${negocio.nombre}"?`);
+      if (!ok) return;
+      forceAdd({ productId: p.id, negocioId: negocio.id, negocioNombre: negocio.nombre, nombre: p.nombre, precio: p.precio, descripcion: p.descripcion || "" });
+      return;
+    }
+    addItem({ productId: p.id, negocioId: negocio.id, negocioNombre: negocio.nombre, nombre: p.nombre, precio: p.precio, descripcion: p.descripcion || "" });
+  };
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] pb-28 animate-fade-in">
       {/* Banner */}
-      <div className="relative h-48 flex items-end overflow-hidden" style={{ background: "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)" }}>
-        <div className="absolute inset-0 opacity-10" style={{backgroundImage: "radial-gradient(circle at 20% 50%, white 0%, transparent 50%), radial-gradient(circle at 80% 20%, white 0%, transparent 50%)"}} />
+      <div className="relative h-48 flex items-end overflow-hidden" style={{ background: negocio.banner ? `url(${negocio.banner}) center/cover` : "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)" }}>
+        {!negocio.banner && <div className="absolute inset-0 opacity-10" style={{backgroundImage: "radial-gradient(circle at 20% 50%, white 0%, transparent 50%), radial-gradient(circle at 80% 20%, white 0%, transparent 50%)"}} />}
         <button onClick={() => router.back()}
           className="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/20 flex items-center justify-center backdrop-blur-md z-10 border border-white/20 active:scale-90 transition-all text-white">
           <ArrowLeft size={18} />
         </button>
         <div className="absolute bottom-4 left-5 right-5">
           <div className="flex items-start gap-4">
-            <div className="w-20 h-20 rounded-2xl bg-white/20 flex items-center justify-center text-white font-bold text-3xl shrink-0 backdrop-blur-sm border border-white/20 shadow-lg">
-              {negocio.nombre[0]}
+            <div className="w-20 h-20 rounded-2xl bg-white/20 flex items-center justify-center text-white font-bold text-3xl shrink-0 backdrop-blur-sm border border-white/20 shadow-lg overflow-hidden">
+              {negocio.logo ? <img src={negocio.logo} alt="" className="w-full h-full object-cover" /> : negocio.nombre[0]}
             </div>
             <div className="flex-1 min-w-0 pt-1 text-white">
               <h1 className="text-2xl font-bold drop-shadow-lg">{negocio.nombre}</h1>
@@ -140,8 +157,8 @@ export default function NegocioDetailPage() {
                     const qty = getItemQty(p.id);
                     return (
                       <div key={p.id} className="glass-card p-4 flex items-center gap-4 active:scale-[0.99] transition-all" style={{ animationDelay: `${idx * 50}ms` }}>
-                        <div className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl shrink-0 border border-[var(--border-color)]" style={{ background: "var(--primary)05" }}>
-                          🍽️
+                        <div className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl shrink-0 border border-[var(--border-color)] overflow-hidden" style={{ background: "var(--primary)05" }}>
+                          {p.imagen ? <img src={p.imagen} alt="" className="w-full h-full object-cover" /> : "🍽️"}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-sm truncate">{p.nombre}</h4>
@@ -149,7 +166,7 @@ export default function NegocioDetailPage() {
                           <div className="flex items-center justify-between mt-2">
                             <span className="font-bold text-base" style={{ color: "var(--primary)" }}>${p.precio.toLocaleString()}</span>
                             {qty === 0 ? (
-                              <button onClick={(e) => { e.stopPropagation(); addItem({ productId: p.id, negocioId: negocio.id, negocioNombre: negocio.nombre, nombre: p.nombre, precio: p.precio, descripcion: p.descripcion || "" }); }}
+                              <button onClick={(e) => { e.stopPropagation(); handleAddProduct(p); }}
                                 className="w-9 h-9 rounded-xl text-white font-bold flex items-center justify-center active:scale-90 transition-all" style={{ background: "var(--primary)" }}>
                                 <Plus size={18} />
                               </button>
@@ -181,8 +198,8 @@ export default function NegocioDetailPage() {
               const qty = getItemQty(p.id);
               return (
                 <div key={p.id} className="glass-card p-4 flex items-center gap-4 active:scale-[0.99] transition-all animate-fade-up" style={{ animationDelay: `${idx * 50}ms` }}>
-                  <div className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl shrink-0 border border-[var(--border-color)]" style={{ background: "var(--primary)05" }}>
-                    🍽️
+                   <div className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl shrink-0 border border-[var(--border-color)] overflow-hidden" style={{ background: "var(--primary)05" }}>
+                    {p.imagen ? <img src={p.imagen} alt="" className="w-full h-full object-cover" /> : "🍽️"}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-semibold text-sm truncate">{p.nombre}</h4>
@@ -190,7 +207,7 @@ export default function NegocioDetailPage() {
                     <div className="flex items-center justify-between mt-2">
                       <span className="font-bold text-base" style={{ color: "var(--primary)" }}>${p.precio.toLocaleString()}</span>
                       {qty === 0 ? (
-                        <button onClick={(e) => { e.stopPropagation(); addItem({ productId: p.id, negocioId: negocio.id, negocioNombre: negocio.nombre, nombre: p.nombre, precio: p.precio, descripcion: p.descripcion || "" }); }}
+                        <button onClick={(e) => { e.stopPropagation(); handleAddProduct(p); }}
                           className="w-9 h-9 rounded-xl text-white font-bold flex items-center justify-center active:scale-90 transition-all" style={{ background: "var(--primary)" }}>
                           <Plus size={18} />
                         </button>

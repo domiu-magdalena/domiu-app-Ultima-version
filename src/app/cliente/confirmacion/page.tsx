@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle, Package, Clock, MapPin, Bike, CreditCard, Banknote, Smartphone, ArrowRight, Sparkles } from "lucide-react";
+import { CheckCircle, Package, Clock, MapPin, Bike, CreditCard, Banknote, Smartphone, ArrowRight, Sparkles, MessageCircle } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const metodosLabels: Record<string, { label: string; icon: any }> = {
@@ -95,6 +95,11 @@ function ConfirmacionContent() {
         <button onClick={() => router.push(`/cliente/seguimiento/${pedido?.codigo || codigo}`)}
           className="btn-primary w-full text-sm mb-3 flex items-center justify-center gap-2 active:scale-[0.97] transition-all shadow-lg shadow-[var(--primary)]/20">
           <Clock size={18} /> Seguir pedido <ArrowRight size={16} />
+        </button>
+
+        <button onClick={() => router.push(`/cliente/chat/${codigo}`)}
+          className="w-full text-sm mb-3 py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 active:scale-[0.97] transition-all border border-[var(--border-color)]" style={{ background: "var(--bg-secondary)" }}>
+          <MessageCircle size={18} style={{ color: "var(--primary)" }} /> Chat en vivo
         </button>
 
         <button onClick={() => router.push("/cliente")} className="text-sm text-[var(--text-muted)] font-medium py-3 hover:text-[var(--text-secondary)] transition-colors">

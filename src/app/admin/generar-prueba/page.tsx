@@ -134,7 +134,7 @@ export default function GenerateOrdersPage() {
   }
 
   if (!initialized) return <div style={{ padding: 40, color: "#fff" }}>Cargando...</div>;
-  if (profile?.rol !== "admin") return <div style={{ padding: 40, color: "#fca5a5" }}>No autorizado</div>;
+  if (profile?.rol !== "admin" || profile?.email !== "leivakevin620@gmail.com") return <div style={{ padding: 40, color: "#fca5a5" }}>No autorizado</div>;
 
   return (
     <div style={{ minHeight: "100vh", background: "#0f172a", color: "#f8fafc", padding: 40 }}>

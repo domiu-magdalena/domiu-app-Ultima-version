@@ -8,7 +8,7 @@ export type UserProfile = {
   id: string;
   email: string;
   nombre: string;
-  rol: "admin" | "repartidor" | "negocio";
+  rol: "admin" | "repartidor" | "negocio" | "financiero" | "cliente";
 };
 
 async function fetchProfile(userId: string, sessionUser: User): Promise<UserProfile> {
@@ -20,9 +20,11 @@ async function fetchProfile(userId: string, sessionUser: User): Promise<UserProf
       .maybeSingle();
 
     if (pData) {
-      let rol: "admin" | "repartidor" | "negocio" = "admin";
+      let rol: UserProfile["rol"] = "admin";
       if (pData.rol === "repartidor") rol = "repartidor";
       else if (pData.rol === "negocio") rol = "negocio";
+      else if (pData.rol === "financiero") rol = "financiero";
+      else if (pData.rol === "cliente") rol = "cliente";
       return {
         id: pData.id,
         email: pData.email || sessionUser.email || "",
@@ -32,9 +34,11 @@ async function fetchProfile(userId: string, sessionUser: User): Promise<UserProf
     }
 
     const meta = sessionUser.user_metadata || {};
-    let rol: "admin" | "repartidor" | "negocio" = "admin";
+    let rol: UserProfile["rol"] = "admin";
     if (meta.rol === "repartidor") rol = "repartidor";
     else if (meta.rol === "negocio") rol = "negocio";
+    else if (meta.rol === "financiero") rol = "financiero";
+    else if (meta.rol === "cliente") rol = "cliente";
     return {
       id: userId,
       email: sessionUser.email || "",
@@ -43,9 +47,10 @@ async function fetchProfile(userId: string, sessionUser: User): Promise<UserProf
     };
   } catch (e) {
     const meta = sessionUser.user_metadata || {};
-    let rol: "admin" | "repartidor" | "negocio" = "admin";
+    let rol: UserProfile["rol"] = "admin";
     if (meta.rol === "repartidor") rol = "repartidor";
     else if (meta.rol === "negocio") rol = "negocio";
+    else if (meta.rol === "financiero") rol = "financiero";
     return {
       id: userId,
       email: sessionUser.email || "",
@@ -79,21 +84,17 @@ export function useAuth() {
       if (!cancelled) setInitialized(true);
     }
 
+    // Get session immediately, no timeout
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!cancelled) processSession(session);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
-      console.log("auth event:", event, "user:", session?.user?.email, "rol:", session?.user?.user_metadata?.rol);
       processSession(session);
     });
 
-    const timeout = setTimeout(() => {
-      if (!cancelled && !processedEvent) {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if (!cancelled) processSession(session);
-        });
-      }
-    }, 3000);
-
-    return () => { cancelled = true; subscription.unsubscribe(); clearTimeout(timeout); };
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -138,6 +139,20 @@ export function useAuth() {
     return data.user;
   }, []);
 
+  const registerFinanciero = useCallback(async (email: string, password: string, nombre: string, accessCode: string) => {
+    setLoading(true);
+    const validCode = process.env.NEXT_PUBLIC_ADMIN_ACCESS_CODE;
+    if (!validCode || accessCode !== validCode) { setLoading(false); throw new Error("Codigo de acceso invalido."); }
+    const { data, error } = await supabase.auth.signUp({
+      email, password,
+      options: { data: { nombre, rol: "financiero" } },
+    });
+    if (error) { setLoading(false); throw error; }
+    if (!data.user) { setLoading(false); throw new Error("No se pudo crear el usuario"); }
+    setLoading(false);
+    return data.user;
+  }, []);
+
   const registerNegocio = useCallback(async (
     email: string, password: string, nombreNegocio: string, telefono: string, categoria: string
   ) => {
@@ -158,5 +173,5 @@ export function useAuth() {
     window.location.href = "/login";
   }, []);
 
-  return { user, profile, loading, initialized, login, registerAdmin, registerRepartidor, registerNegocio, logout };
+  return { user, profile, loading, initialized, login, registerAdmin, registerRepartidor, registerNegocio, registerFinanciero, logout };
 }

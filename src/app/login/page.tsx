@@ -4,9 +4,9 @@ import { useState, FormEvent } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
-  const { login, registerAdmin, registerRepartidor, registerNegocio, loading } = useAuth();
+  const { login, registerAdmin, registerRepartidor, registerNegocio, registerFinanciero, loading } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
-  const [rol, setRol] = useState<"admin" | "repartidor" | "negocio">("admin");
+  const [rol, setRol] = useState<"admin" | "repartidor" | "negocio" | "financiero">("admin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nombre, setNombre] = useState("");
@@ -29,6 +29,10 @@ export default function LoginPage() {
         if (rol === "repartidor") {
           await registerRepartidor(email, password, nombre, telefono, documento, vehiculo, placa);
           setError("Repartidor creado. Ahora inicia sesion.");
+        } else if (rol === "financiero") {
+          if (!accessCode.trim()) { setError("Se requiere codigo de acceso."); setSubmitLoading(false); return; }
+          await registerFinanciero(email, password, nombre, accessCode);
+          setError("Cuenta financiera creada. Ahora inicia sesion.");
         } else if (rol === "negocio") {
           const res = await fetch("/api/negocio/register", {
             method: "POST",
@@ -47,11 +51,21 @@ export default function LoginPage() {
       } else {
         const result = await login(email, password);
         if (result.profile?.rol === "admin") {
+          const adminsPermitidos = ["leivakevin620@gmail.com", "alcazarluisa99@gmail.com"];
+          if (!adminsPermitidos.includes(result.profile.email)) {
+            setError("No tienes permisos de administrador.");
+            setSubmitLoading(false);
+            return;
+          }
+          setTimeout(() => { window.location.href = "/admin"; }, 500);
+        } else if (result.profile?.rol === "financiero") {
           setTimeout(() => { window.location.href = "/admin"; }, 500);
         } else if (result.profile?.rol === "repartidor") {
           setTimeout(() => { window.location.href = "/repartidor"; }, 500);
         } else if (result.profile?.rol === "negocio") {
           setTimeout(() => { window.location.href = "/negocio"; }, 500);
+        } else if (result.profile?.rol === "cliente") {
+          setTimeout(() => { window.location.href = "/cliente"; }, 500);
         } else {
           setError("No se encontro perfil para este usuario.");
           setSubmitLoading(false);
@@ -83,6 +97,7 @@ export default function LoginPage() {
                 <button type="button" onClick={() => setRol("admin")} style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: rol === "admin" ? "#facc15" : "rgba(255,255,255,0.06)", color: rol === "admin" ? "#0f172a" : "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Admin</button>
                 <button type="button" onClick={() => setRol("repartidor")} style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: rol === "repartidor" ? "#facc15" : "rgba(255,255,255,0.06)", color: rol === "repartidor" ? "#0f172a" : "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Repartidor</button>
                 <button type="button" onClick={() => setRol("negocio")} style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: rol === "negocio" ? "#facc15" : "rgba(255,255,255,0.06)", color: rol === "negocio" ? "#0f172a" : "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Negocio</button>
+                <button type="button" onClick={() => setRol("financiero")} style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: rol === "financiero" ? "#facc15" : "rgba(255,255,255,0.06)", color: rol === "financiero" ? "#0f172a" : "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Financiero</button>
               </div>
               <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Nombre completo / Negocio</label><input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={rol === "negocio" ? "Nombre del negocio" : "Tu nombre"} required style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
               <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Telefono</label><input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="3001234567" required style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
@@ -106,8 +121,8 @@ export default function LoginPage() {
                   </select>
                 </div>
               )}
-              {rol === "admin" && (
-                <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Codigo de acceso *</label><input type="text" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} placeholder="Codigo requerido para admin" required style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
+              {(rol === "admin" || rol === "financiero") && (
+                <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Codigo de acceso *</label><input type="text" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} placeholder="Codigo requerido" required style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
               )}
             </>
           )}
@@ -123,9 +138,10 @@ export default function LoginPage() {
         </p>
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", gap: 8 }}>
           <a href="/cliente" style={{ flex: 1, textAlign: "center", padding: "12px 24px", borderRadius: 14, background: "rgba(250,204,21,0.1)", color: "#facc15", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>
-            🛒 Cliente
+            🛒 Ir a cliente
           </a>
         </div>
+        <p style={{ textAlign: "center", marginTop: 12, color: "#64748b", fontSize: 12 }}>¿Eres cliente? Registrate directamente desde la página de inicio de DomiU.</p>
       </div>
     </div>
   );

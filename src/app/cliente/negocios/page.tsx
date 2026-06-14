@@ -112,8 +112,8 @@ function NegociosContent() {
           {negocios.map((n, idx) => (
             <button key={n.id} onClick={() => router.push(`/cliente/negocio/${n.id}`)}
               className="biz-card p-4 text-left w-full animate-fade-up flex items-start gap-4" style={{ animationDelay: `${idx * 60}ms` }}>
-              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold shrink-0" style={{ background: "var(--primary)10", color: "var(--primary)" }}>
-                {n.nombre[0]}
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold shrink-0 overflow-hidden" style={{ background: "var(--primary)10", color: "var(--primary)" }}>
+                {n.logo ? <img src={n.logo} alt="" className="w-full h-full object-cover" /> : n.nombre[0]}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardList, Package, Search, Clock, ChevronRight, Filter } from "lucide-react";
+import { ClipboardList, Package, Search, Clock, ChevronRight } from "lucide-react";
 import { fetchData } from "@/lib/client-data";
 
 type Pedido = {
@@ -9,13 +9,13 @@ type Pedido = {
   negocios: { nombre: string } | null;
 };
 
-const estadoColor: Record<string, string> = {
-  recibido: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  preparacion: "bg-blue-50 text-blue-700 border-blue-200",
-  asignado: "bg-purple-50 text-purple-700 border-purple-200",
-  camino: "bg-orange-50 text-orange-700 border-orange-200",
-  entregado: "bg-green-50 text-green-700 border-green-200",
-  cancelado: "bg-red-50 text-red-700 border-red-200",
+const estadoBadge: Record<string, { bg: string; text: string }> = {
+  recibido: { bg: "bg-yellow-400/10", text: "text-yellow-400" },
+  preparacion: { bg: "bg-blue-400/10", text: "text-blue-400" },
+  asignado: { bg: "bg-purple-400/10", text: "text-purple-400" },
+  camino: { bg: "bg-orange-400/10", text: "text-orange-400" },
+  entregado: { bg: "bg-green-400/10", text: "text-green-400" },
+  cancelado: { bg: "bg-red-400/10", text: "text-red-400" },
 };
 
 const estadoLabel: Record<string, string> = {
@@ -46,45 +46,45 @@ export default function PedidosPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] px-5 pt-6 pb-6 animate-fade-in">
+    <div className="min-h-screen px-5 pt-5 pb-6 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "var(--primary)10" }}>
-            <ClipboardList size={20} style={{ color: "var(--primary)" }} />
+          <div className="w-11 h-11 rounded-2xl bg-yellow-400/10 flex items-center justify-center">
+            <ClipboardList size={20} className="text-yellow-400" />
           </div>
-          <h1 className="text-xl font-bold">Mis pedidos</h1>
+          <h1 className="text-xl font-bold text-white">Mis pedidos</h1>
         </div>
       </div>
 
       <form onSubmit={handleSearch} className="relative mb-6">
-        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
         <input type="tel" placeholder="Buscar por tu teléfono..." value={telefono} onChange={(e) => setTelefono(e.target.value)}
           className="search-bar pl-10" />
       </form>
 
       {loading && (
         <div className="flex items-center justify-center py-8">
-          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
+          <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
       {!searched && !loading && (
         <div className="text-center py-20 animate-fade-up">
-          <div className="w-20 h-20 rounded-3xl bg-[var(--bg-secondary)] flex items-center justify-center mx-auto mb-4">
-            <Search size={36} className="text-[var(--text-muted)]" style={{ opacity: 0.3 }} />
+          <div className="w-20 h-20 rounded-3xl bg-slate-800 flex items-center justify-center mx-auto mb-4">
+            <Search size={36} className="text-slate-600" />
           </div>
-          <p className="text-[var(--text-secondary)] font-medium">Busca tus pedidos</p>
-          <p className="text-xs text-[var(--text-muted)] mt-1">Ingresa tu número de teléfono</p>
+          <p className="text-slate-300 font-medium">Busca tus pedidos</p>
+          <p className="text-xs text-slate-500 mt-1">Ingresa tu número de teléfono</p>
         </div>
       )}
 
       {searched && !loading && pedidos.length === 0 && (
         <div className="text-center py-20 animate-fade-up">
-          <div className="w-20 h-20 rounded-3xl bg-[var(--bg-secondary)] flex items-center justify-center mx-auto mb-4">
-            <Package size={36} className="text-[var(--text-muted)]" style={{ opacity: 0.3 }} />
+          <div className="w-20 h-20 rounded-3xl bg-slate-800 flex items-center justify-center mx-auto mb-4">
+            <Package size={36} className="text-slate-600" />
           </div>
-          <p className="text-[var(--text-secondary)] font-medium">No encontramos pedidos</p>
-          <p className="text-xs text-[var(--text-muted)] mt-1">Verifica el número de teléfono</p>
+          <p className="text-slate-300 font-medium">No encontramos pedidos</p>
+          <p className="text-xs text-slate-500 mt-1">Verifica el número de teléfono</p>
         </div>
       )}
 
@@ -94,22 +94,22 @@ export default function PedidosPage() {
             <button key={p.id} onClick={() => router.push(`/cliente/seguimiento/${p.codigo}`)}
               className="glass-card p-5 text-left w-full active:scale-[0.98] transition-all animate-fade-up" style={{ animationDelay: `${idx * 60}ms` }}>
               <div className="flex items-center justify-between mb-3">
-                <span className="font-bold text-sm">#{p.codigo}</span>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${estadoColor[p.estado] || "text-[var(--text-secondary)] bg-[var(--bg-secondary)] border-[var(--border-color)]"}`}>
+                <span className="font-bold text-sm text-white">#{p.codigo}</span>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${estadoBadge[p.estado]?.bg || "bg-slate-800"} ${estadoBadge[p.estado]?.text || "text-slate-400"}`}>
                   {estadoLabel[p.estado] || p.estado}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">{p.negocios?.nombre || "Negocio"}</p>
-                  <p className="text-xs text-[var(--text-secondary)] mt-1 flex items-center gap-1.5">
+                  <p className="text-sm font-medium text-white">{p.negocios?.nombre || "Negocio"}</p>
+                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
                     <Clock size={11} />
                     {new Date(p.created_at).toLocaleDateString("es-CO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm" style={{ color: "var(--primary)" }}>${p.total.toLocaleString()}</span>
-                  <ChevronRight size={16} className="text-[var(--text-muted)]" />
+                  <span className="font-bold text-sm text-yellow-400">${p.total.toLocaleString()}</span>
+                  <ChevronRight size={16} className="text-slate-500" />
                 </div>
               </div>
             </button>

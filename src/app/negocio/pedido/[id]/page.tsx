@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Phone, MapPin, Clock, FileText, CheckCircle, CookingPot, PackageCheck } from "lucide-react";
+import { ArrowLeft, Phone, MapPin, Clock, FileText, CheckCircle, CookingPot, PackageCheck, Bike, Send } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase";
+import { useNegocio } from "@/context/negocio/NegocioContext";
 
 type Pedido = {
   id: string;
@@ -31,9 +32,12 @@ type Detalle = {
 export default function PedidoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { negocio } = useNegocio();
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [detalles, setDetalles] = useState<Detalle[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pubLoading, setPubLoading] = useState(false);
+  const [pubMsg, setPubMsg] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -55,6 +59,24 @@ export default function PedidoDetailPage() {
       setPedido((prev) => prev ? { ...prev, estado_negocio: nuevoEstado } : prev);
     }
     setLoading(false);
+  };
+
+  const publicarDomicilio = async () => {
+    if (!negocio?.id) return;
+    setPubLoading(true); setPubMsg("");
+    try {
+      const res = await fetch("/api/domicilios/publicar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pedido_cliente_id: id, negocio_id: negocio.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al publicar");
+      setPubMsg("ok");
+      setPedido((prev) => prev ? { ...prev, estado_negocio: "domicilio_publicado" } : prev);
+    } catch (err: any) {
+      setPubMsg("err:" + err.message);
+      setTimeout(() => setPubMsg(""), 4000);
+    } finally { setPubLoading(false); }
   };
 
   if (!pedido) {
@@ -134,6 +156,39 @@ export default function PedidoDetailPage() {
             );
           })}
         </div>
+
+        {pedido.estado_negocio === "listo_para_recoger" && (
+          <div className="mt-4 pt-4 border-t border-white/10">
+            {pubMsg === "ok" ? (
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/10 border border-green-500/30">
+                <Bike size={20} className="text-green-400" />
+                <div>
+                  <p className="font-semibold text-sm text-green-400">Domicilio publicado</p>
+                  <p className="text-xs text-white/40">Los repartidores pueden verlo y aceptarlo</p>
+                </div>
+              </div>
+            ) : (
+              <button onClick={publicarDomicilio} disabled={pubLoading}
+                className="flex items-center gap-3 p-4 rounded-xl transition-all w-full bg-domi-yellow/10 border border-domi-yellow/30 hover:bg-domi-yellow/20 disabled:opacity-40">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-domi-yellow text-domi-black">
+                  <Bike size={20} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">Publicar domicilio</p>
+                  <p className="text-xs text-white/40">Notificar a repartidores disponibles</p>
+                </div>
+                {pubLoading ? (
+                  <div className="w-5 h-5 border-2 border-domi-yellow border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Send size={18} className="text-domi-yellow" />
+                )}
+              </button>
+            )}
+            {pubMsg.startsWith("err:") && (
+              <p className="text-xs text-red-400 mt-2">{pubMsg.replace("err:", "")}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Cliente info */}

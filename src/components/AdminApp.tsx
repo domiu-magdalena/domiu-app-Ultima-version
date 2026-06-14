@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
+import { calcularTarifas } from "@/lib/tarifas";
 import {
   LayoutDashboard, Plus, Package, Users, Building2, Banknote,
   LogOut, Edit2, Trash2, CopyCheck, Loader2, CheckCircle,
@@ -12,7 +13,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, ChevronDown, ChevronUp,
   ClipboardPaste, Search, Filter, Calendar, BarChart3,
   Download, FileSpreadsheet, FileDown, History, CreditCard,
-  Eye, EyeOff, Truck, Zap, Shield, UserCheck, UserX
+  Eye, EyeOff, Truck, Zap, Shield, UserCheck, UserX, Wallet, User, Bike, Send, RefreshCw
 } from "lucide-react";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
@@ -20,6 +21,9 @@ import dynamic from "next/dynamic";
 import GoogleMapsLive from "@/components/GoogleMapsLive";
 import MarketplaceAdmin from "@/components/MarketplaceAdmin";
 import MarketplaceStores from "@/components/MarketplaceStores";
+import AdminWallets from "@/components/AdminWallets";
+import AdminUsuarios from "@/components/AdminUsuarios";
+import AdminLocales from "@/components/AdminLocales";
 
 /* ======================== RELOJ ======================== */
 function RealTimeClock() {
@@ -49,15 +53,6 @@ function waLink(num: string, msg: string) {
   return `https://wa.me/57${num.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
 }
 
-function calcularTarifas(km: number) {
-  if (km <= 2) return { precio: 5000, pagoRepartidor: 3800, empresaRecibe: 1200 };
-  if (km <= 4) return { precio: 6000, pagoRepartidor: 4500, empresaRecibe: 1500 };
-  if (km <= 5) return { precio: 7000, pagoRepartidor: 5200, empresaRecibe: 1800 };
-  let precio = km <= 6 ? 8000 : 8000 + Math.ceil((km - 6) / 2) * 2000;
-  let er = precio === 8000 ? 2000 : Math.round(precio * 0.4);
-  return { precio, pagoRepartidor: precio - er, empresaRecibe: er };
-}
-
 function extraerDatos(texto: string) {
   const result: Record<string, string> = {};
   const lineas = texto.split("\n");
@@ -78,10 +73,10 @@ function extraerDatos(texto: string) {
 }
 
 /* ======================== TIPOS ======================== */
-type Tab = "panel" | "nuevo" | "pedidos" | "repartidores" | "locales" | "turnos" | "gps" | "liquidaciones" | "reportes" | "marketplace";
+type Tab = "panel" | "nuevo" | "pedidos" | "repartidores" | "locales" | "turnos" | "gps" | "liquidaciones" | "reportes" | "marketplace" | "wallets" | "usuarios" | "indriver";
 
 /* ======================== COMPONENTE ======================== */
-export default function AdminApp() {
+export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
   const { user, profile, logout } = useAuth();
   const sb = getSupabaseClient();
   const router = useRouter();
@@ -98,6 +93,13 @@ export default function AdminApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mpSubTab, setMpSubTab] = useState<"orders" | "stores">("orders");
 
+  /* Redirect financiero away from restricted tabs */
+  useEffect(() => {
+    if (role === "financiero" && !["panel", "liquidaciones", "reportes", "wallets"].includes(tab)) {
+      setTab("panel");
+    }
+  }, [role, tab]);
+
   /* Pedido form */
   const [editId, setEditId] = useState<string | null>(null);
   const [fCliente, setFCliente] = useState("");
@@ -110,6 +112,29 @@ export default function AdminApp() {
   const [fPrecio, setFPrecio] = useState("");
   const [fMetodoPago, setFMetodoPago] = useState("Efectivo");
   const [fPegarTexto, setFPegarTexto] = useState("");
+  const [fModoAsignacion, setFModoAsignacion] = useState<"asignar" | "publicar">("asignar");
+  const [calculandoDist, setCalculandoDist] = useState(false);
+
+  /* Auto-calcular distancia cuando cambian local y direccion */
+  const autoCalcRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!fLocal || !fDir.trim()) return;
+    if (autoCalcRef.current) clearTimeout(autoCalcRef.current);
+    autoCalcRef.current = window.setTimeout(async () => {
+      const loc = locs.find((l: any) => l.id === fLocal);
+      if (!loc?.direccion) return;
+      setCalculandoDist(true);
+      try {
+        const res = await fetch("/api/calcular-distancia", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ origen: loc.direccion, destino: fDir.trim() }),
+        });
+        const data = await res.json();
+        if (res.ok && data.km) setFKm(String(data.km));
+      } catch {}
+      finally { setCalculandoDist(false); }
+    }, 1200);
+  }, [fLocal, fDir]);
 
   /* Filtros */
   const [fBusqueda, setFBusqueda] = useState("");
@@ -130,6 +155,7 @@ export default function AdminApp() {
   const [lNom, setLNom] = useState("");
   const [lDir, setLDir] = useState("");
   const [lTel, setLTel] = useState("");
+  const [lOldNom, setLOldNom] = useState("");
 
   /* Repartidor detalle */
   const [rDetalle, setRDetalle] = useState<string | null>(null);
@@ -141,6 +167,12 @@ export default function AdminApp() {
 
   /* Liquidacion */
   const [liqDetalle, setLiqDetalle] = useState<string | null>(null);
+
+  /* InDriver */
+  const [pcPedidos, setPcPedidos] = useState<any[]>([]);
+  const [domDisponibles, setDomDisponibles] = useState<any[]>([]);
+  const [pcLoading, setPcLoading] = useState(false);
+  const [pubId, setPubId] = useState<string | null>(null);
 
   /* Toast helpers */
   const ok = (m: string) => { setMsg(m); setErr(""); setTimeout(() => setMsg(""), 4000); };
@@ -167,9 +199,27 @@ export default function AdminApp() {
   };
 
   /* ======================== DATA ======================== */
+  const loadPedidosCliente = useCallback(async () => {
+    try {
+      const { data } = await sb
+        .from("pedidos_cliente")
+        .select("id, codigo, cliente_nombre, cliente_direccion, domicilio, estado, estado_negocio, negocio_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      setPcPedidos(data || []);
+    } catch (e: any) { console.error("loadPedidosCliente:", e); }
+  }, []);
+
+  const loadDomiDisponibles = useCallback(async () => {
+    try {
+      const res = await fetch("/api/domicilios/disponibles");
+      const data = await res.json();
+      if (Array.isArray(data)) setDomDisponibles(data);
+    } catch {}
+  }, []);
+
   const load = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
     try {
       // Obtener turno activo primero
       const { data: turnosActivos } = await sb.from("turnos").select("*").eq("activo", true).order("created_at", { ascending: false }).limit(1);
@@ -198,13 +248,13 @@ export default function AdminApp() {
     finally { setLoading(false); }
   }, [user]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); loadPedidosCliente(); loadDomiDisponibles(); }, [load, loadPedidosCliente, loadDomiDisponibles]);
 
   // Polling cada 30 segundos (respaldo mientras Realtime no funcione)
   useEffect(() => {
-    const interval = setInterval(() => load(), 30000);
+    const interval = setInterval(() => { load(); loadPedidosCliente(); loadDomiDisponibles(); }, 30000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [load, loadPedidosCliente, loadDomiDisponibles]);
 
   /* Realtime */
   const subRef = useRef<any>(null);
@@ -252,8 +302,25 @@ export default function AdminApp() {
   /* ======================== PEDIDOS ======================== */
   const savePedido = async (e: any) => {
     e.preventDefault();
-    const km = Number(fKm);
-    if (!fCliente.trim() || !fDir.trim() || isNaN(km) || km <= 0) return fail("Cliente, direccion y km obligatorios");
+    if (!fCliente.trim() || !fDir.trim()) return fail("Cliente y direccion obligatorios");
+
+    // Calcular km automaticamente si no tiene
+    let km = Number(fKm);
+    if (!km || km <= 0) {
+      const loc = locs.find((l: any) => l.id === fLocal);
+      if (loc?.direccion) {
+        try {
+          const res = await fetch("/api/calcular-distancia", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ origen: loc.direccion, destino: fDir.trim() }),
+          });
+          const data = await res.json();
+          if (res.ok && data.km) km = Number(data.km);
+        } catch {}
+      }
+      if (!km || km <= 0) km = 1; // minimo para calcular tarifa
+    }
+
     const t = fPrecio && Number(fPrecio) > 0 ? null : calcularTarifas(km);
     const precio = t ? t.precio : Number(fPrecio);
     const pr = t ? t.pagoRepartidor : precio > 8000 ? Math.round(precio * 0.6) : Math.round(precio * 0.75);
@@ -262,25 +329,47 @@ export default function AdminApp() {
     const data: any = {
       codigo: cod, cliente: fCliente.trim(), telefono: fTel.trim(),
       direccion: fDir.trim(), barrio: fBarrio.trim() || "N/A",
-      local_id: fLocal || null, repartidor_id: fRep || null,
+      local_id: fLocal || null, repartidor_id: fModoAsignacion === "asignar" ? fRep || null : null,
       km, precio, pago_repartidor: pr, empresa_recibe: er,
       metodo_pago: fMetodoPago, user_id: user?.id,
       turno_id: turnoActivo?.id || null,
     };
-    if (!editId) data.estado = "Pendiente";
+    if (!editId) data.estado = fModoAsignacion === "publicar" ? "Pendiente" : "Pendiente";
     const { error } = editId
       ? await sb.from("pedidos").update(data).eq("id", editId)
-      : await sb.from("pedidos").insert(data);
+      : await sb.from("pedidos").insert(data).select().single();
     if (error) return fail(error.message);
-    ok(editId ? "Pedido actualizado" : "Pedido creado");
+
+    // Si es publicar, publicar en domicilios_disponibles
+    if (!editId && fModoAsignacion === "publicar") {
+      const loc = locs.find((l: any) => l.id === fLocal);
+      await sb.from("domicilios_disponibles").insert({
+        pedido_cliente_id: null,
+        negocio_id: null,
+        direccion_origen: loc?.direccion || "Local",
+        direccion_destino: fDir.trim(),
+        valor_domicilio: precio,
+        distancia_km: km,
+        estado: "disponible",
+        cliente_nombre: fCliente.trim(),
+        cliente_telefono: fTel.trim(),
+        negocio_nombre: loc?.nombre || "Local",
+        pedido_codigo: cod,
+      });
+    }
+
+    ok(editId ? "Pedido actualizado" : fModoAsignacion === "publicar" ? "Pedido creado y publicado" : "Pedido creado");
+    if (editId) {
+      setPedidos(prev => prev.map(p => p.id === editId ? { ...p, ...data } : p));
+    }
     resetPedidoForm();
-    load();
+    if (!editId) load();
   };
 
   const resetPedidoForm = () => {
     setEditId(null); setFCliente(""); setFTel(""); setFDir(""); setFBarrio("");
     setFLocal(""); setFRep(""); setFKm(""); setFPrecio("");
-    setFMetodoPago("Efectivo"); setFPegarTexto("");
+    setFMetodoPago("Efectivo"); setFPegarTexto(""); setFModoAsignacion("asignar");
   };
 
   const editPedido = (p: any) => {
@@ -291,7 +380,7 @@ export default function AdminApp() {
     setTab("nuevo");
   };
 
-  const delPedido = async (id: string) => { if (!confirm("Eliminar?")) return; await sb.from("pedidos").delete().eq("id", id); ok("Eliminado"); load(); };
+  const delPedido = async (id: string) => { if (!confirm("Eliminar?")) return; await sb.from("pedidos").delete().eq("id", id); setPedidos(prev => prev.filter(p => p.id !== id)); ok("Eliminado"); };
 
   const cambiarEstado = async (id: string, est: string) => {
     const pedido = pedidos.find((p: any) => p.id === id);
@@ -300,17 +389,20 @@ export default function AdminApp() {
     if (est === "Entregado" || est === "Cancelado") {
       if (pedido?.repartidor_id) {
         await sb.from("repartidores").update({ estado: "Disponible" }).eq("id", pedido.repartidor_id);
+        setReps(prev => prev.map(r => r.id === pedido.repartidor_id ? { ...r, estado: "Disponible" } : r));
       }
     }
+    setPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: est } : p));
     ok(`Estado: ${est}`);
-    load();
   };
 
   const asignarRep = async (pedidoId: string, repId: string) => {
     const { error } = await sb.from("pedidos").update({ repartidor_id: repId, estado: "Asignado" }).eq("id", pedidoId);
     if (error) return fail(error.message);
     await sb.from("repartidores").update({ estado: "Ocupado" }).eq("id", repId);
-    ok("Repartidor asignado"); load();
+    setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, repartidor_id: repId, estado: "Asignado" } : p));
+    setReps(prev => prev.map(r => r.id === repId ? { ...r, estado: "Ocupado" } : r));
+    ok("Repartidor asignado");
   };
 
   const copiarPedido = (p: any) => {
@@ -354,7 +446,9 @@ export default function AdminApp() {
       const rider = reps.find((r: any) => r.id === rEdit);
       await sb.from("repartidores").update(data).eq("id", rEdit);
       if (rider?.user_id) await sb.from("profiles").update({ nombre: rNom.trim() }).eq("id", rider.user_id);
-      ok("Actualizado"); setREdit(null); setREmail(""); setRPass(""); setRNom(""); setRTel(""); setRDoc(""); setRVeh(""); setRPla(""); load();
+      ok("Actualizado");
+      setReps(prev => prev.map(r => r.id === rEdit ? { ...r, nombre: rNom.trim(), telefono: rTel.trim(), documento: rDoc.trim(), vehiculo: rVeh.trim(), placa: rPla.trim() } : r));
+      setREdit(null); setREmail(""); setRPass(""); setRNom(""); setRTel(""); setRDoc(""); setRVeh(""); setRPla("");
     } else {
       if (!rEmail.trim() || !rPass.trim()) return fail("Email y contraseña obligatorios para crear repartidor");
       const res = await fetch("/api/create-rider", {
@@ -364,34 +458,62 @@ export default function AdminApp() {
       });
       const data = await res.json();
       if (!res.ok) return fail(data.error || "Error creando repartidor");
-      ok("Repartidor creado con cuenta de acceso"); setREdit(null); setREmail(""); setRPass(""); setRNom(""); setRTel(""); setRDoc(""); setRVeh(""); setRPla(""); load();
+      ok("Repartidor creado con cuenta de acceso");
+      load(); // Solo recargar al crear nuevo para obtener el rider completo
+      setREdit(null); setREmail(""); setRPass(""); setRNom(""); setRTel(""); setRDoc(""); setRVeh(""); setRPla("");
     }
   };
 
   const toggleRepActivo = async (id: string, activo: boolean) => {
     await sb.from("repartidores").update({ activo }).eq("id", id);
-    ok(activo ? "Repartidor activado" : "Repartidor desactivado"); load();
+    setReps(prev => prev.map(r => r.id === id ? { ...r, activo } : r));
+    ok(activo ? "Repartidor activado" : "Repartidor desactivado");
   };
 
-  const delRep = async (id: string) => { if (!confirm("Eliminar?")) return; await sb.from("repartidores").update({ activo: false }).eq("id", id); ok("Eliminado"); load(); };
+  const delRep = async (id: string) => { if (!confirm("Eliminar?")) return; await sb.from("repartidores").update({ activo: false }).eq("id", id); setReps(prev => prev.map(r => r.id === id ? { ...r, activo: false } : r)); ok("Eliminado"); };
 
   /* ======================== LOCALES ======================== */
   const saveLoc = async (e: any) => {
     e.preventDefault();
     if (!lNom.trim()) return fail("Nombre obligatorio");
-    const data = { nombre: lNom.trim(), direccion: lDir.trim(), telefono: lTel.trim() };
-    const { error } = lEdit
-      ? await sb.from("locales").update(data).eq("id", lEdit)
-      : await sb.from("locales").insert({ ...data, user_id: user?.id });
-    if (error) return fail(error.message);
-    ok(lEdit ? "Actualizado" : "Creado"); setLEdit(null); setLNom(""); setLDir(""); setLTel(""); load();
+    try {
+      const data = { nombre: lNom.trim(), direccion: lDir.trim(), telefono: lTel.trim() };
+      const payload = lEdit ? { ...data, id: lEdit, old_nombre: lOldNom } : { ...data, user_id: user?.id };
+      const res = await fetch("/api/admin/locales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Error guardando local");
+      ok(lEdit ? "Actualizado" : "Creado");
+      if (!lEdit && result) {
+        setLocs(prev => [result, ...prev]);
+      } else if (lEdit && result) {
+        setLocs(prev => prev.map(l => l.id === lEdit ? { ...l, ...result } : l));
+      }
+      setLEdit(null); setLNom(""); setLDir(""); setLTel(""); setLOldNom("");
+    } catch (e: any) { fail(e.message || "Error guardando local"); }
   };
-  const delLoc = async (id: string) => { if (!confirm("Eliminar?")) return; await sb.from("locales").update({ activo: false }).eq("id", id); ok("Eliminado"); load(); };
+  const delLoc = async (id: string, nombre: string) => {
+    if (!confirm("Eliminar?")) return;
+    try {
+      const res = await fetch("/api/admin/locales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, nombre, action: "delete" }),
+      });
+      if (!res.ok) throw new Error("Error eliminando local");
+      setLocs(prev => prev.filter(l => l.id !== id));
+      ok("Eliminado");
+    } catch (e: any) { fail(e.message); }
+  };
 
   /* ======================== LIQUIDACION ======================== */
   const liquidar = async (repId: string) => {
     await sb.from("pedidos").update({ liquidado: true }).eq("repartidor_id", repId).eq("estado", "Entregado").eq("liquidado", false);
-    ok("Liquidado"); load();
+    setPedidos(prev => prev.map(p => p.repartidor_id === repId && p.estado === "Entregado" ? { ...p, liquidado: true } : p));
+    ok("Liquidado");
   };
 
   /* ======================== REPORTES ======================== */
@@ -602,7 +724,7 @@ export default function AdminApp() {
   const todayRep = reps.filter((r: any) => r.activo !== false).length;
 
   const ESTADOS = ["Pendiente", "Asignado", "Aceptado", "Recogido", "En camino", "Entregado", "Problema", "Cancelado"];
-  const navItems: { key: Tab; icon: any; label: string }[] = [
+  const ALL_NAV_ITEMS: { key: Tab; icon: any; label: string }[] = [
     { key: "panel", icon: LayoutDashboard, label: "Dashboard" },
     { key: "nuevo", icon: Plus, label: "Crear Pedido" },
     { key: "pedidos", icon: Package, label: "Pedidos" },
@@ -612,8 +734,13 @@ export default function AdminApp() {
     { key: "liquidaciones", icon: Banknote, label: "Liquidaciones" },
     { key: "reportes", icon: FileText, label: "Reportes" },
     { key: "marketplace", icon: Store, label: "Marketplace" },
+    { key: "usuarios", icon: User, label: "Usuarios" },
+    { key: "wallets", icon: Wallet, label: "Billeteras" },
     { key: "locales", icon: Building2, label: "Locales" },
+    { key: "indriver", icon: Bike, label: "InDriver" },
   ];
+  const FINANCIERO_NAV_ITEMS = ALL_NAV_ITEMS.filter(n => ["panel", "liquidaciones", "reportes", "wallets"].includes(n.key));
+  const navItems = role === "financiero" ? FINANCIERO_NAV_ITEMS : ALL_NAV_ITEMS;
   const inpC = "w-full px-4 py-3 rounded-xl border border-slate-700 bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 text-sm";
   const lblC = "block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide";
   const badgeEst: Record<string, string> = {
@@ -785,9 +912,45 @@ export default function AdminApp() {
                     <div><label className={lblC}>Barrio</label><input className={inpC} value={fBarrio} onChange={(e) => setFBarrio(e.target.value)} placeholder="Barrio" /></div>
                     <div><label className={lblC}>Local</label><select className={inpC} value={fLocal} onChange={(e) => setFLocal(e.target.value)}><option value="">Sin local</option>{locs.map((l: any) => <option key={l.id} value={l.id}>{l.nombre}</option>)}</select></div>
                   </div>
+                  {/* Modo de asignacion */}
+                  <div className="flex gap-4 p-3 rounded-xl bg-slate-800/50 border border-slate-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="modo" value="asignar" checked={fModoAsignacion === "asignar"} onChange={() => setFModoAsignacion("asignar")} className="accent-yellow-400" />
+                      <span className="text-sm text-white font-semibold">Asignar manualmente</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="modo" value="publicar" checked={fModoAsignacion === "publicar"} onChange={() => setFModoAsignacion("publicar")} className="accent-green-400" />
+                      <span className="text-sm text-white font-semibold">Publicar (cualquier repartidor)</span>
+                    </label>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div><label className={lblC}>Repartidor</label><select className={inpC} value={fRep} onChange={(e) => setFRep(e.target.value)}><option value="">Sin asignar</option>{reps.filter((r: any) => r.activo !== false).map((r: any) => <option key={r.id} value={r.id}>{r.nombre} ({r.estado})</option>)}</select></div>
-                    <div><label className={lblC}>Kilometros</label><input className={inpC} type="number" min="0.1" step="0.1" value={fKm} onChange={(e) => setFKm(e.target.value)} placeholder="0.0" required /></div>
+                    {fModoAsignacion === "asignar" && (
+                      <div><label className={lblC}>Repartidor</label><select className={inpC} value={fRep} onChange={(e) => setFRep(e.target.value)}><option value="">Sin asignar</option>{reps.filter((r: any) => r.activo !== false).map((r: any) => <option key={r.id} value={r.id}>{r.nombre} ({r.estado})</option>)}</select></div>
+                    )}
+                    <div><label className={lblC}>Kilometros</label>
+                      <div className="flex gap-2">
+                        <input className={inpC} type="number" min="0.1" step="0.1" value={fKm} onChange={(e) => setFKm(e.target.value)} placeholder="0.0" required />
+                        <button type="button" onClick={async () => {
+                          if (!fLocal || !fDir.trim()) return fail("Selecciona un local y escribe la direccion primero");
+                          setCalculandoDist(true);
+                          try {
+                            const loc = locs.find((l: any) => l.id === fLocal);
+                            if (!loc?.direccion) return fail("El local no tiene direccion registrada");
+                            const res = await fetch("/api/calcular-distancia", {
+                              method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ origen: loc.direccion, destino: fDir.trim() }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) return fail(data.error || "Error calculando distancia");
+                            setFKm(String(data.km));
+                            ok(`Distancia: ${data.km} km`);
+                          } catch (e: any) { fail(e.message || "Error"); }
+                          finally { setCalculandoDist(false); }
+                        }} disabled={calculandoDist} className="px-4 py-2 bg-blue-500 text-white font-bold rounded-xl hover:bg-blue-400 disabled:opacity-50 flex items-center gap-2">
+                          {calculandoDist ? "..." : "Calcular"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div><label className={lblC}>Metodo de pago</label><select className={inpC} value={fMetodoPago} onChange={(e) => setFMetodoPago(e.target.value)}><option>Efectivo</option><option>Transferencia</option></select></div>
@@ -1161,38 +1324,122 @@ export default function AdminApp() {
             </div>
           )}
 
-          {/* ======================== LOCALES ======================== */}
-          {tab === "locales" && (
+          {/* ======================== USUARIOS ======================== */}
+          {tab === "usuarios" && (
             <div className="space-y-6">
               <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
-                <h3 className="font-bold text-white mb-4">{lEdit ? "Editar Local" : "Nuevo Local"}</h3>
-                <form onSubmit={saveLoc} className="space-y-4">
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div><label className={lblC}>Nombre</label><input className={inpC} value={lNom} onChange={(e) => setLNom(e.target.value)} placeholder="Nombre del local" required /></div>
-                    <div><label className={lblC}>Direccion</label><input className={inpC} value={lDir} onChange={(e) => setLDir(e.target.value)} placeholder="Direccion" /></div>
-                    <div><label className={lblC}>Telefono</label><input className={inpC} value={lTel} onChange={(e) => setLTel(e.target.value)} placeholder="Telefono" /></div>
-                  </div>
-                  <div className="flex gap-3">
-                    <button type="submit" className="px-6 py-3 bg-yellow-400 text-slate-900 font-bold rounded-xl">{lEdit ? "Actualizar" : "Crear"}</button>
-                    {lEdit && <button type="button" onClick={() => { setLEdit(null); setLNom(""); setLDir(""); setLTel(""); }} className="px-6 py-3 bg-slate-800 text-slate-300 rounded-xl">Cancelar</button>}
-                  </div>
-                </form>
+                <h3 className="text-xl font-bold text-white mb-5 flex items-center gap-2">
+                  <User size={22} className="text-yellow-400" /> Gestión de Usuarios
+                </h3>
+                <AdminUsuarios />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {locs.filter((l: any) => l.activo !== false).map((l: any) => (
-                  <div key={l.id} className="bg-slate-900 rounded-xl border border-slate-800 p-5">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Store size={20} className="text-blue-400" />
-                      <div><p className="font-bold text-white text-sm">{l.nombre}</p><p className="text-xs text-slate-500">{l.direccion || "Sin direccion"}</p></div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => { setLEdit(l.id); setLNom(l.nombre); setLDir(l.direccion || ""); setLTel(l.telefono || ""); }} className="flex-1 py-2 bg-slate-800 text-slate-300 rounded-lg text-xs font-semibold hover:bg-slate-700">Editar</button>
-                      <button onClick={() => delLoc(l.id)} className="px-3 py-2 bg-red-500/10 text-red-400 rounded-lg text-xs font-semibold hover:bg-red-500/20">Eliminar</button>
-                    </div>
-                  </div>
-                ))}
+            </div>
+          )}
+
+          {/* ======================== BILLETERAS ======================== */}
+          {tab === "wallets" && (
+            <AdminWallets />
+          )}
+
+          {/* ======================== LOCALES ======================== */}
+          {tab === "locales" && (
+            <AdminLocales onLocsChange={(newLocs) => setLocs(newLocs)} />
+          )}
+
+          {/* ======================== INDRIVER ======================== */}
+          {tab === "indriver" && (
+            <div className="space-y-6 max-w-4xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Bike size={20} className="text-yellow-400" /> Publicar Domicilios</h3>
+                <button onClick={() => { loadPedidosCliente(); loadDomiDisponibles(); }} className="flex items-center gap-1 px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-700"><RefreshCw size={14} /> Refrescar</button>
               </div>
-              {locs.filter((l: any) => l.activo !== false).length === 0 && <div className="text-center py-12 text-slate-500"><Building2 size={48} className="mx-auto mb-3 opacity-20" /><p>No hay locales</p></div>}
+
+              {/* Domicilios activos */}
+              {domDisponibles.length > 0 && (
+                <div className="bg-slate-900 rounded-2xl border border-yellow-400/20 p-5">
+                  <h4 className="font-bold text-yellow-400 text-sm mb-4 flex items-center gap-2"><Bike size={16} /> Domicilios publicados ({domDisponibles.length})</h4>
+                  <div className="space-y-2">
+                    {domDisponibles.map((d: any) => (
+                      <div key={d.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+                        <div className="flex items-center gap-4">
+                          <span className="text-yellow-400 font-bold text-sm">#{d.pedido_codigo}</span>
+                          <span className="text-sm text-white">{d.cliente_nombre}</span>
+                          <span className="text-xs text-slate-400 truncate max-w-[200px]">{d.direccion_destino}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-green-400 font-bold text-sm">{fmt(d.valor_domicilio)}</span>
+                          <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${d.estado === "aceptado" ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>{d.estado}</span>
+                          {d.repartidor_id && (
+                            <span className="text-[10px] px-2 py-1 rounded-full bg-blue-500/20 text-blue-400">Aceptado</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pedidos listos para publicar */}
+              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5">
+                <h4 className="font-bold text-white text-sm mb-4 flex items-center gap-2"><Package size={16} className="text-yellow-400" /> Pedidos de clientes</h4>
+                {pcPedidos.length === 0 ? (
+                  <p className="text-slate-500 text-sm text-center py-8">No hay pedidos de clientes</p>
+                ) : (
+                  <div className="space-y-3">
+                    {pcPedidos
+                      .filter(p => !["entregado", "cancelado"].includes(p.estado))
+                      .map((p: any) => {
+                        const negNombre = "—";
+                        return (
+                          <div key={p.id} className="flex items-center justify-between p-4 bg-slate-800/30 rounded-xl border border-slate-700/50 hover:border-slate-600/50 transition">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-1">
+                                <span className="text-yellow-400 font-bold text-sm">#{p.codigo}</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                  p.estado === "esperando_domiciliario" ? "bg-amber-500/20 text-amber-400" :
+                                  p.estado_negocio === "listo_para_recoger" ? "bg-green-500/20 text-green-400" :
+                                  "bg-slate-500/20 text-slate-400"
+                                }`}>{p.estado_negocio || p.estado}</span>
+                              </div>
+                              <p className="text-sm text-white">{p.cliente_nombre}</p>
+                              <p className="text-xs text-slate-500 truncate">{p.cliente_direccion}</p>
+                              <p className="text-xs text-slate-600">{negNombre} — Domicilio: {fmt(p.domicilio)}</p>
+                            </div>
+                            <button
+                              onClick={async () => {
+                                setPubId(p.id);
+                                try {
+                                  const res = await fetch("/api/domicilios/publicar", {
+                                    method: "POST", headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ pedido_cliente_id: p.id, negocio_id: p.negocio_id }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok) throw new Error(data.error || "Error");
+                                  ok("Domicilio publicado para #" + p.codigo);
+                                  loadPedidosCliente();
+                                  loadDomiDisponibles();
+                                } catch (err: any) {
+                                  fail(err.message);
+                                } finally { setPubId(null); }
+                              }}
+                              disabled={pubId === p.id}
+                              className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-yellow-400/10 text-yellow-400 rounded-xl text-xs font-bold border border-yellow-400/20 hover:bg-yellow-400/20 disabled:opacity-40 transition"
+                            >
+                              {pubId === p.id ? (
+                                <><Loader2 className="animate-spin" size={14} /> Publicando...</>
+                              ) : (
+                                <><Send size={14} /> Publicar domicilio</>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    {pcPedidos.filter(p => !["entregado", "cancelado"].includes(p.estado)).length === 0 && (
+                      <p className="text-slate-500 text-sm text-center py-4">Todos los pedidos están completados</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
