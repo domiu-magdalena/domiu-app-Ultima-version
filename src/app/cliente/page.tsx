@@ -446,93 +446,76 @@ export default function ClienteHome() {
             )}
           </div>
 
-          {/* EXPLORE ALL CTA */}
-          <div className="mx-5 mt-4">
-            <button onClick={() => router.push("/cliente/negocios")} className="w-full py-3.5 rounded-2xl bg-white/5 border border-white/10 text-slate-300 font-bold text-xs flex items-center justify-center gap-2 hover:border-[#10B981]/40 hover:text-[#10B981] active:scale-[0.98] transition-all">
-              Explorar todos los negocios <ChevronRight size={14} />
-            </button>
-          </div>
-
-          {/* REGISTER CTA */}
-          <div className="mx-5 mt-4">
-            <button onClick={() => setActiveModal("register")}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#10B981]/20 to-[#10B981]/5 border border-[#10B981]/20 text-[#10B981] font-bold text-xs flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
-              <User size={14} /> Crear cuenta gratis en DomiU
-            </button>
-          </div>
-
-          {/* JOIN SECTION */}
-          <div className="mt-8 px-5">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-black text-[#F8FAFC]">Únete a <span className="text-[#10B981]">DomiU</span></h2>
-              <p className="text-xs text-slate-400 mt-1">Forma parte del ecosistema DomiU Magdalena</p>
+          {/* OFERTAS DEL DÍA */}
+          <div className="mt-6 px-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-xl bg-[#10B981]/10 flex items-center justify-center">
+                <Sparkles size={14} className="text-[#10B981]" />
+              </div>
+              <h2 className="font-black text-sm text-[#F8FAFC]">Ofertas del día</h2>
+              <span className="text-[9px] font-semibold text-[#10B981] bg-[#10B981]/10 px-2 py-0.5 rounded-full">
+                {["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][new Date().getDay()]}
+              </span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {[
-                { modal: "join-business" as ModalType, emoji: "🍕", title: "Registra tu negocio", desc: "Descubre los beneficios", color: "rgba(239,68,68,0.1)" },
-                { modal: "join-store" as ModalType, emoji: "🛒", title: "Registra tu tienda", desc: "Accede a miles de clientes", color: "rgba(34,197,94,0.1)" },
-                { modal: "join-rider" as ModalType, emoji: "🛵", title: "Únete como repartidor", desc: "Gana dinero extra", color: "rgba(16,185,129,0.1)" },
-              ].map((item, i) => (
-                <div key={i} className="glass-card overflow-hidden group">
-                  <div className="h-24 flex items-center justify-center text-3xl" style={{ background: item.color }}>
-                    <span className="group-hover:scale-110 transition-transform">{item.emoji}</span>
+                { emoji: "🍕", title: "2x1 en Pizzas", negocio: "Pizza Italia", validez: "Hoy", color: "from-red-900/40 to-transparent" },
+                { emoji: "🌮", title: "30% OFF en Tacos", negocio: "Taquería El Sol", validez: "Esta semana", color: "from-orange-900/40 to-transparent" },
+                { emoji: "🥤", title: "Bebida gratis", negocio: "McDonald's", validez: "Pedidos > $15k", color: "from-yellow-900/40 to-transparent" },
+                { emoji: "🍰", title: "Postre 2x1", negocio: "Dulce Pecado", validez: "Válido hoy", color: "from-rose-900/40 to-transparent" },
+              ].map((oferta, i) => (
+                <div key={i} className="rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 overflow-hidden active:scale-[0.97] transition-all">
+                  <div className={`h-20 bg-gradient-to-br ${oferta.color} flex items-center justify-center text-3xl`}>
+                    {oferta.emoji}
                   </div>
-                  <div className="p-4 text-center">
-                    <h3 className="font-bold text-[#F8FAFC] text-xs mb-1.5">{item.title}</h3>
-                    <p className="text-[10px] text-slate-400 mb-2.5">{item.desc}</p>
-                    <button onClick={() => setActiveModal(item.modal)}
-                      className="w-full py-2 rounded-xl bg-white/5 text-slate-300 text-[10px] font-bold border border-white/10 hover:border-[#10B981]/40 hover:text-[#10B981] active:scale-95 transition-all">Conocer más</button>
+                  <div className="p-3">
+                    <p className="font-bold text-xs text-[#F8FAFC]">{oferta.title}</p>
+                    <p className="text-[9px] text-slate-400 mt-0.5">{oferta.negocio}</p>
+                    <span className="inline-block mt-1.5 text-[8px] font-semibold text-[#10B981] bg-[#10B981]/10 px-2 py-0.5 rounded-full">{oferta.validez}</span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* FOOTER */}
-          <div className="mt-10 border-t border-white/5">
-            <div className="max-w-4xl mx-auto px-5 py-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#10B981] to-[#059669] flex items-center justify-center font-black text-base text-white">D</div>
-                <div>
-                  <p className="font-bold text-[#F8FAFC] text-sm">DomiU Magdalena</p>
-                  <p className="text-[10px] text-slate-500">Todo lo que necesitas, en un solo lugar</p>
-                </div>
+          {/* PUBLICIDAD / FLAYER DE LOCALES */}
+          <div className="mt-6 px-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-xl bg-[#10B981]/10 flex items-center justify-center">
+                <Store size={14} className="text-[#10B981]" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
-                <div>
-                  <h4 className="font-bold text-slate-300 text-xs mb-3">Compañía</h4>
-                  <div className="space-y-2">
-                    {["about", "work", "repartidores", "prensa"].map(key => {
-                      const labels: Record<string, string> = { about: "Sobre DomiU", work: "Trabaja con nosotros", repartidores: "Repartidores", prensa: "Prensa" };
-                      return <button key={key} onClick={() => setActiveModal(key as ModalType)} className="block text-[11px] text-slate-500 hover:text-[#10B981] transition-colors w-full text-left">{labels[key]}</button>;
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-300 text-xs mb-3">Ayuda</h4>
-                  <div className="space-y-2">
-                    {["help", "terms", "privacy", "data"].map(key => {
-                      const labels: Record<string, string> = { help: "Centro de ayuda", terms: "Términos y condiciones", privacy: "Política de privacidad", data: "Tratamiento de datos" };
-                      return <button key={key} onClick={() => setActiveModal(key as ModalType)} className="block text-[11px] text-slate-500 hover:text-[#10B981] transition-colors w-full text-left">{labels[key]}</button>;
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-300 text-xs mb-3">Descarga la app</h4>
-                  <div className="space-y-2">
-                    <button onClick={() => setActiveModal("help")} className="w-full py-2.5 rounded-xl bg-white/5 text-slate-400 text-[10px] font-bold border border-white/10 hover:border-[#10B981]/40 hover:text-[#10B981] active:scale-95 transition-all flex items-center justify-center gap-2">
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
-                      App Store
-                    </button>
-                    <button onClick={() => setActiveModal("help")} className="w-full py-2.5 rounded-xl bg-white/5 text-slate-400 text-[10px] font-bold border border-white/10 hover:border-[#10B981]/40 hover:text-[#10B981] active:scale-95 transition-all flex items-center justify-center gap-2">
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.199l2.807 1.626a1 1 0 010 1.732l-2.807 1.626L15.206 12l2.492-2.492zM5.864 2.658L16.8 8.99l-2.302 2.302-8.634-8.634z"/></svg>
-                      Google Play
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <p className="text-[10px] text-slate-600">© 2026 DomiU Magdalena. Hecho en Colombia.</p>
+              <h2 className="font-black text-sm text-[#F8FAFC]">Publicidad de locales</h2>
             </div>
+            {loading ? (
+              <div className="space-y-3">
+                {[1,2].map(i => <div key={i} className="h-24 rounded-2xl skeleton" />)}
+              </div>
+            ) : negocios.length > 0 ? (
+              <div className="space-y-3">
+                {negocios.filter(n => n.destacado || n.logo).slice(0, 4).map((n, i) => (
+                  <button key={n.id} onClick={() => n.es_local ? null : router.push(`/cliente/negocio/${n.id}`)}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/10 active:scale-[0.98] transition-all text-left">
+                    <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-gradient-to-br from-[#10B981]/20 to-transparent">
+                      {n.logo ? <img src={n.logo} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-lg font-black text-[#10B981]">{n.nombre[0]}</div>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-[#F8FAFC]">{n.nombre}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{n.categoria} · {n.tiempo_estimado}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="flex items-center gap-0.5 text-[9px] text-slate-500"><Star size={9} className="text-yellow-400" />{n.rating || n.calificacion || "Nuevo"}</span>
+                        <span className="flex items-center gap-0.5 text-[9px] text-slate-500"><Bike size={9} />${n.domicilio_cost?.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={14} className="text-slate-500 shrink-0" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center rounded-2xl bg-white/5 border border-white/10">
+                <Store size={28} className="mx-auto text-slate-600 mb-2" />
+                <p className="text-xs text-slate-500">Próximamente publicidad de locales</p>
+              </div>
+            )}
           </div>
         </>
       )}
