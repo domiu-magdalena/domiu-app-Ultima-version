@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { DriverLocation, RoutePoint, TrackingInfo } from '@/services/tracking';
+import type { DriverLocation, TrackingInfo } from '@/services/tracking';
 import { Truck, Store, MapPin, Navigation } from 'lucide-react';
 
 interface TrackingMapProps {

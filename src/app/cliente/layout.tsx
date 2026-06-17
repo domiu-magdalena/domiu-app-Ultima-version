@@ -6,6 +6,7 @@ import { useCart } from '@/contexts/CartContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BottomNavigation } from '@/components/ui/bottom-navigation';
+import { Footer } from '@/components/ui/footer';
 import { LoadingState } from '@/components/ui/loading-state';
 import { Home, ClipboardList, Heart, User, ShoppingBag } from 'lucide-react';
 
@@ -54,6 +55,7 @@ export default function ClienteLayout({ children }: { children: React.ReactNode 
         </div>
       </header>
       <main>{children}</main>
+      <Footer />
       <BottomNavigation items={navItems} />
     </div>
   );

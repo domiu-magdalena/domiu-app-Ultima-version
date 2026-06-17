@@ -55,8 +55,8 @@ export function OrderProvider({
   }, [customerId, businessId]);
 
   useEffect(() => {
-    refreshOrders();
-  }, [refreshOrders]);
+    refreshOrders(); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [customerId, businessId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const unsub = orderService.subscribe((updated) => {

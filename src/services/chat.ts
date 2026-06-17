@@ -1,6 +1,8 @@
 import { getBrowserClient } from '@/lib/db/supabase';
 import type { Chat, Message } from '@/types/database';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export interface ChatMessage {
   id: string;
   chat_id: string;

@@ -84,8 +84,8 @@ export function CourierProvider({
   }, [courierId]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    refresh(); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [courierId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Realtime subscription
   useEffect(() => {

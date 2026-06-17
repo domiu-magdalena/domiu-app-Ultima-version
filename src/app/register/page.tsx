@@ -59,7 +59,8 @@ export default function RegisterPage() {
       setSuccess(true);
       setTimeout(() => router.push('/login?message=verify_email'), 2000);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error al registrarse';
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[RegisterPage] Error completo:', err);
       setFormError(msg);
     }
   };

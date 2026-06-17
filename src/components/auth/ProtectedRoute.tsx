@@ -110,6 +110,7 @@ export function PermissionBased({
   const permissions = Array.isArray(permission) ? permission : [permission];
   
   // Importar aquí para evitar circular dependency
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { PermissionManager } = require('@/lib/auth/permissions');
   const hasPermission = PermissionManager.hasAnyPermission(profile.role, permissions);
 

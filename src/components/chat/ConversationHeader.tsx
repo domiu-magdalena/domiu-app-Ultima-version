@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { ChatConversation } from '@/services/chat';
-import { MessageCircle, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface ConversationHeaderProps {
   conversation: ChatConversation;

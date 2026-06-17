@@ -5,7 +5,6 @@ import { PageContainer } from '@/components/ui/page-container';
 import { PageTitle } from '@/components/ui/page-title';
 import { Card } from '@/components/ui/card';
 import { DashboardCard } from '@/components/ui/dashboard-card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table } from 'lucide-react';
 

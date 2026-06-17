@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PageContainer } from '@/components/ui/page-container';
 import { PageTitle } from '@/components/ui/page-title';
 import { DataTable } from '@/components/dashboard/data-table';
@@ -41,24 +41,25 @@ export default function AdminOrders() {
   const [newStatus, setNewStatus] = useState('');
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
-  const fetch = useCallback(async () => {
+  const fetchOrders = async () => {
     setLoading(true);
     try { setOrders(await adminService.getOrders(search || undefined, statusFilter)); }
     catch {}
     setLoading(false);
-  }, [search, statusFilter]);
+  };
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchOrders(); }, [search, statusFilter]); // eslint-disable-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
 
   const handleStatusChange = async () => {
     if (!newStatus || !selected) return;
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await adminService.updateOrderStatusAdmin(selected.id, newStatus as any);
       if (profile) await adminService.logAudit(profile.id, `${profile.first_name} ${profile.last_name}`, 'cambiar_estado_pedido', 'order', selected.id, `#${selected.order_number}: ${selected.status} -> ${newStatus}`);
       setAlert({ type: 'success', msg: `Pedido #${selected.order_number} actualizado a ${newStatus}` });
       setSelected(null);
       setNewStatus('');
-      fetch();
+      fetchOrders();
     } catch { setAlert({ type: 'error', msg: 'Error al actualizar' }); }
   };
 
@@ -76,7 +77,7 @@ export default function AdminOrders() {
           { value: 'all', label: 'Todos los estados' },
           ...ORDER_STATUSES.map(s => ({ value: s, label: s.replace('_', ' ') })),
         ]} className="w-44" />
-        <Button variant="outline" size="sm" onClick={fetch}><RefreshCw className="mr-1.5 h-4 w-4" /> Actualizar</Button>
+        <Button variant="outline" size="sm" onClick={fetchOrders}><RefreshCw className="mr-1.5 h-4 w-4" /> Actualizar</Button>
       </div>
 
       <DataTable

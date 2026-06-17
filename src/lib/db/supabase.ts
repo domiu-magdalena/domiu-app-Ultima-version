@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 let browserClient: any = null;
 let serviceClient: any = null;
 

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { TrackingInfo } from '@/services/tracking';
-import { Truck, Store, MapPin } from 'lucide-react';
+import { Truck } from 'lucide-react';
 
 interface DeliveryProgressProps {
   trackingInfo: TrackingInfo | null;

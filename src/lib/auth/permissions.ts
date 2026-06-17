@@ -140,7 +140,7 @@ export class PermissionManager {
   /**
    * Verificar si el usuario puede cambiar su rol
    */
-  static canChangeRole(currentRole: UserRole, targetRole: UserRole): boolean {
+  static canChangeRole(currentRole: UserRole, _targetRole: UserRole): boolean { // eslint-disable-line @typescript-eslint/no-unused-vars
     // Solo admin puede cambiar roles
     return currentRole === 'admin';
   }

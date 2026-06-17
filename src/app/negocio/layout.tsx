@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { AppSidebar } from '@/components/ui/app-sidebar';
 import { AppHeader } from '@/components/ui/app-header';
+import { Footer } from '@/components/ui/footer';
 import { LoadingState } from '@/components/ui/loading-state';
 import { LayoutDashboard, Package, ClipboardList, Users, BarChart3, Settings } from 'lucide-react';
 
@@ -36,6 +37,7 @@ export default function NegocioLayout({ children }: { children: React.ReactNode 
       <div className="lg:pl-64">
         <AppHeader title="Mi Negocio" />
         <main>{children}</main>
+        <Footer />
       </div>
     </div>
   );

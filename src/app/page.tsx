@@ -60,7 +60,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
-    if (profile) {
+    if (profile?.role) {
       const dashboardMap: Record<string, string> = {
         customer: '/cliente',
         merchant: '/negocio',
@@ -69,7 +69,7 @@ export default function HomePage() {
       };
       router.push(dashboardMap[profile.role] || '/cliente');
     } else {
-      router.push('/cliente');
+      router.push('/login');
     }
   }, [isAuthenticated, profile, isLoading, router]);
 
@@ -249,6 +249,7 @@ export default function HomePage() {
             )}
           </div>
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-6">
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {(categories.length > 0 ? categories : CATEGORIES_HARDCODED as any).slice(0, 12).map((cat: any) => (
               <Link
                 key={cat.id || cat.name}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PageContainer } from '@/components/ui/page-container';
 import { PageTitle } from '@/components/ui/page-title';
@@ -30,27 +30,26 @@ export default function SearchPage() {
     marketplaceService.getCategories().then(setCategories);
   }, []);
 
-  const doSearch = useCallback(async (q: string, cat: string) => {
-    setLoading(true);
-    if (cat) {
-      const biz = await marketplaceService.getBusinessesByCategory(cat);
-      setBusinesses(biz);
-      setProducts([]);
-    } else if (q.trim()) {
-      const result = await marketplaceService.search(q);
-      setBusinesses(result.businesses);
-      setProducts(result.products);
-    } else {
-      const biz = await marketplaceService.getBusinesses({ isOpen: true });
-      setBusinesses(biz);
-      setProducts([]);
-    }
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
-    doSearch(query, catFilter);
-  }, [query, catFilter, doSearch]);
+    const search = async () => {
+      setLoading(true);
+      if (catFilter) {
+        const biz = await marketplaceService.getBusinessesByCategory(catFilter);
+        setBusinesses(biz);
+        setProducts([]);
+      } else if (query.trim()) {
+        const result = await marketplaceService.search(query);
+        setBusinesses(result.businesses);
+        setProducts(result.products);
+      } else {
+        const biz = await marketplaceService.getBusinesses({ isOpen: true });
+        setBusinesses(biz);
+        setProducts([]);
+      }
+      setLoading(false);
+    };
+    search();
+  }, [query, catFilter]);
 
   const handleSearch = (val: string) => {
     setQuery(val);
@@ -121,6 +120,8 @@ export default function SearchPage() {
                     price={p.price}
                     description={p.description}
                     image={p.image_url ?? undefined}
+                    category={p.category_name}
+                    isAvailable={p.is_available}
                   />
                 ))}
               </div>
@@ -143,11 +144,15 @@ export default function SearchPage() {
                   <Link key={biz.id} href={`/cliente/business/${biz.slug}`}>
                     <BusinessCard
                       name={biz.name}
+                      image={biz.banner_url ?? biz.logo_url ?? undefined}
                       category={biz.category_name}
                       rating={biz.rating}
+                      reviewCount={biz.review_count}
                       deliveryTime={biz.delivery_time}
                       deliveryFee={biz.delivery_fee}
                       isOpen={biz.is_open}
+                      isFeatured={biz.is_featured}
+                      distance={biz.distance}
                     />
                   </Link>
                 ))}

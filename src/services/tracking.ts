@@ -1,5 +1,7 @@
 import { getBrowserClient } from '@/lib/db/supabase';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export interface DriverLocation {
   courier_id: string;
   order_id: string;
@@ -62,7 +64,7 @@ async function getClient() {
   return getBrowserClient();
 }
 
-let sharingIntervals: Map<string, ReturnType<typeof setInterval>> = new Map();
+const sharingIntervals: Map<string, ReturnType<typeof setInterval>> = new Map();
 
 export const trackingService = {
   getBusinessLocation: async (businessId: string): Promise<RoutePoint> => {
@@ -113,8 +115,8 @@ export const trackingService = {
     const key = `${courierId}-${orderId}`;
 
     // Get locations from real data, fallback to defaults
-    let bizLoc = { lat: 19.4326, lng: -99.1332 };
-    let custLoc = { lat: 19.42, lng: -99.14 };
+    const bizLoc = { lat: 19.4326, lng: -99.1332 };
+    const custLoc = { lat: 19.42, lng: -99.14 };
 
     // Use stored locations from prior calls if available
     const route = generateRoute(bizLoc, custLoc, 25);

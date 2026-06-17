@@ -15,14 +15,14 @@ import { TrackingMap } from '@/components/tracking/TrackingMap';
 import { EtaCard } from '@/components/tracking/EtaCard';
 import { DeliveryProgress } from '@/components/tracking/DeliveryProgress';
 import { ChatWindow } from '@/components/chat/ChatWindow';
-import { ArrowLeft, ClipboardList, Clock, MapPin, Truck, MessageCircle, X } from 'lucide-react';
+import { ArrowLeft, ClipboardList, Clock, MapPin, Truck, MessageCircle } from 'lucide-react';
 
 function OrderDetailContent() {
   const params = useParams();
   const router = useRouter();
   const { getOrder, loading: orderLoading } = useOrders();
   const { getTrackingInfo, getDriverLocation, startTracking, stopTracking } = useTracking();
-  const { openConversation, closeConversation, currentConversation } = useChat();
+  const { openConversation, closeConversation } = useChat();
   const [showChat, setShowChat] = useState(false);
   const orderId = params.id as string;
   const order = getOrder(orderId);
@@ -38,7 +38,7 @@ function OrderDetailContent() {
     return () => {
       if (order) stopTracking(order.id);
     };
-  }, [order?.id, order?.status]);
+  }, [order, isDeliveryPhase, startTracking, stopTracking]);
 
   const handleOpenChat = async () => {
     if (!order?.courier_id || !order?.courier_name) return;

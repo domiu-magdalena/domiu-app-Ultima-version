@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PageContainer } from '@/components/ui/page-container';
 import { PageTitle } from '@/components/ui/page-title';
 import { DataTable } from '@/components/dashboard/data-table';
@@ -37,16 +37,16 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
-  const fetchUsers = useCallback(async () => {
+  const loadUsers = async () => {
     setLoading(true);
     try {
       const data = await adminService.getUsers(search || undefined, roleFilter);
       setUsers(data);
     } catch { /* da error */ }
     setLoading(false);
-  }, [search, roleFilter]);
+  };
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => { loadUsers(); }, [search, roleFilter]); // eslint-disable-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
 
   const handleStatusToggle = async (u: AdminUser) => {
     const newStatus = u.status === 'active' ? 'suspended' : 'active';
@@ -54,16 +54,17 @@ export default function AdminUsers() {
       await adminService.updateUserStatus(u.id, newStatus);
       if (profile) await adminService.logAudit(profile.id, `${profile.first_name} ${profile.last_name}`, newStatus === 'active' ? 'reactivar_usuario' : 'suspender_usuario', 'profile', u.id, `${u.email} -> ${newStatus}`);
       setAlert({ type: 'success', msg: `Usuario ${newStatus === 'active' ? 'reactivado' : 'suspendido'}` });
-      fetchUsers();
+      loadUsers();
     } catch { setAlert({ type: 'error', msg: 'Error al actualizar usuario' }); }
   };
 
   const handleRoleChange = async (u: AdminUser, newRole: string) => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await adminService.updateUserRole(u.id, newRole as any);
       if (profile) await adminService.logAudit(profile.id, `${profile.first_name} ${profile.last_name}`, 'cambiar_rol', 'profile', u.id, `${u.email}: ${u.role} -> ${newRole}`);
       setAlert({ type: 'success', msg: 'Rol actualizado' });
-      fetchUsers();
+      loadUsers();
     } catch { setAlert({ type: 'error', msg: 'Error al cambiar rol' }); }
   };
 
@@ -95,7 +96,7 @@ export default function AdminUsers() {
           ]}
           className="w-44"
         />
-        <Button variant="outline" size="sm" onClick={fetchUsers}>
+        <Button variant="outline" size="sm" onClick={loadUsers}>
           <RefreshCw className="mr-1.5 h-4 w-4" /> Actualizar
         </Button>
       </div>

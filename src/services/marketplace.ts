@@ -1,5 +1,7 @@
 import { getBrowserClient } from '@/lib/db/supabase';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export interface MarketplaceBusiness {
   id: string;
   slug: string;
@@ -16,6 +18,8 @@ export interface MarketplaceBusiness {
   is_open: boolean;
   is_featured: boolean;
   distance?: string;
+  business_type?: string;
+  promotion?: string;
 }
 
 export interface MarketplaceCategory {
@@ -47,6 +51,8 @@ const CUISINE_MAP: Record<string, { icon: string; id: string }> = {
   'Mariscos': { icon: '🦐', id: 'cat-8' },
   'Italiana': { icon: '🍝', id: 'cat-9' },
   'Asiática': { icon: '🥟', id: 'cat-10' },
+  'Farmacia': { icon: '💊', id: 'cat-11' },
+  'Supermercado': { icon: '🛒', id: 'cat-12' },
 };
 
 function mapBusinessToUI(biz: any): MarketplaceBusiness {
@@ -66,6 +72,8 @@ function mapBusinessToUI(biz: any): MarketplaceBusiness {
     delivery_fee: biz.metadata?.delivery_fee ?? '$2.50',
     is_open: biz.is_active,
     is_featured: biz.is_verified || false,
+    business_type: biz.business_type ?? 'restaurant',
+    promotion: biz.promotion || undefined,
   };
 }
 
@@ -136,6 +144,19 @@ export const marketplaceService = {
     const { data } = await supabase.from('businesses').select('*').eq('slug', slug).single();
     if (!data) return null;
     return mapBusinessToUI(data);
+  },
+
+  getBusinessesByType: async (type: string, limit = 6): Promise<MarketplaceBusiness[]> => {
+    const supabase = await getClient();
+    const { data } = await supabase
+      .from('businesses')
+      .select('*')
+      .eq('business_type', type)
+      .eq('is_active', true)
+      .order('rating', { ascending: false })
+      .limit(limit);
+    if (!data) return [];
+    return data.map(mapBusinessToUI);
   },
 
   getBusinessById: async (id: string): Promise<MarketplaceBusiness | null> => {

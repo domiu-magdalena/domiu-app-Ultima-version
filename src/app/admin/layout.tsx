@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { AppSidebar } from '@/components/ui/app-sidebar';
 import { AppHeader } from '@/components/ui/app-header';
+import { Footer } from '@/components/ui/footer';
 import { LoadingState } from '@/components/ui/loading-state';
 import {
   LayoutDashboard,
@@ -55,6 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="lg:pl-64">
         <AppHeader title="Panel de Administración" />
         <main className="p-6">{children}</main>
+        <Footer />
       </div>
     </div>
   );

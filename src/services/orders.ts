@@ -1,6 +1,8 @@
 import { getBrowserClient } from '@/lib/db/supabase';
 import type { Order } from '@/types/database';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export type OrderStatus = Order['status'];
 
 export interface OrderItemData {

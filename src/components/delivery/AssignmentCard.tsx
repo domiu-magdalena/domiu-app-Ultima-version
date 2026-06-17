@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { OrderData } from '@/services/orders';
-import { Clock, MapPin, ShoppingBag } from 'lucide-react';
+import { MapPin, ShoppingBag } from 'lucide-react';
 
 interface AssignmentCardProps {
   order: OrderData;

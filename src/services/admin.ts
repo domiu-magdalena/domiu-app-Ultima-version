@@ -1,6 +1,8 @@
 import { getBrowserClient } from '@/lib/db/supabase';
 import type { OrderStatus, UserRole } from '@/types/database';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export interface DashboardStats {
   todayOrders: number;
   activeOrders: number;

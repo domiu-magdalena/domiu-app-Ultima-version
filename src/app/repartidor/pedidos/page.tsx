@@ -13,7 +13,7 @@ import { AssignmentCard } from '@/components/delivery/AssignmentCard';
 import { DeliveryStatusTimeline } from '@/components/delivery/DeliveryStatusTimeline';
 import { EtaCard } from '@/components/tracking/EtaCard';
 import { ChatWindow } from '@/components/chat/ChatWindow';
-import { ClipboardList, Clock, MapPin, Navigation, NavigationOff, MessageCircle, X } from 'lucide-react';
+import { ClipboardList, Clock, MapPin, Navigation, NavigationOff, MessageCircle } from 'lucide-react';
 
 type Tab = 'disponibles' | 'activos' | 'historial';
 
@@ -45,7 +45,7 @@ function PedidosContent() {
     courier,
   } = useCourier();
   const { startSharing, stopSharing, isSharingLocation, getTrackingInfo } = useTracking();
-  const { openConversation, closeConversation, currentConversation } = useChat();
+  const { openConversation, closeConversation } = useChat();
   const [sharingOrderId, setSharingOrderId] = useState<string | null>(null);
   const [chatOrderId, setChatOrderId] = useState<string | null>(null);
 

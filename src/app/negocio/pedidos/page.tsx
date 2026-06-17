@@ -26,7 +26,7 @@ function PedidosContent() {
     return () => {
       deliveryOrders.forEach((o) => stopTracking(o.id));
     };
-  }, [businessOrders]);
+  }, [businessOrders, startTracking, stopTracking]);
 
   if (loading) return <LoadingState />;
 
@@ -58,7 +58,7 @@ function PedidosContent() {
       preparing: 'ready',
     };
     const next = flow[order.status];
-    if (next) await updateOrderStatus(id, next as any);
+    if (next) await updateOrderStatus(id, next as any); // eslint-disable-line @typescript-eslint/no-explicit-any
   };
 
   return (

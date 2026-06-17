@@ -1,16 +1,14 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/ui/page-container';
 import { PageTitle } from '@/components/ui/page-title';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCart } from '@/contexts/CartContext';
-import { ShoppingBag, Trash2, Plus, Minus, ArrowLeft, Store } from 'lucide-react';
+import { ShoppingBag, Trash2, Plus, Minus, Store } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CartPage() {
-  const router = useRouter();
   const { items, businessId, businessName, subtotal, isEmpty, removeItem, updateQuantity, clearCart } = useCart();
 
   const deliveryFee = subtotal > 20 ? 0 : 2.50;

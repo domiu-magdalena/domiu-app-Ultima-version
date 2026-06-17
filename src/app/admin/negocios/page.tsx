@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PageContainer } from '@/components/ui/page-container';
 import { PageTitle } from '@/components/ui/page-title';
 import { DataTable } from '@/components/dashboard/data-table';
@@ -23,21 +23,21 @@ export default function AdminBusinesses() {
   const [selected, setSelected] = useState<AdminBusiness | null>(null);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
-  const fetch = useCallback(async () => {
+  const fetchData = async () => {
     setLoading(true);
     try { setBusinesses(await adminService.getBusinesses(search || undefined, filter)); }
     catch {}
     setLoading(false);
-  }, [search, filter]);
+  };
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchData(); }, [search, filter]); // eslint-disable-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
 
   const handleVerify = async (b: AdminBusiness) => {
     try {
       await adminService.verifyBusiness(b.id);
       if (profile) await adminService.logAudit(profile.id, `${profile.first_name} ${profile.last_name}`, 'verificar_negocio', 'business', b.id, b.name);
       setAlert({ type: 'success', msg: `${b.name} verificado` });
-      fetch();
+      fetchData();
     } catch { setAlert({ type: 'error', msg: 'Error al verificar' }); }
   };
 
@@ -46,7 +46,7 @@ export default function AdminBusinesses() {
       await adminService.updateBusinessStatus(b.id, !b.is_active);
       if (profile) await adminService.logAudit(profile.id, `${profile.first_name} ${profile.last_name}`, b.is_active ? 'suspender_negocio' : 'reactivar_negocio', 'business', b.id, b.name);
       setAlert({ type: 'success', msg: `${b.name} ${b.is_active ? 'suspendido' : 'reactivado'}` });
-      fetch();
+      fetchData();
     } catch { setAlert({ type: 'error', msg: 'Error' }); }
   };
 
@@ -66,7 +66,7 @@ export default function AdminBusinesses() {
           { value: 'pending', label: 'Pendientes' },
           { value: 'suspended', label: 'Suspendidos' },
         ]} className="w-44" />
-        <Button variant="outline" size="sm" onClick={fetch}><RefreshCw className="mr-1.5 h-4 w-4" /> Actualizar</Button>
+        <Button variant="outline" size="sm" onClick={fetchData}><RefreshCw className="mr-1.5 h-4 w-4" /> Actualizar</Button>
       </div>
 
       <DataTable

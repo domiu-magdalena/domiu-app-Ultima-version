@@ -7,7 +7,7 @@ import { PageContainer } from '@/components/ui/page-container';
 import { PageTitle } from '@/components/ui/page-title';
 import { DashboardCard } from '@/components/ui/dashboard-card';
 import { DriverStatsCard } from '@/components/delivery/DriverStatsCard';
-import { DollarSign, TrendingUp, Calendar, Wallet, Clock } from 'lucide-react';
+import { DollarSign, Clock } from 'lucide-react';
 
 function GananciasContent() {
   const { earnings, todayEarnings, weekEarnings, monthEarnings, totalEarnings } = useCourier();

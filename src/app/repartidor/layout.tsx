@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { BottomNavigation } from '@/components/ui/bottom-navigation';
 import { AppHeader } from '@/components/ui/app-header';
+import { Footer } from '@/components/ui/footer';
 import { LoadingState } from '@/components/ui/loading-state';
 import { Home, ClipboardList, DollarSign, User } from 'lucide-react';
 
@@ -32,6 +33,7 @@ export default function RepartidorLayout({ children }: { children: React.ReactNo
     <div className="min-h-screen bg-background pb-16 lg:pb-0">
       <AppHeader title="Repartidor" />
       <main>{children}</main>
+      <Footer />
       <BottomNavigation items={navItems} />
     </div>
   );

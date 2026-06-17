@@ -54,7 +54,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setState(loadCart());
+    setState(loadCart()); // eslint-disable-line react-hooks/set-state-in-effect
     setReady(true);
   }, []);
 

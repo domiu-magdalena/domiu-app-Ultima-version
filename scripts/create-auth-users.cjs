@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = 'https://vuwaqmwgvldqmmgkpyjh.supabase.co';

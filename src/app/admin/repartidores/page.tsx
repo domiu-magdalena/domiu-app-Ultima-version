@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PageContainer } from '@/components/ui/page-container';
 import { PageTitle } from '@/components/ui/page-title';
 import { DataTable } from '@/components/dashboard/data-table';
@@ -25,21 +25,21 @@ export default function AdminCouriers() {
   const [selected, setSelected] = useState<AdminCourier | null>(null);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
-  const fetch = useCallback(async () => {
+  const fetchData = async () => {
     setLoading(true);
     try { setCouriers(await adminService.getCouriers(search || undefined, filter)); }
     catch {}
     setLoading(false);
-  }, [search, filter]);
+  };
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchData(); }, [search, filter]); // eslint-disable-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
 
   const handleVerify = async (c: AdminCourier) => {
     try {
       await adminService.verifyCourier(c.id);
       if (profile) await adminService.logAudit(profile.id, `${profile.first_name} ${profile.last_name}`, 'verificar_repartidor', 'driver', c.id, `${c.first_name} ${c.last_name}`);
       setAlert({ type: 'success', msg: 'Repartidor verificado' });
-      fetch();
+      fetchData();
     } catch { setAlert({ type: 'error', msg: 'Error al verificar' }); }
   };
 
@@ -49,7 +49,7 @@ export default function AdminCouriers() {
       await adminService.updateCourierStatus(c.id, !isActive);
       if (profile) await adminService.logAudit(profile.id, `${profile.first_name} ${profile.last_name}`, isActive ? 'suspender_repartidor' : 'reactivar_repartidor', 'driver', c.id, `${c.first_name} ${c.last_name}`);
       setAlert({ type: 'success', msg: `Repartidor ${isActive ? 'suspendido' : 'reactivado'}` });
-      fetch();
+      fetchData();
     } catch { setAlert({ type: 'error', msg: 'Error' }); }
   };
 
@@ -71,7 +71,7 @@ export default function AdminCouriers() {
           { value: 'pending', label: 'Pendientes' },
           { value: 'offline', label: 'Desconectados' },
         ]} className="w-44" />
-        <Button variant="outline" size="sm" onClick={fetch}><RefreshCw className="mr-1.5 h-4 w-4" /> Actualizar</Button>
+        <Button variant="outline" size="sm" onClick={fetchData}><RefreshCw className="mr-1.5 h-4 w-4" /> Actualizar</Button>
       </div>
 
       <DataTable

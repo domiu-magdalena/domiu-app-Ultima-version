@@ -1,5 +1,7 @@
 import { AuthError, Session, User } from '@supabase/supabase-js';
 import { getBrowserClient } from '@/lib/db/supabase';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   LoginCredentials,
   RegisterCredentials,
@@ -17,6 +19,8 @@ export class SupabaseAuthService {
     try {
       const supabase = getBrowserClient();
 
+      console.log('[Auth] signUp iniciando para:', credentials.email);
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: credentials.email,
         password: credentials.password,
@@ -29,31 +33,52 @@ export class SupabaseAuthService {
       });
 
       if (authError) {
+        console.error('[Auth] signUp error:', authError.message);
         return { user: null, profile: null, error: authError };
       }
 
       if (!authData.user) {
+        console.error('[Auth] signUp no devolvió usuario');
         const error = new Error('No se pudo crear el usuario') as AuthError;
         return { user: null, profile: null, error };
       }
 
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          email: credentials.email,
-          role: credentials.role,
-          first_name: credentials.firstName,
-          last_name: credentials.lastName,
-          status: 'active',
-        })
-        .select()
-        .single();
+      console.log('[Auth] signUp exitoso, user.id:', authData.user.id, '| session:', !!authData.session);
 
-      if (profileError) {
-        await supabase.auth.admin.deleteUser(authData.user.id);
-        return { user: null, profile: null, error: profileError.message };
+      // Usar session token si está disponible (email confirmation deshabilitado),
+      // sino pasar userId directamente para que el server lo verifique
+      const token = authData.session?.access_token;
+
+      const body: Record<string, unknown> = {
+        userId: authData.user.id,
+        email: credentials.email,
+        role: credentials.role,
+        first_name: credentials.firstName,
+        last_name: credentials.lastName,
+        status: 'active',
+        _token: token || null,
+      };
+
+      console.log('[Auth] POST /api/profile creando perfil...');
+
+      const profileRes = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!profileRes.ok) {
+        const body = await profileRes.json().catch(() => ({}));
+        console.error('[Auth] POST /api/profile falló:', profileRes.status, body);
+        const msg = body.error || body.details || `Error del servidor (HTTP ${profileRes.status})`;
+        return { user: null, profile: null, error: msg };
       }
+
+      const { profile: profileData } = await profileRes.json();
+      console.log('[Auth] Perfil creado exitosamente:', profileData?.id);
 
       return {
         user: authData.user,
@@ -61,6 +86,7 @@ export class SupabaseAuthService {
         error: null,
       };
     } catch (error) {
+      console.error('[Auth] register exception:', error);
       const authError = new Error(
         error instanceof Error ? error.message : 'Error desconocido'
       ) as AuthError;
@@ -86,7 +112,7 @@ export class SupabaseAuthService {
       }
 
       if (data.user) {
-        await supabase.from('profiles').update({ last_login_at: new Date().toISOString() }).eq('id', data.user.id);
+        // last_login_at se actualiza via API route al cargar el perfil
       }
 
       return {

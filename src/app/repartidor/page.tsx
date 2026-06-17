@@ -7,12 +7,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CourierProvider, useCourier } from '@/contexts/CourierContext';
 import { PageContainer } from '@/components/ui/page-container';
 import { PageTitle } from '@/components/ui/page-title';
-import { StatCard } from '@/components/ui/stat-card';
 import { DashboardCard } from '@/components/ui/dashboard-card';
 import { DriverCard } from '@/components/delivery/DriverCard';
 import { AssignmentCard } from '@/components/delivery/AssignmentCard';
 import { DriverStatsCard } from '@/components/delivery/DriverStatsCard';
-import { Truck, CheckCircle, DollarSign, Star, MapPin, ChevronRight, Bell, ToggleLeft, ToggleRight, ExternalLink } from 'lucide-react';
+import { CheckCircle, MapPin, ChevronRight, Bell, ToggleLeft, ToggleRight } from 'lucide-react';
 
 function DashboardContent() {
   const router = useRouter();
@@ -27,7 +26,6 @@ function DashboardContent() {
     acceptDelivery,
     todayEarnings,
     weekEarnings,
-    totalEarnings,
   } = useCourier();
 
   return (

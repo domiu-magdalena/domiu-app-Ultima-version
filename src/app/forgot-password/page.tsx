@@ -26,7 +26,7 @@ export default function ForgotPasswordPage() {
     try {
       await resetPassword(email);
       setSuccess(true);
-    } catch (err) {
+    } catch {
       setFormError(error || 'Error al enviar email de recuperación');
     }
   };

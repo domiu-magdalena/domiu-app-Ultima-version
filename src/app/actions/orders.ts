@@ -54,7 +54,7 @@ export async function createOrderAction(input: {
       delivery_address_id: addressId,
       status: 'pending',
       payment_status: 'pending',
-      payment_method: (input.paymentMethod as any) ?? 'cash',
+      payment_method: (input.paymentMethod as any) ?? 'cash', // eslint-disable-line @typescript-eslint/no-explicit-any
       subtotal: input.subtotal,
       delivery_fee: input.deliveryFee,
       tax_amount: input.taxAmount,
@@ -75,7 +75,7 @@ export async function createOrderAction(input: {
     item_total: 0,
   }));
 
-  const { error: itemsError } = await supabase.from('order_items').insert(orderItems as any);
+  const { error: itemsError } = await supabase.from('order_items').insert(orderItems as any); // eslint-disable-line @typescript-eslint/no-explicit-any
   if (itemsError) throw new Error(itemsError.message);
 
   await supabase.from('order_tracking').insert({

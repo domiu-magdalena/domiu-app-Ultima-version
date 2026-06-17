@@ -1,6 +1,7 @@
 // src/types/database.ts
 // Auto-generated from Supabase schema
 // Types for all database tables and enums
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 // ============================================================================
 // ENUMS

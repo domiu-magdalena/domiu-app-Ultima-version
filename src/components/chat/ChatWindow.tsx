@@ -24,7 +24,7 @@ export function ChatWindow({ userRole, showQuickReplies = false, onClose }: Chat
 
   useEffect(() => {
     markAsRead();
-  }, [currentMessages.length]);
+  }, [currentMessages.length, markAsRead]);
 
   if (!currentConversation) {
     return (

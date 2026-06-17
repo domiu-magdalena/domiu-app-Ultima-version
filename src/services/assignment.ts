@@ -2,6 +2,8 @@ import { getBrowserClient } from '@/lib/db/supabase';
 import type { Driver } from '@/types/database';
 import { orderService, type OrderData } from './orders';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export interface CourierDriver {
   id: string;
   name: string;
@@ -31,7 +33,7 @@ const VEHICLE_TYPE_MAP: Record<string, CourierDriver['vehicle_type']> = {
   van: 'car',
 };
 
-let assignmentRequests: AssignmentRequest[] = [];
+const assignmentRequests: AssignmentRequest[] = [];
 let requestIdCounter = 0;
 
 type RequestListener = (request: AssignmentRequest) => void;

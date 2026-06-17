@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { trackingService, type DriverLocation, type TrackingInfo, type RoutePoint } from '@/services/tracking';
+import { trackingService, type DriverLocation, type TrackingInfo } from '@/services/tracking';
 
 interface TrackingContextValue {
   driverLocations: Record<string, DriverLocation>;

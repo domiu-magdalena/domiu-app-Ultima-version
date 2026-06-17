@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { User } from 'lucide-react';
 
@@ -22,11 +23,16 @@ const sizeClasses = {
 export function Avatar({ src, alt, initials, size = 'md', className }: AvatarProps) {
   if (src) {
     return (
-      <img
-        src={src}
-        alt={alt ?? ''}
-        className={cn('rounded-full object-cover', sizeClasses[size], className)}
-      />
+      <div className={cn('relative overflow-hidden rounded-full', sizeClasses[size], className)}>
+        <Image
+          src={src}
+          alt={alt ?? ''}
+          fill
+          sizes="96px"
+          className="object-cover"
+          loading="lazy"
+        />
+      </div>
     );
   }
 

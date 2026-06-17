@@ -56,7 +56,7 @@ function ResetPasswordForm() {
       setTimeout(() => {
         router.push('/login?message=password_reset');
       }, 2000);
-    } catch (err) {
+    } catch {
       setFormError(error || 'Error al actualizar la contraseña');
     }
   };

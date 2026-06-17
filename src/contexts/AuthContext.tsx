@@ -11,7 +11,6 @@ import React, {
   ReactNode,
   useCallback,
 } from 'react';
-import { Session } from '@supabase/supabase-js';
 import {
   AuthSession,
   UserProfile,
@@ -47,21 +46,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
   /**
    * Cargar perfil del usuario via API route (bypasses RLS con service_role)
    */
-  const loadUserProfile = useCallback(async (_userId: string) => {
+  const loadUserProfile = useCallback(async () => {
     try {
       const sessionRes = await SupabaseAuthService.getSession();
       const token = sessionRes.session?.access_token;
+      if (!token) return null;
       const res = await fetch('/api/profile', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
+        if (res.status !== 401) {
+          console.warn('[Auth] loadUserProfile HTTP', res.status);
+        }
+        return null;
       }
       const { profile } = await res.json();
       return profile;
-    } catch (error) {
-      console.error('Error cargando perfil:', error);
+    } catch {
       return null;
     }
   }, []);
@@ -69,6 +70,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   /**
    * Inicializar sesión
    */
+  useEffect(() => {
+    const dpl = document.querySelector('html')?.getAttribute('data-dpl-id') || 'unknown';
+    console.log(`[DomiU] Deploy: ${dpl}`);
+  }, []);
+
   const initializeSession = useCallback(async () => {
     try {
       setAuthSession((prev) => ({ ...prev, isLoading: true }));
@@ -81,16 +87,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       if (session && session.user) {
-        // Cargar perfil del usuario
-        const profile = await loadUserProfile(session.user.id);
+        const profile = await loadUserProfile();
 
-        setAuthSession({
-          user: session.user,
-          profile,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null,
-        });
+        if (profile) {
+          setAuthSession({
+            user: session.user,
+            profile,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+        } else if (session.user.email_confirmed_at) {
+          // Solo cerrar sesión si el email ya fue confirmado (usuario existente sin perfil = problema real)
+          await SupabaseAuthService.logout();
+          setAuthSession({
+            user: null,
+            profile: null,
+            isAuthenticated: false,
+            isLoading: false,
+            error: 'Sesión inválida: perfil no encontrado',
+          });
+        } else {
+          // Email no confirmado aún - registro en proceso, no hacer nada
+          setAuthSession({
+            user: null,
+            profile: null,
+            isAuthenticated: false,
+            isLoading: false,
+            error: null,
+          });
+        }
       } else {
         setAuthSession({
           user: null,
@@ -127,7 +153,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
 
         if (user && session) {
-          const profile = await loadUserProfile(user.id);
+          const profile = await loadUserProfile();
+
+          if (!profile) {
+            throw new Error('No se pudo cargar tu perfil. Contacta a soporte.');
+          }
 
           setAuthSession({
             user,
@@ -161,7 +191,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const { user, profile, error } = await SupabaseAuthService.register(credentials);
 
         if (error) {
-          throw error;
+          const msg = error instanceof Error ? error.message : String(error);
+          throw new Error(msg);
         }
 
         if (user && profile) {
@@ -173,9 +204,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
             isLoading: false,
             error: null,
           });
+        } else {
+          throw new Error('Registro incompleto: no se recibieron datos del usuario');
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Error en registro';
+        console.error('[AuthContext] register error:', errorMessage);
         setAuthSession((prev) => ({
           ...prev,
           isLoading: false,
@@ -304,7 +338,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         throw error;
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error enviando email';
       throw error;
     }
   }, [authSession.user]);
@@ -320,14 +353,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const unsubscribe = SupabaseAuthService.onAuthStateChange(
       async (session, user) => {
         if (session && user) {
-          const profile = await loadUserProfile(user.id);
-          setAuthSession({
-            user,
-            profile,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null,
-          });
+          const profile = await loadUserProfile();
+          if (profile) {
+            setAuthSession({
+              user,
+              profile,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+            });
+          }
         } else {
           setAuthSession({
             user: null,
