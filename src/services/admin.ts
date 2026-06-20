@@ -21,6 +21,7 @@ export interface AdminUser {
   last_name: string | null;
   email: string;
   role: UserRole;
+  admin_role: string | null;
   status: string;
   phone: string | null;
   created_at: string;
@@ -101,6 +102,32 @@ export interface AuditLog {
   created_at: string;
 }
 
+export interface HourlyOrders {
+  hour: number;
+  count: number;
+}
+
+export interface CityOrders {
+  city: string;
+  count: number;
+  revenue: number;
+}
+
+export interface TopCustomer {
+  id: string;
+  name: string;
+  order_count: number;
+  total_spent: number;
+}
+
+export interface FinanceSummary {
+  totalCommission: number;
+  pendingCommission: number;
+  collectedCommission: number;
+  pendingPayouts: number;
+  totalPayouts: number;
+}
+
 async function getClient() {
   return getBrowserClient();
 }
@@ -144,7 +171,7 @@ export const adminService = {
 
   async getUsers(search?: string, roleFilter?: string): Promise<AdminUser[]> {
     const supabase = await getClient();
-    let query = supabase.from('profiles').select('id, first_name, last_name, email, role, status, phone, created_at, last_login_at').order('created_at', { ascending: false });
+    let query = supabase.from('profiles').select('id, first_name, last_name, email, role, admin_role, status, phone, created_at, last_login_at').order('created_at', { ascending: false });
 
     if (roleFilter && roleFilter !== 'all') {
       query = query.eq('role', roleFilter);
@@ -480,12 +507,125 @@ export const adminService = {
     return (data || []) as AuditLog[];
   },
 
-  async logAudit(adminId: string, adminName: string | null, action: string, entityType: string, entityId: string | null, details: string | null): Promise<void> {
+  async logAudit(adminId: string, adminName: string | null, action: string, entityType: string, entityId: string | null, details: string | null, result: 'success' | 'error' = 'success'): Promise<void> {
     const supabase = await getClient();
+    const info = (() => {
+      if (typeof window === 'undefined') return { ip: null, browser: null, device: null, os: null };
+      const ua = navigator.userAgent;
+      return {
+        ip: null,
+        browser: ua.includes('Chrome') ? 'Chrome' : ua.includes('Firefox') ? 'Firefox' : ua.includes('Safari') ? 'Safari' : 'Unknown',
+        device: ua.includes('Mobile') ? 'Mobile' : ua.includes('Tablet') ? 'Tablet' : 'Desktop',
+        os: ua.includes('Windows') ? 'Windows' : ua.includes('Mac') ? 'macOS' : ua.includes('Linux') ? 'Linux' : 'Unknown',
+      };
+    })();
     await supabase.from('admin_audit_log').insert({
       admin_id: adminId, admin_name: adminName, action,
       entity_type: entityType, entity_id: entityId, details,
+      ip_address: info.ip, browser: info.browser, device: info.device, os: info.os,
+      result,
     });
+  },
+
+  async updateAdminRole(adminId: string, newRole: string): Promise<void> {
+    const supabase = await getClient();
+    await supabase.from('profiles').update({ admin_role: newRole }).eq('id', adminId);
+  },
+
+  async getAdmins(): Promise<any[]> {
+    const supabase = await getClient();
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name, email, role, admin_role, status, created_at, last_login_at')
+      .in('role', ['admin'])
+      .order('created_at', { ascending: false });
+    return (data || []) as any[];
+  },
+
+  async getHourlyOrders(): Promise<HourlyOrders[]> {
+    const supabase = await getClient();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from('orders')
+      .select('created_at')
+      .gte('created_at', today.toISOString());
+    const hours = new Array(24).fill(0);
+    for (const row of (data || []) as any[]) {
+      const h = new Date(row.created_at).getHours();
+      hours[h] += 1;
+    }
+    return hours.map((count, hour) => ({ hour, count }));
+  },
+
+  async getOrdersByCity(): Promise<CityOrders[]> {
+    const supabase = await getClient();
+    const { data } = await supabase
+      .from('orders')
+      .select('total_amount, delivery_address_id')
+      .eq('status', 'delivered');
+    const orderList = (data || []) as any[];
+    const addrIds = [...new Set(orderList.map((o: any) => o.delivery_address_id))];
+    const { data: addresses } = await supabase
+      .from('addresses')
+      .select('id, city')
+      .in('id', addrIds);
+    const cityMap = new Map<string, string>((addresses || []).map((a: any) => [a.id, a.city || 'Sin ciudad']));
+    const agg = new Map<string, { count: number; revenue: number }>();
+    for (const o of orderList) {
+      const city = cityMap.get(o.delivery_address_id) || 'Sin ciudad';
+      const e = agg.get(city) || { count: 0, revenue: 0 };
+      e.count += 1;
+      e.revenue += Number(o.total_amount);
+      agg.set(city, e);
+    }
+    return Array.from(agg.entries())
+      .map(([city, v]) => ({ city, count: v.count, revenue: v.revenue }))
+      .sort((a, b) => b.count - a.count);
+  },
+
+  async getTopCustomers(limit = 5): Promise<TopCustomer[]> {
+    const supabase = await getClient();
+    const { data } = await supabase
+      .from('orders')
+      .select('customer_id, total_amount')
+      .eq('status', 'delivered');
+    const agg = new Map<string, { order_count: number; total_spent: number }>();
+    for (const o of ((data as any[]) || [])) {
+      const e = agg.get(o.customer_id) || { order_count: 0, total_spent: 0 };
+      e.order_count += 1;
+      e.total_spent += Number(o.total_amount);
+      agg.set(o.customer_id, e);
+    }
+    const custIds = [...agg.keys()];
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name')
+      .in('id', custIds);
+    const nameMap = new Map<string, string>((profiles || []).map((p: any) => [p.id, [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown']));
+    return Array.from(agg.entries())
+      .map(([id, v]) => ({ id, name: nameMap.get(id) || 'Unknown', ...v }))
+      .sort((a, b) => b.total_spent - a.total_spent)
+      .slice(0, limit);
+  },
+
+  async getFinanceSummary(): Promise<FinanceSummary> {
+    const supabase = await getClient();
+    const [commRes, pendingCommRes, collectedCommRes, payoutRes, pendingPayoutRes] = await Promise.all([
+      supabase.from('commission_transactions').select('commission_amount'),
+      supabase.from('commission_transactions').select('commission_amount').eq('status', 'pending'),
+      supabase.from('commission_transactions').select('commission_amount').eq('status', 'collected'),
+      supabase.from('business_payouts').select('amount').eq('status', 'completed'),
+      supabase.from('business_payouts').select('amount').eq('status', 'pending'),
+    ]);
+    const sum = (rows: any[]) => rows.reduce((s: number, r: any) => s + Number(r.commission_amount || r.amount || 0), 0);
+    return {
+      totalCommission: sum((commRes.data || []) as any[]),
+      pendingCommission: sum((pendingCommRes.data || []) as any[]),
+      collectedCommission: sum((collectedCommRes.data || []) as any[]),
+      pendingPayouts: sum((pendingPayoutRes.data || []) as any[]),
+      totalPayouts: sum((payoutRes.data || []) as any[]),
+    };
   },
 
 };

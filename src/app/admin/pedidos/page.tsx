@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { PageContainer } from '@/components/ui/page-container';
-import { PageTitle } from '@/components/ui/page-title';
-import { DataTable } from '@/components/dashboard/data-table';
+import { EnterpriseTable, type EnterpriseColumn } from '@/components/admin/enterprise-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -12,7 +10,8 @@ import { Alert } from '@/components/ui/alert';
 import { adminService } from '@/services/admin';
 import { useAuth } from '@/contexts/AuthContext';
 import type { AdminOrder } from '@/services/admin';
-import { Search, RefreshCw } from 'lucide-react';
+import type { OrderStatus } from '@/types/database';
+import { RefreshCw } from 'lucide-react';
 
 const statusConfig: Record<string, 'warning' | 'info' | 'success' | 'destructive' | 'default'> = {
   pending: 'warning',
@@ -41,68 +40,77 @@ export default function AdminOrders() {
   const [newStatus, setNewStatus] = useState('');
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const reloadOrders = async () => {
     try { setOrders(await adminService.getOrders(search || undefined, statusFilter)); }
     catch {}
-    setLoading(false);
   };
 
-  useEffect(() => { fetchOrders(); }, [search, statusFilter]); // eslint-disable-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { (async () => { await reloadOrders(); setLoading(false); })(); }, [search, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStatusChange = async () => {
     if (!newStatus || !selected) return;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await adminService.updateOrderStatusAdmin(selected.id, newStatus as any);
+      await adminService.updateOrderStatusAdmin(selected.id, newStatus as OrderStatus);
       if (profile) await adminService.logAudit(profile.id, `${profile.first_name} ${profile.last_name}`, 'cambiar_estado_pedido', 'order', selected.id, `#${selected.order_number}: ${selected.status} -> ${newStatus}`);
       setAlert({ type: 'success', msg: `Pedido #${selected.order_number} actualizado a ${newStatus}` });
       setSelected(null);
       setNewStatus('');
-      fetchOrders();
+      reloadOrders();
     } catch { setAlert({ type: 'error', msg: 'Error al actualizar' }); }
   };
 
-  return (
-    <PageContainer>
-      <PageTitle title="Gestión de Pedidos" description="Visualiza y administra todos los pedidos de la plataforma" />
-      {alert && <Alert variant={alert.type} title={alert.msg} dismissible onDismiss={() => setAlert(null)} />}
+  const columns: EnterpriseColumn<AdminOrder>[] = [
+    { key: 'order_number', header: '# Pedido', sortable: true },
+    { key: 'customer_name', header: 'Cliente', render: (o) => o.customer_name || '—' },
+    { key: 'business_name', header: 'Negocio', sortable: true },
+    {
+      key: 'status', header: 'Estado',
+      render: (o) => <Badge variant={statusConfig[o.status] || 'default'}>{o.status.replace('_', ' ')}</Badge>,
+    },
+    {
+      key: 'payment_status', header: 'Pago',
+      render: (o) => <Badge variant={o.payment_status === 'completed' ? 'success' : 'warning'}>{o.payment_status}</Badge>,
+    },
+    { key: 'total_amount', header: 'Total', render: (o) => formatCurrency(o.total_amount), sortable: true },
+    { key: 'courier_name', header: 'Repartidor', render: (o) => o.courier_name || '—' },
+    { key: 'created_at', header: 'Fecha', render: (o) => new Date(o.created_at).toLocaleString('es-CO') },
+    { key: 'actions', header: 'Acciones', render: (o) => (
+      <Button variant="ghost" size="sm" onClick={() => { setSelected(o); setNewStatus(o.status); }}>Gestionar</Button>
+    )},
+  ];
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar pedidos..." className="h-10 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20" />
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Gestión de Pedidos</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Visualiza y administra todos los pedidos de la plataforma</p>
         </div>
-        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} options={[
-          { value: 'all', label: 'Todos los estados' },
-          ...ORDER_STATUSES.map(s => ({ value: s, label: s.replace('_', ' ') })),
-        ]} className="w-44" />
-        <Button variant="outline" size="sm" onClick={fetchOrders}><RefreshCw className="mr-1.5 h-4 w-4" /> Actualizar</Button>
       </div>
 
-      <DataTable
-        columns={[
-          { key: 'order_number', header: '# Pedido', sortable: true },
-          { key: 'customer_name', header: 'Cliente', render: (o: AdminOrder) => o.customer_name || '—' },
-          { key: 'business_name', header: 'Negocio', sortable: true },
-          {
-            key: 'status', header: 'Estado',
-            render: (o: AdminOrder) => <Badge variant={statusConfig[o.status] || 'default'}>{o.status.replace('_', ' ')}</Badge>,
-          },
-          {
-            key: 'payment_status', header: 'Pago',
-            render: (o: AdminOrder) => <Badge variant={o.payment_status === 'completed' ? 'success' : 'warning'}>{o.payment_status}</Badge>,
-          },
-          { key: 'total_amount', header: 'Total', render: (o: AdminOrder) => formatCurrency(o.total_amount), sortable: true },
-          { key: 'courier_name', header: 'Repartidor', render: (o: AdminOrder) => o.courier_name || '—' },
-          { key: 'created_at', header: 'Fecha', render: (o: AdminOrder) => new Date(o.created_at).toLocaleString('es-CO') },
-          { key: 'actions', header: 'Acciones', render: (o: AdminOrder) => (
-            <Button variant="ghost" size="sm" onClick={() => { setSelected(o); setNewStatus(o.status); }}>Gestionar</Button>
-          )},
-        ]}
+      {alert && <Alert variant={alert.type} title={alert.msg} dismissible onDismiss={() => setAlert(null)} />}
+
+      <EnterpriseTable
+        columns={columns}
         data={orders}
         keyExtractor={o => o.id}
-        emptyMessage={loading ? 'Cargando...' : 'No hay pedidos'}
+        searchable
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar pedidos..."
+        loading={loading}
+        emptyMessage="No hay pedidos"
+        exportable
+        exportFilename="pedidos"
+        actions={
+          <>
+            <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} options={[
+              { value: 'all', label: 'Todos los estados' },
+              ...ORDER_STATUSES.map(s => ({ value: s, label: s.replace('_', ' ') })),
+            ]} className="w-44" />
+            <Button variant="outline" size="sm" onClick={() => { reloadOrders(); }}><RefreshCw className="mr-1.5 h-4 w-4" /> Actualizar</Button>
+          </>
+        }
       />
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title={`Pedido #${selected?.order_number || ''}`}>
@@ -124,6 +132,6 @@ export default function AdminOrders() {
           </div>
         )}
       </Modal>
-    </PageContainer>
+    </div>
   );
 }

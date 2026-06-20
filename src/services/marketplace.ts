@@ -118,11 +118,17 @@ export const marketplaceService = {
     return categories.find((c) => c.id === id) ?? null;
   },
 
-  getBusinesses: async (options?: { categoryId?: string; featured?: boolean; isOpen?: boolean }): Promise<MarketplaceBusiness[]> => {
+  getBusinesses: async (options?: { categoryId?: string; featured?: boolean; isOpen?: boolean; cityId?: string; zoneId?: string }): Promise<MarketplaceBusiness[]> => {
     const supabase = await getClient();
     let query = supabase.from('businesses').select('*').eq('is_active', true);
     if (options?.featured) {
       query = query.eq('is_verified', true);
+    }
+    if (options?.cityId) {
+      query = query.eq('city_id', options.cityId);
+    }
+    if (options?.zoneId) {
+      query = query.eq('zone_id', options.zoneId);
     }
     const { data } = await query.order('rating', { ascending: false });
     if (!data) return [];

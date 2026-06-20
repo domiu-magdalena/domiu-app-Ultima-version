@@ -18,6 +18,7 @@ export interface UserProfile {
   id: string;
   email: string;
   role: UserRole;
+  admin_role: string | null;
   first_name: string | null;
   last_name: string | null;
   phone: string | null;

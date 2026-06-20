@@ -4,7 +4,8 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { LogOut, User, Bell } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 interface AppHeaderProps {
   title?: string;
@@ -44,10 +45,7 @@ export function AppHeader({ title, className }: AppHeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <button className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-          <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" />
-        </button>
+        <NotificationBell />
 
         <div className="relative">
           <button

@@ -226,7 +226,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   const logout = useCallback(async () => {
     try {
+      const currentProfile = authSession.profile;
       setAuthSession((prev) => ({ ...prev, isLoading: true }));
+
+      if (currentProfile) {
+        try {
+          const name = `${currentProfile.first_name || ''} ${currentProfile.last_name || ''}`.trim() || 'Admin';
+          const { auditService } = await import('@/services/audit');
+          const { adminAuthService } = await import('@/services/admin-auth');
+          await Promise.all([
+            auditService.log(currentProfile.id, name, 'logout', 'session', null, 'Cierre de sesión del panel'),
+            adminAuthService.addHistory(currentProfile.id, 'logout', 'Cierre de sesión del panel'),
+          ]);
+        } catch {}
+      }
 
       const { error } = await SupabaseAuthService.logout();
 
@@ -249,7 +262,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         error: error instanceof Error ? error.message : 'Error en logout',
       }));
     }
-  }, []);
+  }, [authSession.profile]);
 
   /**
    * Reset password

@@ -5,12 +5,24 @@ import { createClient } from '@supabase/supabase-js';
 let browserClient: any = null;
 let serviceClient: any = null;
 
+function buildMockClient() {
+  return new Proxy({}, {
+    get(_, prop) {
+      if (prop === 'then') return undefined;
+      return () => buildMockClient();
+    },
+  });
+}
+
 export function getBrowserClient() {
   if (browserClient) return browserClient;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase URL y anon key son requeridos. Configura NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local');
+    if (typeof window !== 'undefined') {
+      console.warn('Supabase no configurado. Las funciones de base de datos no estarán disponibles.');
+    }
+    return buildMockClient();
   }
   browserClient = createClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: true, autoRefreshToken: true },
@@ -23,7 +35,10 @@ export function getServiceClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceKey) {
-    throw new Error('Supabase service key requerida. Configura SUPABASE_SERVICE_ROLE_KEY en .env.local');
+    if (typeof window !== 'undefined') {
+      console.warn('Supabase service key no configurada.');
+    }
+    return buildMockClient();
   }
   serviceClient = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },

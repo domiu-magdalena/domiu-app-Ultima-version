@@ -1,39 +1,31 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { AppSidebar } from '@/components/ui/app-sidebar';
-import { AppHeader } from '@/components/ui/app-header';
+import { AdminSidebar } from '@/components/admin/admin-sidebar';
+import { AdminHeader } from '@/components/admin/admin-header';
 import { Footer } from '@/components/ui/footer';
 import { LoadingState } from '@/components/ui/loading-state';
-import {
-  LayoutDashboard,
-  Users,
-  Store,
-  Truck,
-  ClipboardList,
-  BarChart3,
-  Settings,
-} from 'lucide-react';
-
-const sidebarItems = [
-  { label: 'Dashboard', href: '/admin', icon: <LayoutDashboard className="h-4.5 w-4.5" /> },
-  { label: 'Usuarios', href: '/admin/usuarios', icon: <Users className="h-4.5 w-4.5" /> },
-  { label: 'Negocios', href: '/admin/negocios', icon: <Store className="h-4.5 w-4.5" /> },
-  { label: 'Repartidores', href: '/admin/repartidores', icon: <Truck className="h-4.5 w-4.5" /> },
-  { label: 'Pedidos', href: '/admin/pedidos', icon: <ClipboardList className="h-4.5 w-4.5" /> },
-  { label: 'Reportes', href: '/admin/reportes', icon: <BarChart3 className="h-4.5 w-4.5" /> },
-  { label: 'Configuración', href: '/admin/configuracion', icon: <Settings className="h-4.5 w-4.5" /> },
-];
+import { cn } from '@/lib/utils';
+import { adminAuthService } from '@/services/admin-auth';
+import { auditService } from '@/services/audit';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isLoading, profile } = useAuth();
   const router = useRouter();
+  const sessionRegistered = useRef(false);
 
-  if (isLoading) {
-    return <LoadingState />;
-  }
+  useEffect(() => {
+    if (profile?.id && !sessionRegistered.current) {
+      sessionRegistered.current = true;
+      adminAuthService.registerSession(profile.id);
+      adminAuthService.addHistory(profile.id, 'login', 'Acceso al panel de administración');
+      auditService.log(profile.id, `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Admin', 'login', 'session', null, 'Acceso al panel de administración');
+    }
+  }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (isLoading) return <LoadingState />;
 
   if (!profile) {
     router.push('/login');
@@ -52,9 +44,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-background">
-      <AppSidebar items={sidebarItems} title="Admin DomiU" />
-      <div className="lg:pl-64">
-        <AppHeader title="Panel de Administración" />
+      <AdminSidebar />
+      <div className={cn('transition-all duration-300 lg:pl-64')}>
+        <AdminHeader />
         <main className="p-6">{children}</main>
         <Footer />
       </div>

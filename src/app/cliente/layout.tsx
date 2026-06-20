@@ -9,6 +9,7 @@ import { BottomNavigation } from '@/components/ui/bottom-navigation';
 import { Footer } from '@/components/ui/footer';
 import { LoadingState } from '@/components/ui/loading-state';
 import { Home, ClipboardList, Heart, User, ShoppingBag } from 'lucide-react';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 const navItems = [
   { label: 'Inicio', href: '/cliente', icon: <Home className="h-5 w-5" /> },
@@ -41,17 +42,20 @@ export default function ClienteLayout({ children }: { children: React.ReactNode 
             </div>
             <h2 className="text-lg font-semibold tracking-tight text-foreground">DomiU</h2>
           </div>
-          <Link
-            href="/cliente/cart"
-            className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <ShoppingBag className="h-[18px] w-[18px]" />
-            {itemCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                {itemCount > 9 ? '9+' : itemCount}
-              </span>
-            )}
-          </Link>
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <Link
+              href="/cliente/cart"
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ShoppingBag className="h-[18px] w-[18px]" />
+              {itemCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                  {itemCount > 9 ? '9+' : itemCount}
+                </span>
+              )}
+            </Link>
+          </div>
         </div>
       </header>
       <main>{children}</main>

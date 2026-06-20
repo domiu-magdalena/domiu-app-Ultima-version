@@ -1,14 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { PageContainer } from '@/components/ui/page-container';
-import { PageTitle } from '@/components/ui/page-title';
-import { DashboardCard } from '@/components/ui/dashboard-card';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Alert } from '@/components/ui/alert';
-import { Save } from 'lucide-react';
+import { Save, Settings, Shield, Globe, Bell, Database, Download } from 'lucide-react';
 
 export default function AdminConfig() {
   const [saved, setSaved] = useState(false);
@@ -18,100 +12,152 @@ export default function AdminConfig() {
     setTimeout(() => setSaved(false), 3000);
   };
 
+  const configSections: {
+    title: string;
+    icon: React.ComponentType<{ className?: string }>;
+    fields: {
+      label: string;
+      defaultValue: string;
+      type?: string;
+      hint?: string;
+      readOnly?: boolean;
+      isSelect?: boolean;
+      options?: string[];
+    }[];
+  }[] = [
+    {
+      title: 'Configuración General',
+      icon: Settings,
+      fields: [
+        { label: 'Nombre de la Plataforma', defaultValue: 'DomiU' },
+        { label: 'Comisión por Pedido (%)', defaultValue: '15', type: 'number' },
+        { label: 'Tarifa de Envío Base (COP)', defaultValue: '3500', type: 'number' },
+        { label: 'Tiempo Máximo de Entrega (min)', defaultValue: '45', type: 'number' },
+        { label: 'Distancia Máxima de Reparto (km)', defaultValue: '10', type: 'number' },
+      ],
+    },
+    {
+      title: 'Seguridad',
+      icon: Shield,
+      fields: [
+        { label: 'Tiempo de Sesión (horas)', defaultValue: '24', type: 'number' },
+        { label: 'Intentos Máximos de Login', defaultValue: '5', type: 'number' },
+        { label: 'Requerir Verificación de Email', defaultValue: 'Sí', isSelect: true, options: ['Sí', 'No'] },
+      ],
+    },
+    {
+      title: 'Integraciones',
+      icon: Globe,
+      fields: [
+        { label: 'Google Maps API Key', defaultValue: '********', type: 'password', hint: 'Necesaria para mapas y geolocalización' },
+        { label: 'Supabase URL', defaultValue: 'https://vuwaqmwgvldqmmgkpyjh.supabase.co', readOnly: true, hint: 'Configurado en variables de entorno' },
+      ],
+    },
+    {
+      title: 'Notificaciones',
+      icon: Bell,
+      fields: [
+        { label: 'Email de Notificaciones', defaultValue: 'notificaciones@domiu.app', type: 'email' },
+        { label: 'Notificaciones Push', defaultValue: 'Habilitadas', isSelect: true, options: ['Habilitadas', 'Deshabilitadas'] },
+      ],
+    },
+  ];
+
   return (
-    <PageContainer>
-      <PageTitle title="Configuración" description="Ajustes generales de la plataforma" />
+    <div className="space-y-6 animate-fade-in">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Configuración</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Ajustes generales de la plataforma</p>
+      </div>
 
       {saved && <Alert variant="success" title="Configuración guardada" description="Los cambios se aplicarán al recargar." dismissible onDismiss={() => setSaved(false)} />}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <DashboardCard title="Configuración General">
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Nombre de la Plataforma</label>
-              <Input defaultValue="DomiU" />
+        {configSections.map((section) => {
+          const Icon = section.icon;
+          return (
+            <div key={section.title} className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
+              <div className="flex items-center gap-2 border-b border-border/50 bg-gradient-to-r from-transparent via-primary/[0.02] to-transparent px-5 py-3.5">
+                <Icon className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">{section.title}</h3>
+              </div>
+              <div className="p-5 space-y-4">
+                {section.fields.map((field) => (
+                  <div key={field.label}>
+                    <label className="mb-1.5 block text-sm text-muted-foreground">{field.label}</label>
+                    {field.isSelect ? (
+                      <select className="flex h-10 w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground">
+                        {(field.options || []).map(o => <option key={o} value={o.toLowerCase()}>{o}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        defaultValue={field.defaultValue}
+                        type={field.type || 'text'}
+                        readOnly={field.readOnly}
+                        className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20"
+                      />
+                    )}
+                    {field.hint && <p className="mt-1 text-[10px] text-muted-foreground">{field.hint}</p>}
+                  </div>
+                ))}
+                <button onClick={handleSave} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+                  <Save className="h-4 w-4" /> Guardar Cambios
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Comisión por Pedido (%)</label>
-              <Input defaultValue="15" type="number" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Tarifa de Envío Base (COP)</label>
-              <Input defaultValue="3500" type="number" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Tiempo Máximo de Entrega (min)</label>
-              <Input defaultValue="45" type="number" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Distancia Máxima de Reparto (km)</label>
-              <Input defaultValue="10" type="number" />
-            </div>
-            <Button onClick={handleSave}><Save className="mr-1.5 h-4 w-4" /> Guardar Cambios</Button>
-          </div>
-        </DashboardCard>
-
-        <DashboardCard title="Seguridad">
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Tiempo de Sesión (horas)</label>
-              <Input defaultValue="24" type="number" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Intentos Máximos de Login</label>
-              <Input defaultValue="5" type="number" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Requerir Verificación de Email</label>
-              <select className="flex h-10 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm">
-                <option value="true">Sí</option>
-                <option value="false">No</option>
-              </select>
-            </div>
-            <Button onClick={handleSave}><Save className="mr-1.5 h-4 w-4" /> Guardar Cambios</Button>
-          </div>
-        </DashboardCard>
-
-        <DashboardCard title="Integraciones">
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Google Maps API Key</label>
-              <Input defaultValue="********" type="password" />
-              <p className="mt-1 text-[10px] text-muted-foreground">Necesaria para mapas y geolocalización</p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Supabase URL</label>
-              <Input defaultValue="https://vuwaqmwgvldqmmgkpyjh.supabase.co" readOnly />
-              <p className="mt-1 text-[10px] text-muted-foreground">Configurado en variables de entorno</p>
-            </div>
-            <Button onClick={handleSave}><Save className="mr-1.5 h-4 w-4" /> Guardar Cambios</Button>
-          </div>
-        </DashboardCard>
-
-        <DashboardCard title="Notificaciones">
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Email de Notificaciones</label>
-              <Input defaultValue="notificaciones@domiu.app" type="email" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-muted-foreground">Notificaciones Push</label>
-              <select className="flex h-10 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm">
-                <option value="enabled">Habilitadas</option>
-                <option value="disabled">Deshabilitadas</option>
-              </select>
-            </div>
-            <Button onClick={handleSave}><Save className="mr-1.5 h-4 w-4" /> Guardar Cambios</Button>
-          </div>
-        </DashboardCard>
+          );
+        })}
       </div>
 
-      <Card className="mt-6 p-4">
+      <div className="rounded-2xl border border-border/50 bg-card shadow-card overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-border/50 bg-gradient-to-r from-transparent via-primary/[0.02] to-transparent px-5 py-3.5">
+          <Database className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold text-foreground">Respaldo y Exportación</h3>
+        </div>
+        <div className="p-5">
+          <p className="mb-4 text-sm text-muted-foreground">Exporta los datos de la plataforma en formato CSV.</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              { label: 'Base de Datos', filename: 'domiu_database', icon: Database },
+              { label: 'Usuarios', filename: 'domiu_usuarios', icon: Shield },
+              { label: 'Pedidos', filename: 'domiu_pedidos', icon: Settings },
+              { label: 'Negocios', filename: 'domiu_negocios', icon: Settings },
+              { label: 'Repartidores', filename: 'domiu_repartidores', icon: Settings },
+              { label: 'Wallets', filename: 'domiu_wallets', icon: Settings },
+            ].map((item) => {
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.download = `${item.filename}_${new Date().toISOString().slice(0, 10)}.csv`;
+                    a.click();
+                  }}
+                  className="flex flex-col items-center gap-2 rounded-xl border border-border/50 p-4 transition-all hover:border-primary/30 hover:bg-primary/5 hover:shadow-sm"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/5">
+                    <Download className="h-5 w-5 text-primary" />
+                  </div>
+                  <span className="text-xs font-medium text-foreground">{item.label}</span>
+                  <span className="text-[10px] text-muted-foreground">CSV</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-4 text-[10px] text-muted-foreground">
+            Nota: La exportación directa requiere una API Server-Side. Por ahora se genera la descripción del archivo.
+            Para exportar datos reales, usa la consola de Supabase.
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border/50 bg-card/50 p-5">
         <p className="text-xs text-muted-foreground">
           Los valores de configuración se almacenan en las variables de entorno (.env.local) y en la base de datos.
           Los cambios realizados aquí afectarán a toda la plataforma.
         </p>
-      </Card>
-    </PageContainer>
+      </div>
+    </div>
   );
 }

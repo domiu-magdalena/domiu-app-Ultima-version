@@ -1,31 +1,13 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { PageContainer } from '@/components/ui/page-container';
-import { PageTitle } from '@/components/ui/page-title';
-import { Card } from '@/components/ui/card';
-import { DashboardCard } from '@/components/ui/dashboard-card';
-import { Button } from '@/components/ui/button';
-import { Table } from 'lucide-react';
-
+import { ChartCard, RevenueLineChart, OrdersBarChart, RegistrationAreaChart } from '@/components/admin/dashboard-charts';
 import { adminService } from '@/services/admin';
 import type { SalesReport, TopBusiness, TopCourier } from '@/services/admin';
+import { Card } from '@/components/ui/card';
+import { Download, DollarSign, ShoppingCart, TrendingUp } from 'lucide-react';
 
 const formatCurrency = (n: number) => '$' + n.toLocaleString('es-CO', { minimumFractionDigits: 0 });
-
-function MiniBarChart({ data, color = 'var(--color-primary)' }: { data: { label: string; value: number }[]; color?: string }) {
-  const max = Math.max(...data.map(d => d.value), 1);
-  return (
-    <div className="flex items-end gap-1 h-24">
-      {data.map((d) => (
-        <div key={d.label} className="flex flex-1 flex-col items-center gap-1">
-          <div className="w-full rounded-t bg-primary/10" style={{ height: `${(d.value / max) * 100}%`, backgroundColor: color }} />
-          <span className="text-[9px] text-muted-foreground truncate max-w-full">{d.label.slice(-5)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 async function exportCSV(filename: string, headers: string[], rows: string[][]) {
   const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
@@ -44,144 +26,164 @@ export default function AdminReports() {
   const [statusDist, setStatusDist] = useState<{ status: string; count: number }[]>([]);
   const [userRegs, setUserRegs] = useState<{ date: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hourlyOrders, setHourlyOrders] = useState<{ hour: number; count: number }[]>([]);
 
   useEffect(() => {
     (async () => {
       try {
-        const [sales, biz, couriers, dist, regs] = await Promise.all([
+        const [sales, biz, couriers, dist, regs, hourly] = await Promise.all([
           adminService.getSalesReport(14),
           adminService.getTopBusinesses(5),
           adminService.getTopCouriers(5),
           adminService.getStatusDistribution(),
           adminService.getUserRegistrationStats(),
+          adminService.getHourlyOrders(),
         ]);
         setSalesData(sales);
         setTopBusinesses(biz);
         setTopCouriers(couriers);
         setStatusDist(dist);
         setUserRegs(regs);
+        setHourlyOrders(hourly);
       } catch {}
       setLoading(false);
     })();
   }, []);
 
   if (loading) return (
-    <PageContainer>
-      <PageTitle title="Reportes" description="Estadísticas y análisis de la plataforma" />
-      <p className="text-muted-foreground">Cargando reportes...</p>
-    </PageContainer>
+    <div className="animate-fade-in">
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reportes</h1>
+      <p className="mt-1 text-sm text-muted-foreground">Cargando reportes...</p>
+    </div>
   );
 
   const totalRevenue = salesData.reduce((s, d) => s + d.revenue, 0);
   const totalOrders = salesData.reduce((s, d) => s + d.orders, 0);
+  const statusTotal = statusDist.reduce((a, b) => a + b.count, 0);
 
   return (
-    <PageContainer>
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <PageTitle title="Reportes" description="Estadísticas y análisis de la plataforma" />
-        <Button variant="outline" size="sm" onClick={() => exportCSV('ventas.csv', ['Fecha', 'Pedidos', 'Ingresos'], salesData.map(d => [d.date, String(d.orders), formatCurrency(d.revenue)]))}>
-          <Table className="mr-1.5 h-4 w-4" /> Exportar CSV
-        </Button>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reportes</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Estadísticas y análisis de la plataforma</p>
+        </div>
+        <button
+          onClick={() => exportCSV('ventas.csv', ['Fecha', 'Pedidos', 'Ingresos'], salesData.map(d => [d.date, String(d.orders), formatCurrency(d.revenue)]))}
+          className="flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <Download className="h-3.5 w-3.5" /> Exportar CSV
+        </button>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card className="p-4 text-center">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Card className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-card">
+          <div className="absolute right-3 top-3 text-primary/20">
+            <DollarSign className="h-8 w-8" />
+          </div>
           <p className="text-2xl font-bold text-foreground">{formatCurrency(totalRevenue)}</p>
-          <p className="text-xs text-muted-foreground">Ingresos (14 días)</p>
+          <p className="mt-1 text-xs text-muted-foreground">Ingresos (14 días)</p>
         </Card>
-        <Card className="p-4 text-center">
+        <Card className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-card">
+          <div className="absolute right-3 top-3 text-primary/20">
+            <ShoppingCart className="h-8 w-8" />
+          </div>
           <p className="text-2xl font-bold text-foreground">{totalOrders}</p>
-          <p className="text-xs text-muted-foreground">Pedidos (14 días)</p>
+          <p className="mt-1 text-xs text-muted-foreground">Pedidos (14 días)</p>
         </Card>
-        <Card className="p-4 text-center">
+        <Card className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-card">
+          <div className="absolute right-3 top-3 text-success/20">
+            <TrendingUp className="h-8 w-8" />
+          </div>
           <p className="text-2xl font-bold text-foreground">{topBusinesses.length}</p>
-          <p className="text-xs text-muted-foreground">Top Negocios</p>
+          <p className="mt-1 text-xs text-muted-foreground">Top Negocios</p>
         </Card>
-        <Card className="p-4 text-center">
+        <Card className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-card">
+          <div className="absolute right-3 top-3 text-info/20">
+            <TrendingUp className="h-8 w-8" />
+          </div>
           <p className="text-2xl font-bold text-foreground">{topCouriers.length}</p>
-          <p className="text-xs text-muted-foreground">Top Repartidores</p>
+          <p className="mt-1 text-xs text-muted-foreground">Top Repartidores</p>
         </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <DashboardCard title="Ventas (últimos 14 días)" className="max-h-72">
-          <MiniBarChart data={salesData.map(d => ({ label: d.date.slice(-5), value: d.revenue }))} color="var(--color-primary)" />
-          <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-            <span>Total: {formatCurrency(totalRevenue)}</span>
-            <span className="text-right">Pedidos: {totalOrders}</span>
-          </div>
-        </DashboardCard>
+        <ChartCard title="Ventas (últimos 14 días)">
+          <RevenueLineChart data={salesData.map(r => ({ ...r, date: r.date }))} />
+        </ChartCard>
 
-        <DashboardCard title="Pedidos por Estado" className="max-h-72">
+        <ChartCard title="Distribución de Estados">
           {statusDist.length === 0 ? (
             <p className="text-sm text-muted-foreground">Sin datos</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {statusDist.map(s => {
-                const total = statusDist.reduce((a, b) => a + b.count, 0);
-                const pct = total > 0 ? Math.round((s.count / total) * 100) : 0;
+                const pct = statusTotal > 0 ? Math.round((s.count / statusTotal) * 100) : 0;
                 return (
                   <div key={s.status} className="flex items-center gap-3">
-                    <span className="w-24 text-xs text-muted-foreground capitalize">{s.status.replace('_', ' ')}</span>
-                    <div className="flex-1 h-4 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                    <span className="w-24 text-xs text-muted-foreground capitalize truncate">{s.status.replace('_', ' ')}</span>
+                    <div className="flex-1 h-5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all" style={{ width: `${pct}%` }} />
                     </div>
-                    <span className="w-16 text-right text-xs text-foreground">{s.count} ({pct}%)</span>
+                    <span className="w-20 text-right text-xs text-foreground font-medium">{s.count} ({pct}%)</span>
                   </div>
                 );
               })}
             </div>
           )}
-        </DashboardCard>
+        </ChartCard>
 
-        <DashboardCard title="Top Negocios">
+        <ChartCard title="Top Negocios">
           {topBusinesses.length === 0 ? <p className="text-sm text-muted-foreground">Sin datos</p> : (
             <div className="space-y-3">
               {topBusinesses.map((b, i) => (
-                <div key={b.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-muted-foreground">#{i + 1}</span>
-                    <span className="text-sm font-medium">{b.name}</span>
+                <div key={b.id} className="flex items-center justify-between rounded-xl border border-border/50 px-4 py-3 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 text-xs font-bold text-primary">
+                      {i + 1}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{b.name}</p>
+                      <p className="text-xs text-muted-foreground">{b.order_count} pedidos · ★ {b.avg_rating.toFixed(1)}</p>
+                    </div>
                   </div>
-                  <div className="flex gap-4 text-xs text-muted-foreground">
-                    <span>{b.order_count} pedidos</span>
-                    <span>{formatCurrency(b.total_revenue)}</span>
-                    <span>{b.avg_rating} ⭐</span>
-                  </div>
+                  <span className="text-sm font-semibold">{formatCurrency(b.total_revenue)}</span>
                 </div>
               ))}
             </div>
           )}
-        </DashboardCard>
+        </ChartCard>
 
-        <DashboardCard title="Top Repartidores">
+        <ChartCard title="Top Repartidores">
           {topCouriers.length === 0 ? <p className="text-sm text-muted-foreground">Sin datos</p> : (
             <div className="space-y-3">
               {topCouriers.map((c, i) => (
-                <div key={c.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-muted-foreground">#{i + 1}</span>
-                    <span className="text-sm font-medium">{c.name}</span>
+                <div key={c.id} className="flex items-center justify-between rounded-xl border border-border/50 px-4 py-3 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-info/10 to-info/5 text-xs font-bold text-info">
+                      {i + 1}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{c.name}</p>
+                      <p className="text-xs text-muted-foreground">{c.deliveries} entregas · ★ {c.rating.toFixed(1)}</p>
+                    </div>
                   </div>
-                  <div className="flex gap-4 text-xs text-muted-foreground">
-                    <span>{c.deliveries} entregas</span>
-                    <span>{c.rating} ⭐</span>
-                    <span>{formatCurrency(c.earnings)}</span>
-                  </div>
+                  <span className="text-sm font-semibold">{formatCurrency(c.earnings)}</span>
                 </div>
               ))}
             </div>
           )}
-        </DashboardCard>
+        </ChartCard>
       </div>
 
-      <div className="mt-6">
-        <DashboardCard title="Registro de Usuarios (últimos 30 días)">
-          {userRegs.length === 0 ? <p className="text-sm text-muted-foreground">Sin datos</p> : (
-            <MiniBarChart data={userRegs.map(d => ({ label: d.date.slice(-5), value: d.count }))} color="var(--color-success)" />
-          )}
-        </DashboardCard>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard title="Pedidos por Hora (Hoy)">
+          <OrdersBarChart data={hourlyOrders} />
+        </ChartCard>
+        <ChartCard title="Registro de Usuarios (30 días)">
+          <RegistrationAreaChart data={userRegs} />
+        </ChartCard>
       </div>
-    </PageContainer>
+    </div>
   );
 }
