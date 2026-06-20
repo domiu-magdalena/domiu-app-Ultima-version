@@ -1,67 +1,89 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Save, Settings, Shield, Globe, Bell, Database, Download } from 'lucide-react';
 
+const STORAGE_KEY = 'domiu_admin_config';
+
+interface ConfigField {
+  label: string;
+  key: string;
+  defaultValue: string;
+  type?: string;
+  hint?: string;
+  readOnly?: boolean;
+  isSelect?: boolean;
+  options?: string[];
+}
+
+const defaultSections: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  fields: ConfigField[];
+}[] = [
+  {
+    title: 'Configuración General',
+    icon: Settings,
+    fields: [
+      { label: 'Nombre de la Plataforma', key: 'platform_name', defaultValue: 'DomiU' },
+      { label: 'Comisión por Pedido (%)', key: 'commission_percent', defaultValue: '15', type: 'number' },
+      { label: 'Tarifa de Envío Base (COP)', key: 'base_delivery_fee', defaultValue: '3500', type: 'number' },
+      { label: 'Tiempo Máximo de Entrega (min)', key: 'max_delivery_minutes', defaultValue: '45', type: 'number' },
+      { label: 'Distancia Máxima de Reparto (km)', key: 'max_delivery_km', defaultValue: '10', type: 'number' },
+    ],
+  },
+  {
+    title: 'Seguridad',
+    icon: Shield,
+    fields: [
+      { label: 'Tiempo de Sesión (horas)', key: 'session_hours', defaultValue: '24', type: 'number' },
+      { label: 'Intentos Máximos de Login', key: 'max_login_attempts', defaultValue: '5', type: 'number' },
+      { label: 'Requerir Verificación de Email', key: 'require_email_verification', defaultValue: 'Sí', isSelect: true, options: ['Sí', 'No'] },
+    ],
+  },
+  {
+    title: 'Integraciones',
+    icon: Globe,
+    fields: [
+      { label: 'Google Maps API Key', key: 'google_maps_key', defaultValue: '********', type: 'password', hint: 'Necesaria para mapas y geolocalización' },
+      { label: 'Supabase URL', key: 'supabase_url', defaultValue: 'https://vuwaqmwgvldqmmgkpyjh.supabase.co', readOnly: true, hint: 'Configurado en variables de entorno' },
+    ],
+  },
+  {
+    title: 'Notificaciones',
+    icon: Bell,
+    fields: [
+      { label: 'Email de Notificaciones', key: 'notifications_email', defaultValue: 'notificaciones@domiu.app', type: 'email' },
+      { label: 'Notificaciones Push', key: 'push_notifications', defaultValue: 'Habilitadas', isSelect: true, options: ['Habilitadas', 'Deshabilitadas'] },
+    ],
+  },
+];
+
 export default function AdminConfig() {
   const [saved, setSaved] = useState(false);
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setValues(JSON.parse(stored));
+      }
+    } catch {}
+  }, []);
+
+  const getValue = (key: string, defaultValue: string) => values[key] ?? defaultValue;
+
+  const handleChange = (key: string, value: string) => {
+    setValues(prev => ({ ...prev, [key]: value }));
+  };
 
   const handleSave = () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
-
-  const configSections: {
-    title: string;
-    icon: React.ComponentType<{ className?: string }>;
-    fields: {
-      label: string;
-      defaultValue: string;
-      type?: string;
-      hint?: string;
-      readOnly?: boolean;
-      isSelect?: boolean;
-      options?: string[];
-    }[];
-  }[] = [
-    {
-      title: 'Configuración General',
-      icon: Settings,
-      fields: [
-        { label: 'Nombre de la Plataforma', defaultValue: 'DomiU' },
-        { label: 'Comisión por Pedido (%)', defaultValue: '15', type: 'number' },
-        { label: 'Tarifa de Envío Base (COP)', defaultValue: '3500', type: 'number' },
-        { label: 'Tiempo Máximo de Entrega (min)', defaultValue: '45', type: 'number' },
-        { label: 'Distancia Máxima de Reparto (km)', defaultValue: '10', type: 'number' },
-      ],
-    },
-    {
-      title: 'Seguridad',
-      icon: Shield,
-      fields: [
-        { label: 'Tiempo de Sesión (horas)', defaultValue: '24', type: 'number' },
-        { label: 'Intentos Máximos de Login', defaultValue: '5', type: 'number' },
-        { label: 'Requerir Verificación de Email', defaultValue: 'Sí', isSelect: true, options: ['Sí', 'No'] },
-      ],
-    },
-    {
-      title: 'Integraciones',
-      icon: Globe,
-      fields: [
-        { label: 'Google Maps API Key', defaultValue: '********', type: 'password', hint: 'Necesaria para mapas y geolocalización' },
-        { label: 'Supabase URL', defaultValue: 'https://vuwaqmwgvldqmmgkpyjh.supabase.co', readOnly: true, hint: 'Configurado en variables de entorno' },
-      ],
-    },
-    {
-      title: 'Notificaciones',
-      icon: Bell,
-      fields: [
-        { label: 'Email de Notificaciones', defaultValue: 'notificaciones@domiu.app', type: 'email' },
-        { label: 'Notificaciones Push', defaultValue: 'Habilitadas', isSelect: true, options: ['Habilitadas', 'Deshabilitadas'] },
-      ],
-    },
-  ];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -73,7 +95,7 @@ export default function AdminConfig() {
       {saved && <Alert variant="success" title="Configuración guardada" description="Los cambios se aplicarán al recargar." dismissible onDismiss={() => setSaved(false)} />}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {configSections.map((section) => {
+        {defaultSections.map((section) => {
           const Icon = section.icon;
           return (
             <div key={section.title} className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
@@ -86,12 +108,17 @@ export default function AdminConfig() {
                   <div key={field.label}>
                     <label className="mb-1.5 block text-sm text-muted-foreground">{field.label}</label>
                     {field.isSelect ? (
-                      <select className="flex h-10 w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground">
+                      <select
+                        value={getValue(field.key, field.defaultValue)}
+                        onChange={(e) => handleChange(field.key, e.target.value)}
+                        className="flex h-10 w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground"
+                      >
                         {(field.options || []).map(o => <option key={o} value={o.toLowerCase()}>{o}</option>)}
                       </select>
                     ) : (
                       <input
-                        defaultValue={field.defaultValue}
+                        value={getValue(field.key, field.defaultValue)}
+                        onChange={(e) => handleChange(field.key, e.target.value)}
                         type={field.type || 'text'}
                         readOnly={field.readOnly}
                         className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20"

@@ -1,7 +1,7 @@
 import { AuthError, Session, User } from '@supabase/supabase-js';
 import { getBrowserClient } from '@/lib/db/supabase';
+import { getEnv } from '@/lib/env';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   LoginCredentials,
   RegisterCredentials,
@@ -11,6 +11,7 @@ import {
 } from '@/types/auth';
 
 export class SupabaseAuthService {
+
   static async register(credentials: RegisterCredentials): Promise<{
     user: User | null;
     profile: UserProfile | null;
@@ -18,79 +19,52 @@ export class SupabaseAuthService {
   }> {
     try {
       const supabase = getBrowserClient();
-
-      console.log('[Auth] signUp iniciando para:', credentials.email);
-
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: credentials.email,
         password: credentials.password,
         options: {
-          data: {
-            firstName: credentials.firstName,
-            lastName: credentials.lastName,
-          },
+          data: { firstName: credentials.firstName, lastName: credentials.lastName },
         },
       });
 
-      if (authError) {
-        console.error('[Auth] signUp error:', authError.message);
-        return { user: null, profile: null, error: authError };
-      }
+      if (authError) return { user: null, profile: null, error: authError };
+      if (!authData.user) return { user: null, profile: null, error: new Error('No se pudo crear el usuario') as AuthError };
 
-      if (!authData.user) {
-        console.error('[Auth] signUp no devolvió usuario');
-        const error = new Error('No se pudo crear el usuario') as AuthError;
-        return { user: null, profile: null, error };
-      }
-
-      console.log('[Auth] signUp exitoso, user.id:', authData.user.id, '| session:', !!authData.session);
-
-      // Usar session token si está disponible (email confirmation deshabilitado),
-      // sino pasar userId directamente para que el server lo verifique
       const token = authData.session?.access_token;
 
-      const body: Record<string, unknown> = {
-        userId: authData.user.id,
-        email: credentials.email,
-        role: credentials.role,
-        first_name: credentials.firstName,
-        last_name: credentials.lastName,
-        status: 'active',
-        _token: token || null,
-      };
-
-      console.log('[Auth] POST /api/profile creando perfil...');
+      if (!token) {
+        return {
+          user: authData.user,
+          profile: null,
+          error: 'Registro exitoso. Revisa tu correo para verificar la cuenta antes de iniciar sesión.',
+        };
+      }
 
       const profileRes = await fetch('/api/profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          email: credentials.email,
+          role: credentials.role,
+          first_name: credentials.firstName,
+          last_name: credentials.lastName,
+          status: 'active',
+        }),
       });
 
       if (!profileRes.ok) {
         const body = await profileRes.json().catch(() => ({}));
-        console.error('[Auth] POST /api/profile falló:', profileRes.status, body);
-        const msg = body.error || body.details || `Error del servidor (HTTP ${profileRes.status})`;
-        return { user: null, profile: null, error: msg };
+        return { user: null, profile: null, error: body.error || body.details || `Error del servidor (HTTP ${profileRes.status})` };
       }
 
-      const { profile: profileData } = await profileRes.json();
-      console.log('[Auth] Perfil creado exitosamente:', profileData?.id);
-
-      return {
-        user: authData.user,
-        profile: profileData as UserProfile,
-        error: null,
-      };
+      const { profile } = await profileRes.json();
+      return { user: authData.user, profile, error: null };
     } catch (error) {
-      console.error('[Auth] register exception:', error);
-      const authError = new Error(
-        error instanceof Error ? error.message : 'Error desconocido'
-      ) as AuthError;
-      return { user: null, profile: null, error: authError };
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      return { user: null, profile: null, error: new Error(msg) as AuthError };
     }
   }
 
@@ -101,30 +75,15 @@ export class SupabaseAuthService {
   }> {
     try {
       const supabase = getBrowserClient();
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email: credentials.email,
         password: credentials.password,
       });
-
-      if (error) {
-        return { session: null, user: null, error };
-      }
-
-      if (data.user) {
-        // last_login_at se actualiza via API route al cargar el perfil
-      }
-
-      return {
-        session: data.session,
-        user: data.user,
-        error: null,
-      };
+      if (error) return { session: null, user: null, error };
+      return { session: data.session, user: data.user, error: null };
     } catch (error) {
-      const authError = new Error(
-        error instanceof Error ? error.message : 'Error desconocido'
-      ) as AuthError;
-      return { session: null, user: null, error: authError };
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      return { session: null, user: null, error: new Error(msg) as AuthError };
     }
   }
 
@@ -134,178 +93,101 @@ export class SupabaseAuthService {
       const { error } = await supabase.auth.signOut();
       return { error };
     } catch (error) {
-      const authError = new Error(
-        error instanceof Error ? error.message : 'Error desconocido'
-      ) as AuthError;
-      return { error: authError };
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      return { error: new Error(msg) as AuthError };
     }
   }
 
-  static async getSession(): Promise<{
-    session: Session | null;
-    error: AuthError | null;
-  }> {
+  static async getSession(): Promise<{ session: Session | null; error: AuthError | null }> {
     try {
       const supabase = getBrowserClient();
       const { data, error } = await supabase.auth.getSession();
       return { session: data.session, error };
     } catch (error) {
-      const authError = new Error(
-        error instanceof Error ? error.message : 'Error desconocido'
-      ) as AuthError;
-      return { session: null, error: authError };
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      return { session: null, error: new Error(msg) as AuthError };
     }
   }
 
-  static async getCurrentUser(): Promise<{
-    user: User | null;
-    error: AuthError | null;
-  }> {
+  static async getCurrentUser(): Promise<{ user: User | null; error: AuthError | null }> {
     try {
       const supabase = getBrowserClient();
       const { data, error } = await supabase.auth.getUser();
       return { user: data.user, error };
     } catch (error) {
-      const authError = new Error(
-        error instanceof Error ? error.message : 'Error desconocido'
-      ) as AuthError;
-      return { user: null, error: authError };
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      return { user: null, error: new Error(msg) as AuthError };
     }
   }
 
-  static async getUserProfile(userId: string): Promise<{
-    profile: UserProfile | null;
-    error: any | null;
-  }> {
+  static async getUserProfile(userId: string): Promise<{ profile: UserProfile | null; error: any | null }> {
     try {
       const supabase = getBrowserClient();
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        return { profile: null, error };
-      }
-
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (error) return { profile: null, error };
       return { profile: data as UserProfile, error: null };
     } catch (error) {
-      return {
-        profile: null,
-        error: error instanceof Error ? error.message : 'Error desconocido',
-      };
+      return { profile: null, error };
     }
   }
 
-  static async resendVerificationEmail(email: string): Promise<{
-    error: AuthError | null;
-  }> {
+  static async resendVerificationEmail(email: string): Promise<{ error: AuthError | null }> {
     try {
       const supabase = getBrowserClient();
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
-      });
-
+      const { error } = await supabase.auth.resend({ type: 'signup', email });
       return { error };
     } catch (error) {
-      const authError = new Error(
-        error instanceof Error ? error.message : 'Error desconocido'
-      ) as AuthError;
-      return { error: authError };
+      return { error: new Error(error instanceof Error ? error.message : 'Error desconocido') as AuthError };
     }
   }
 
-  static async resetPassword(request: ResetPasswordRequest): Promise<{
-    error: AuthError | null;
-  }> {
+  static async resetPassword(request: ResetPasswordRequest): Promise<{ error: AuthError | null }> {
     try {
       const supabase = getBrowserClient();
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        request.email,
-        {
-          redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`,
-        }
-      );
-
+      const { error } = await supabase.auth.resetPasswordForEmail(request.email, {
+        redirectTo: `${getEnv().NEXT_PUBLIC_APP_URL}/auth/reset-password`,
+      });
       return { error };
     } catch (error) {
-      const authError = new Error(
-        error instanceof Error ? error.message : 'Error desconocido'
-      ) as AuthError;
-      return { error: authError };
+      return { error: new Error(error instanceof Error ? error.message : 'Error desconocido') as AuthError };
     }
   }
 
-  static async updatePassword(request: UpdatePasswordRequest): Promise<{
-    user: User | null;
-    error: AuthError | null;
-  }> {
+  static async updatePassword(request: UpdatePasswordRequest): Promise<{ user: User | null; error: AuthError | null }> {
     try {
       const supabase = getBrowserClient();
-      const { data, error } = await supabase.auth.updateUser({
-        password: request.password,
-      });
-
+      const { data, error } = await supabase.auth.updateUser({ password: request.password });
       return { user: data.user, error };
     } catch (error) {
-      const authError = new Error(
-        error instanceof Error ? error.message : 'Error desconocido'
-      ) as AuthError;
-      return { user: null, error: authError };
+      return { user: null, error: new Error(error instanceof Error ? error.message : 'Error desconocido') as AuthError };
     }
   }
 
-  static onAuthStateChange(
-    callback: (session: Session | null, user: User | null) => void
-  ) {
+  static onAuthStateChange(callback: (session: Session | null, user: User | null) => void) {
     const supabase = getBrowserClient();
-    return supabase.auth.onAuthStateChange((event: any, session: Session | null) => {
+    return supabase.auth.onAuthStateChange((_event: any, session: any) => {
       callback(session, session?.user || null);
     });
   }
 
-  static async updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<{
-    profile: UserProfile | null;
-    error: any | null;
-  }> {
+  static async updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<{ profile: UserProfile | null; error: any | null }> {
     try {
       const supabase = getBrowserClient();
-      const { data, error } = await supabase.from('profiles').update(updates).eq('id', userId)
-        .select()
-        .single();
-
-      if (error) {
-        return { profile: null, error };
-      }
-
+      const { data, error } = await supabase.from('profiles').update(updates).eq('id', userId).select().single();
+      if (error) return { profile: null, error };
       return { profile: data as UserProfile, error: null };
     } catch (error) {
-      return {
-        profile: null,
-        error: error instanceof Error ? error.message : 'Error desconocido',
-      };
+      return { profile: null, error };
     }
   }
 
-  static async verifyEmail(token: string): Promise<{
-    session: Session | null;
-    error: AuthError | null;
-  }> {
+  static async verifyEmail(token: string): Promise<{ session: Session | null; error: AuthError | null }> {
     try {
       const supabase = getBrowserClient();
-      const { data, error } = await supabase.auth.verifyOtp({
-        token_hash: token,
-        type: 'email',
-      });
-
+      const { data, error } = await supabase.auth.verifyOtp({ token_hash: token, type: 'email' });
       return { session: data.session, error };
     } catch (error) {
-      const authError = new Error(
-        error instanceof Error ? error.message : 'Error desconocido'
-      ) as AuthError;
-      return { session: null, error: authError };
+      return { session: null, error: new Error(error instanceof Error ? error.message : 'Error desconocido') as AuthError };
     }
   }
 }

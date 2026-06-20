@@ -11,6 +11,7 @@ const formatCurrency = (n: number) => '$' + n.toLocaleString('es-CO', { minimumF
 export default function NegocioProductos() {
   const { profile } = useAuth();
   const [products, setProducts] = useState<BusinessProduct[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -20,7 +21,10 @@ export default function NegocioProductos() {
   const loadProducts = async () => {
     if (!profile?.id) return;
     const bizId = await businessService.getBusinessId(profile.id);
-    if (bizId) setProducts(await businessService.getProducts(bizId));
+    if (bizId) {
+      setProducts(await businessService.getProducts(bizId));
+      setCategories(await businessService.getCategories(bizId));
+    }
   };
 
   useEffect(() => { (async () => { await loadProducts(); setLoading(false); })(); }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -29,10 +33,19 @@ export default function NegocioProductos() {
     if (!profile?.id || !form.name) return;
     const bizId = await businessService.getBusinessId(profile.id);
     if (!bizId) return;
+    const productData = {
+      name: form.name,
+      description: form.description,
+      price: Number(form.price),
+      category_id: form.category_id || '',
+      quantity_available: Number(form.quantity_available),
+      preparation_time_minutes: Number(form.preparation_time_minutes),
+      image_url: form.image_url || '',
+    };
     if (editing) {
-      await businessService.updateProduct(editing.id, { name: form.name, description: form.description, price: Number(form.price), quantity_available: Number(form.quantity_available), preparation_time_minutes: Number(form.preparation_time_minutes), image_url: form.image_url || null });
+      await businessService.updateProduct(editing.id, productData);
     } else {
-      await businessService.createProduct(bizId, { name: form.name, description: form.description, price: Number(form.price), quantity_available: Number(form.quantity_available), preparation_time_minutes: Number(form.preparation_time_minutes), image_url: form.image_url || null });
+      await businessService.createProduct(bizId, productData);
     }
     setShowForm(false); setEditing(null); setForm({ name: '', description: '', price: '', category_id: '', quantity_available: '', preparation_time_minutes: '', image_url: '' });
     await loadProducts();
@@ -97,6 +110,15 @@ export default function NegocioProductos() {
             <div className="sm:col-span-2">
               <label className="mb-1 block text-xs text-muted-foreground">Descripción</label>
               <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Descripción del producto..." className="h-20 w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground resize-none" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">Categoría</label>
+              <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })} className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 text-sm text-foreground">
+                <option value="">Sin categoría</option>
+                {categories.map((cat: any) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1 block text-xs text-muted-foreground">URL de Imagen (Supabase Storage)</label>

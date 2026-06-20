@@ -1,5 +1,6 @@
 import { getBrowserClient } from '@/lib/db/supabase';
 import type { OrderStatus, UserRole } from '@/types/database';
+import { SUPER_ADMIN_EMAIL } from '@/types/admin';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -186,6 +187,10 @@ export const adminService = {
 
   async updateUserRole(userId: string, role: UserRole): Promise<void> {
     const supabase = await getClient();
+    const { data: targetUser } = await supabase.from('profiles').select('email').eq('id', userId).single();
+    if (targetUser?.email === SUPER_ADMIN_EMAIL) {
+      throw new Error('No se puede modificar el rol del Super Admin');
+    }
     await supabase.from('profiles').update({ role }).eq('id', userId);
   },
 

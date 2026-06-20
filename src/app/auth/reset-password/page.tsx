@@ -1,21 +1,32 @@
 'use client';
 
-import React, { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { Suspense, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import type { Session } from '@supabase/supabase-js';
+import { getBrowserClient } from '@/lib/db/supabase';
 
 function ResetPasswordForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { isLoading, error } = useAuth();
+  const supabase = getBrowserClient();
 
   const [formData, setFormData] = useState({
     password: '',
     confirmPassword: '',
   });
-
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then((result: { data: { session: Session | null } }) => {
+      if (result.data.session) {
+        setHasSession(true);
+      } else {
+        setFormError('Sesión de recuperación no encontrada. Usa el enlace de tu correo electrónico.');
+      }
+    });
+  }, [supabase]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -43,21 +54,17 @@ function ResetPasswordForm() {
     }
 
     try {
-      const token = searchParams.get('token');
-      if (!token) {
-        setFormError('Token de recuperación inválido');
-        return;
-      }
-
-      console.log('Actualizando contraseña con token:', token);
-
+      setIsLoading(true);
+      const { error } = await supabase.auth.updateUser({ password: formData.password });
+      if (error) throw error;
       setSuccess(true);
-
       setTimeout(() => {
         router.push('/login?message=password_reset');
       }, 2000);
-    } catch {
-      setFormError(error || 'Error al actualizar la contraseña');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Error al actualizar la contraseña');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -92,9 +99,9 @@ function ResetPasswordForm() {
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {(formError || error) && (
+          {formError && (
             <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4">
-              <p className="text-sm text-destructive">{formError || error}</p>
+              <p className="text-sm text-destructive">{formError}</p>
             </div>
           )}
 
@@ -135,7 +142,7 @@ function ResetPasswordForm() {
           <div>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !hasSession}
               className="flex w-full justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? 'Actualizando...' : 'Actualizar contraseña'}

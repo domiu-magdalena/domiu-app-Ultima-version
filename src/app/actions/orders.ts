@@ -1,6 +1,7 @@
 'use server';
 
 import { getServiceClient } from '@/lib/db/supabase';
+import { requireAuth } from '@/lib/auth/server-auth';
 import type { OrderStatus } from '@/types/database';
 
 export async function createOrderAction(input: {
@@ -15,7 +16,13 @@ export async function createOrderAction(input: {
   specialInstructions?: string;
   paymentMethod?: string;
 }) {
-  const supabase = await getServiceClient();
+  const result = await requireAuth();
+  if (result.error) throw new Error(result.error.message);
+  if (result.session.user.id !== input.customerId) {
+    throw new Error('No autorizado para crear pedidos para otro usuario');
+  }
+
+  const supabase = getServiceClient();
 
   const orderNumber = `DOM-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
@@ -88,7 +95,15 @@ export async function createOrderAction(input: {
 }
 
 export async function updateOrderStatusAction(orderId: string, status: OrderStatus) {
-  const supabase = await getServiceClient();
+  const result = await requireAuth();
+  if (result.error) throw new Error(result.error.message);
+
+  const { session } = result;
+  if (session.profile.role === 'customer') {
+    throw new Error('Clientes no pueden actualizar estados de pedidos');
+  }
+
+  const supabase = getServiceClient();
 
   const { data: order, error } = await supabase
     .from('orders')
@@ -109,7 +124,15 @@ export async function updateOrderStatusAction(orderId: string, status: OrderStat
 }
 
 export async function assignCourierAction(orderId: string, courierId: string) {
-  const supabase = await getServiceClient();
+  const result = await requireAuth();
+  if (result.error) throw new Error(result.error.message);
+
+  const { session } = result;
+  if (session.profile.role === 'customer' || session.profile.role === 'courier') {
+    throw new Error('No autorizado para asignar repartidores');
+  }
+
+  const supabase = getServiceClient();
 
   const { data: courier } = await supabase
     .from('profiles')

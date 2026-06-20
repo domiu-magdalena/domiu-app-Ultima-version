@@ -8,12 +8,13 @@ import Link from 'next/link';
 import { BottomNavigation } from '@/components/ui/bottom-navigation';
 import { Footer } from '@/components/ui/footer';
 import { LoadingState } from '@/components/ui/loading-state';
-import { Home, ClipboardList, Heart, User, ShoppingBag } from 'lucide-react';
+import { Home, ClipboardList, Heart, User, ShoppingBag, Ticket } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 const navItems = [
   { label: 'Inicio', href: '/cliente', icon: <Home className="h-5 w-5" /> },
   { label: 'Pedidos', href: '/cliente/pedidos', icon: <ClipboardList className="h-5 w-5" /> },
+  { label: 'Cupones', href: '/cliente/cupones', icon: <Ticket className="h-5 w-5" /> },
   { label: 'Favoritos', href: '/cliente/favoritos', icon: <Heart className="h-5 w-5" /> },
   { label: 'Perfil', href: '/cliente/perfil', icon: <User className="h-5 w-5" /> },
 ];

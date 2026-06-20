@@ -9,7 +9,7 @@ import { permissionsService } from '@/services/permissions';
 import {
   LayoutDashboard, Users, Store, Truck, ClipboardList, BarChart3, Settings,
   MessageSquare, DollarSign, Gift, MapPin, LogOut, ChevronLeft, Search,
-  Sparkles, Shield, Activity, Database,
+  Sparkles, Shield, Activity, Database, Globe,
 } from 'lucide-react';
 
 const sidebarItems = [
@@ -18,6 +18,7 @@ const sidebarItems = [
   { label: 'Negocios', href: '/admin/negocios', icon: Store },
   { label: 'Repartidores', href: '/admin/repartidores', icon: Truck },
   { label: 'Pedidos', href: '/admin/pedidos', icon: ClipboardList },
+  { label: 'Mapa', href: '/admin/mapa', icon: Globe },
   { label: 'Finanzas', href: '/admin/finanzas', icon: DollarSign },
   { label: 'Cobertura', href: '/admin/cobertura', icon: MapPin },
   { label: 'Promociones', href: '/admin/promociones', icon: Gift },

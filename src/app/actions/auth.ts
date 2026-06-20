@@ -1,6 +1,7 @@
 'use server';
 
 import { getServiceClient } from '@/lib/db/supabase';
+import { requireAuth } from '@/lib/auth/server-auth';
 
 export async function registerUserAction(data: {
   email: string;
@@ -9,7 +10,13 @@ export async function registerUserAction(data: {
   lastName: string;
   role: 'customer' | 'merchant' | 'courier';
 }) {
-  const supabase = await getServiceClient();
+  const result = await requireAuth();
+  if (result.error) throw new Error(result.error.message);
+  if (result.session.profile.role !== 'admin') {
+    throw new Error('Solo administradores pueden registrar usuarios');
+  }
+
+  const supabase = getServiceClient();
 
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email: data.email,
@@ -44,8 +51,15 @@ export async function updateUserProfileAction(userId: string, updates: {
   phone?: string;
   avatar_url?: string;
 }) {
-  const supabase = await getServiceClient();
+  const result = await requireAuth();
+  if (result.error) throw new Error(result.error.message);
 
+  const { session } = result;
+  if (session.profile.role !== 'admin' && session.user.id !== userId) {
+    throw new Error('No autorizado para actualizar este perfil');
+  }
+
+  const supabase = getServiceClient();
   const { error } = await supabase
     .from('profiles')
     .update(updates)
@@ -62,8 +76,15 @@ export async function createDriverProfileAction(
     vehicle_plate: string;
   },
 ) {
-  const supabase = await getServiceClient();
+  const result = await requireAuth();
+  if (result.error) throw new Error(result.error.message);
 
+  const { session } = result;
+  if (session.profile.role !== 'admin' && session.user.id !== userId) {
+    throw new Error('No autorizado para crear perfil de repartidor');
+  }
+
+  const supabase = getServiceClient();
   const { error } = await supabase.from('drivers').insert({
     id: userId,
     license_number: data.license_number,

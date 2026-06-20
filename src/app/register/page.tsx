@@ -11,7 +11,7 @@ const ROLES: { label: string; value: UserRole; desc: string; icon: string }[] = 
   { label: 'Cliente', value: 'customer', desc: 'Pide comida rápido', icon: '🍕' },
   { label: 'Negocio', value: 'merchant', desc: 'Vende tus platos', icon: '🏪' },
   { label: 'Repartidor', value: 'courier', desc: 'Gana dinero', icon: '🚚' },
-];
+]; // Admin solo puede ser creado por Super Admin
 
 export default function RegisterPage() {
   const router = useRouter();
