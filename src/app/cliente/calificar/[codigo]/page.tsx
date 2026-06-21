@@ -85,32 +85,32 @@ export default function CalificarPage() {
   };
 
   const Stars = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => (
-    <div className="flex gap-2 justify-center">
+    <div className="flex gap-3 justify-center">
       {[1, 2, 3, 4, 5].map(v => (
         <button key={v} type="button" onClick={() => onChange(v)}
-          className="p-1 transition-all duration-200 active:scale-110 hover:scale-110">
-          <Star size={40} className={`transition-all duration-200 ${v <= value ? "drop-shadow-lg" : "text-[var(--text-muted)]"}`}
-            style={v <= value ? { color: "var(--primary)", fill: "var(--primary)" } : { opacity: 0.3 }} />
+          className="p-1.5 transition-all duration-300 active:scale-125 hover:scale-115">
+          <Star size={44} className={`transition-all duration-300 ${v <= value ? "drop-shadow-[0_0_12px_rgba(16,185,129,0.6)]" : "text-[#64748B]"}`}
+            style={v <= value ? { color: "#10B981", fill: "#10B981", filter: "drop-shadow(0 0 8px rgba(16,185,129,0.4))" } : { opacity: 0.25 }} />
         </button>
       ))}
     </div>
   );
 
   if (!pedido) return (
-    <div className="flex items-center justify-center min-h-screen bg-[var(--bg-primary)]">
-      <div className="w-10 h-10 border-2 rounded-full animate-spin" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-[#0F172A]">
+      <div className="w-12 h-12 border-2 rounded-full animate-spin" style={{ borderColor: "#10B981", borderTopColor: "transparent" }} />
     </div>
   );
 
   if (step === "fin") {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col items-center justify-center px-6 animate-fade-in">
-        <div className="w-28 h-28 rounded-3xl flex items-center justify-center mb-6" style={{ background: "var(--primary)10" }}>
-          <ThumbsUp size={52} style={{ color: "var(--primary)" }} />
+      <div className="min-h-screen bg-[#0F172A] flex flex-col items-center justify-center px-6 animate-fade-in">
+        <div className="w-36 h-36 rounded-[2rem] bg-gradient-to-br from-[#10B981]/30 to-[#10B981]/5 flex items-center justify-center mb-8 shadow-2xl shadow-[#10B981]/20 border border-[#10B981]/20 backdrop-blur-xl">
+          <ThumbsUp size={64} className="text-[#10B981] drop-shadow-[0_0_20px_rgba(16,185,129,0.4)]" />
         </div>
-        <h1 className="text-3xl font-black mb-2" style={{ color: "var(--primary)" }}>¡Gracias!</h1>
-        <p className="text-[var(--text-secondary)] text-sm mb-8 text-center">Tu opinión nos ayuda a mejorar</p>
-        <button onClick={() => router.push("/cliente")} className="btn-primary w-full max-w-xs text-sm">
+        <h1 className="text-4xl font-black mb-3 bg-gradient-to-r from-[#10B981] to-emerald-300 bg-clip-text text-transparent">¡Gracias!</h1>
+        <p className="text-[#64748B] text-sm mb-10 text-center">Tu opinión nos ayuda a mejorar</p>
+        <button onClick={() => router.push("/cliente")} className="w-full max-w-xs text-sm font-bold py-4 rounded-2xl text-white transition-all active:scale-[0.97] shadow-xl shadow-[#10B981]/25" style={{ background: "linear-gradient(135deg, #10B981, #059669)" }}>
           Volver al inicio
         </button>
       </div>
@@ -120,50 +120,50 @@ export default function CalificarPage() {
   const currentEmoji = step === "repartidor" ? puntRepartidor : step === "negocio" ? puntNegocio : 0;
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] animate-fade-in">
+    <div className="min-h-screen bg-[#0F172A] animate-fade-in">
       <div className="px-5 pt-5 pb-8">
-        <div className="flex items-center gap-3 mb-8">
-          <button onClick={() => router.back()} className="w-11 h-11 rounded-2xl bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)] active:scale-90 transition-all">
-            <ArrowLeft size={18} className="text-[var(--text-secondary)]" />
+        <div className="flex items-center gap-3 mb-8 backdrop-blur-xl">
+          <button onClick={() => router.back()} className="w-11 h-11 rounded-2xl bg-[#1E293B]/70 flex items-center justify-center border border-white/[0.06] active:scale-90 transition-all backdrop-blur-xl">
+            <ArrowLeft size={18} className="text-[#64748B]" />
           </button>
-          <h1 className="text-xl font-bold">Calificar</h1>
+          <h1 className="text-xl font-bold text-[#F8FAFC]">Calificar</h1>
         </div>
 
-        <div className="glass-card p-8 text-center animate-fade-up">
+        <div className="rounded-3xl p-8 text-center animate-fade-up bg-[#1E293B]/70 border border-white/[0.06] backdrop-blur-xl shadow-2xl shadow-black/20">
           {step === "repartidor" && (
             <>
-              <div className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-5" style={{ background: "var(--primary)10" }}>
-                <Bike size={48} style={{ color: "var(--primary)" }} />
+              <div className="w-28 h-28 rounded-[1.5rem] bg-gradient-to-br from-[#10B981]/25 to-[#10B981]/5 flex items-center justify-center mx-auto mb-6 border border-[#10B981]/15 shadow-lg shadow-[#10B981]/10">
+                <Bike size={52} className="text-[#10B981] drop-shadow-[0_0_12px_rgba(16,185,129,0.3)]" />
               </div>
-              <h2 className="text-2xl font-black mb-2">Califica al repartidor</h2>
-              <p className="text-[var(--text-secondary)] text-sm mb-6">¿Cómo fue el servicio?</p>
-              {currentEmoji > 0 && <div className="text-5xl mb-4 animate-scale-in">{emojis[currentEmoji - 1]}</div>}
+              <h2 className="text-2xl font-black mb-2 text-[#F8FAFC]">Califica al repartidor</h2>
+              <p className="text-[#64748B] text-sm mb-6">¿Cómo fue el servicio?</p>
+              {currentEmoji > 0 && <div className="text-6xl mb-5 animate-scale-in drop-shadow-lg">{emojis[currentEmoji - 1]}</div>}
               <Stars value={puntRepartidor} onChange={setPuntRepartidor} />
             </>
           )}
 
           {step === "negocio" && (
             <>
-              <div className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-5" style={{ background: "var(--primary)10" }}>
-                <Store size={48} style={{ color: "var(--primary)" }} />
+              <div className="w-28 h-28 rounded-[1.5rem] bg-gradient-to-br from-[#10B981]/25 to-[#10B981]/5 flex items-center justify-center mx-auto mb-6 border border-[#10B981]/15 shadow-lg shadow-[#10B981]/10">
+                <Store size={52} className="text-[#10B981] drop-shadow-[0_0_12px_rgba(16,185,129,0.3)]" />
               </div>
-              <h2 className="text-2xl font-black mb-2">Califica al negocio</h2>
-              <p className="text-[var(--text-secondary)] text-sm mb-1">{pedido.negocios?.nombre || "Negocio"}</p>
-              {currentEmoji > 0 && <div className="text-5xl mb-4 animate-scale-in">{emojis[currentEmoji - 1]}</div>}
+              <h2 className="text-2xl font-black mb-2 text-[#F8FAFC]">Califica al negocio</h2>
+              <p className="text-[#64748B] text-sm mb-1">{pedido.negocios?.nombre || "Negocio"}</p>
+              {currentEmoji > 0 && <div className="text-6xl mb-5 animate-scale-in drop-shadow-lg">{emojis[currentEmoji - 1]}</div>}
               <Stars value={puntNegocio} onChange={setPuntNegocio} />
             </>
           )}
 
           {step === "productos" && productos.length > 0 && (
             <>
-              <div className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-5" style={{ background: "var(--primary)10" }}>
-                <Star size={48} style={{ color: "var(--primary)" }} />
+              <div className="w-28 h-28 rounded-[1.5rem] bg-gradient-to-br from-[#10B981]/25 to-[#10B981]/5 flex items-center justify-center mx-auto mb-6 border border-[#10B981]/15 shadow-lg shadow-[#10B981]/10">
+                <Star size={52} className="text-[#10B981] drop-shadow-[0_0_12px_rgba(16,185,129,0.3)]" />
               </div>
-              <h2 className="text-2xl font-black mb-6">Califica los productos</h2>
+              <h2 className="text-2xl font-black mb-6 text-[#F8FAFC]">Califica los productos</h2>
               <div className="space-y-5">
                 {productos.map(p => (
-                  <div key={p.id} className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)]">
-                    <p className="font-bold text-sm mb-3">{p.producto_nombre}</p>
+                  <div key={p.id} className="p-5 rounded-2xl bg-[#0F172A]/60 border border-white/[0.06] backdrop-blur-sm">
+                    <p className="font-bold text-sm mb-3 text-[#F8FAFC]">{p.producto_nombre}</p>
                     <Stars value={puntProductos[p.id] || 0} onChange={v => setPuntProductos(prev => ({ ...prev, [p.id]: v }))} />
                   </div>
                 ))}
@@ -173,15 +173,15 @@ export default function CalificarPage() {
         </div>
 
         <div className="mt-6 mb-6 animate-fade-up">
-          <div className="glass-card p-4">
-            <MessageCircle size={16} className="text-[var(--text-muted)] mb-2" />
+          <div className="rounded-2xl p-5 bg-[#1E293B]/70 border border-white/[0.06] backdrop-blur-xl">
+            <MessageCircle size={16} className="text-[#64748B] mb-2" />
             <textarea placeholder="Escribe un comentario (opcional)..." value={comentario} onChange={e => setComentario(e.target.value)} rows={3}
-              className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none resize-none" />
+              className="w-full bg-transparent text-sm text-[#F8FAFC] placeholder-[#64748B]/60 outline-none resize-none" />
           </div>
         </div>
 
         <button onClick={siguiente} disabled={saving || (step !== "productos" && ((step === "repartidor" && puntRepartidor === 0) || (step === "negocio" && puntNegocio === 0)))}
-          className="btn-primary w-full text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
+          className="w-full text-sm font-bold py-4 rounded-2xl text-white disabled:opacity-40 active:scale-[0.98] transition-all shadow-xl shadow-[#10B981]/20 backdrop-blur-xl" style={{ background: "linear-gradient(135deg, #10B981, #059669)" }}>
           {saving ? (
             <span className="flex items-center justify-center gap-2">
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

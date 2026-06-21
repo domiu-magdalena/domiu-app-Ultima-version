@@ -40,8 +40,7 @@ export async function POST(req: Request) {
 
     // 2. El trigger handle_new_user ya crea el perfil automaticamente
 
-    // 3. Crear repartidor con codigo unico
-    const codigo = "DOM-" + Math.random().toString(36).substring(2, 7).toUpperCase();
+    // 3. Crear repartidor
     const { error: riderError } = await supabase
       .from("repartidores")
       .insert({
@@ -51,7 +50,6 @@ export async function POST(req: Request) {
         documento: documento || null,
         vehiculo: vehiculo || null,
         placa: placa || null,
-        codigo,
         estado: "No disponible",
       });
 

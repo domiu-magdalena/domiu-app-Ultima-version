@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import RiderMarketplace from "@/components/RiderMarketplace";
 import ChatRepartidor from "@/components/ChatRepartidor";
+import MapView from "@/components/repartidor/MapView";
 
 /* ======================== UTILIDADES ======================== */
 function fmt(v: number) { return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(v || 0); }
@@ -27,18 +28,24 @@ export default function RiderAppPage() {
 
   if (!initialized) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc" }}>
-        <p style={{ color: "#94a3b8", fontSize: 18 }}>Cargando...</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#0F172A]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#10B981] to-[#059669] flex items-center justify-center text-white font-black text-xl shadow-lg shadow-[#10B981]/20">D</div>
+          <div className="w-6 h-6 border-2 border-[#10B981] border-t-transparent rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
 
   if (!user || profile?.rol !== "repartidor") {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fafc", gap: 16 }}>
-        <p style={{ color: "#fca5a5", fontSize: 16 }}>Acceso no autorizado</p>
-        <p style={{ color: "#94a3b8", fontSize: 14 }}>Rol: {profile?.rol || "sin perfil"}</p>
-        <a href="/login" style={{ color: "#f59e0b", fontSize: 14 }}>Volver al login</a>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0F172A] gap-4 animate-fade-up">
+        <div className="w-16 h-16 rounded-2xl bg-[#EF4444]/10 border border-[#EF4444]/20 flex items-center justify-center">
+          <Shield size={32} className="text-[#EF4444]" />
+        </div>
+        <p className="text-[#EF4444] text-sm font-semibold">Acceso no autorizado</p>
+        <p className="text-[#64748B] text-xs">Rol: {profile?.rol || "sin perfil"}</p>
+        <a href="/login" className="text-[#10B981] text-sm font-semibold hover:text-[#34d399] transition-colors">Volver al login</a>
       </div>
     );
   }
@@ -229,9 +236,8 @@ function RiderAppContent({ user, profile, logout }: { user: any; profile: any; l
     try {
       let { data: rider, error: riderError } = await sb.from("repartidores").select("*").eq("user_id", user.id).single();
       if (riderError) {
-        const codigo = "DOM-" + Math.random().toString(36).substring(2, 7).toUpperCase();
         const { data: newRider } = await sb.from("repartidores").insert({
-          user_id: user.id, nombre: profile?.nombre || user.email || "Repartidor", estado: "No disponible", codigo,
+          user_id: user.id, nombre: profile?.nombre || user.email || "Repartidor", estado: "No disponible",
         }).select().single();
         rider = newRider;
       }
@@ -601,7 +607,7 @@ function RiderAppContent({ user, profile, logout }: { user: any; profile: any; l
             </div>
             <div>
               <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: colors.white }}>{riderData.nombre}</h1>
-              <p style={{ margin: "2px 0 0", fontSize: 13, color: colors.gray500 }}>#{riderData.codigo || "—"} · Repartidor</p>
+              <p style={{ margin: "2px 0 0", fontSize: 13, color: colors.gray500 }}>Repartidor</p>
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -1139,71 +1145,60 @@ function RiderAppContent({ user, profile, logout }: { user: any; profile: any; l
         </div>
       )}
 
-      {/* MAPA */}
+      {/* MAPA — Google Maps embebido */}
       {tab === "mapa" && (
-        <div style={{ padding: "16px 16px 0" }}>
-          {activos.length === 0 ? (
-            <div style={{ ...card, textAlign: "center", padding: 40, marginTop: 16 }}>
-              <Navigation size={48} color={colors.gray300} style={{ marginBottom: 12 }} />
-              <p style={{ color: colors.gray400, fontWeight: 600 }}>Sin ruta activa</p>
-              <p style={{ color: colors.gray300, fontSize: 13 }}>Los pedidos activos aparecerán aquí con su ruta</p>
-            </div>
-          ) : (
-            <>
-              <div style={{ ...card, textAlign: "center", background: `linear-gradient(135deg, ${colors.darkerBlue}, ${colors.darkBlue})`, border: "none", marginBottom: 16 }}>
-                <p style={{ margin: "0 0 6px", fontSize: 13, color: colors.gray400 }}>{activos.length} pedido(s) en ruta</p>
-                <p style={{ margin: "0 0 16px", fontSize: 20, fontWeight: 800, color: colors.white }}>Ruta activa</p>
-                <button
-                  style={{ ...btnPrimary, maxWidth: 220, margin: "0 auto" }}
-                  onClick={() => {
-                    const urls = activos.map((p: any) => encodeURIComponent(p.direccion)).join("/");
-                    window.open(`https://www.google.com/maps/dir/${urls}`, "_blank");
-                  }}
-                >
-                  <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                    <Navigation size={18} /> Abrir en Google Maps
-                  </span>
-                </button>
-              </div>
-              {activos.map((p: any, idx: number) => {
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, background: "#0F172A" }}>
+          {(() => {
+            const activeDeliveries = [
+              ...activos.map((p: any) => {
                 const loc = locales.find((l: any) => l.id === p.local_id);
-                return (
-                  <div key={p.id} style={card}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: colors.primary, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: colors.darkerBlue }}>
-                          {idx + 1}
-                        </div>
-                        <strong style={{ color: colors.primary, fontSize: 15 }}>{p.codigo}</strong>
-                      </div>
-                      <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(16,185,129,0.15)", color: colors.green, fontSize: 11, fontWeight: 700 }}>{p.estado}</span>
-                    </div>
-                    {loc && (
-                      <div style={{ marginBottom: 10, padding: 12, borderRadius: 10, background: colors.gray50 }}>
-                        <p style={{ margin: "0 0 4px", fontSize: 11, color: colors.gray500, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: colors.green }} /> Origen
-                        </p>
-                        <p style={{ margin: "0 0 2px", fontSize: 14, color: colors.darkBlue, fontWeight: 600 }}>{loc.nombre}</p>
-                        <p style={{ margin: 0, fontSize: 12, color: colors.gray500 }}>{loc.direccion}</p>
-                      </div>
-                    )}
-                    <div style={{ padding: 12, borderRadius: 10, background: colors.gray50 }}>
-                      <p style={{ margin: "0 0 4px", fontSize: 11, color: colors.gray500, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: colors.red }} /> Destino
-                      </p>
-                      <p style={{ margin: "0 0 2px", fontSize: 14, color: colors.darkBlue, fontWeight: 600 }}>{p.cliente}</p>
-                      <p style={{ margin: 0, fontSize: 12, color: colors.gray500 }}>{p.direccion}</p>
-                    </div>
-                    <button style={{ ...btnPrimary, marginTop: 12, background: `linear-gradient(135deg, ${colors.blue}, #2563eb)`, color: "#fff" }} onClick={() => abrirMapa(p.direccion)}>
-                      <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                        <Navigation size={16} /> Abrir en Google Maps
-                      </span>
-                    </button>
-                  </div>
-                );
-              })}
-            </>
-          )}
+                return {
+                  id: p.id,
+                  codigo: p.codigo,
+                  tipo: "pedido" as const,
+                  cliente: p.cliente,
+                  cliente_telefono: p.telefono || "",
+                  direccion: p.direccion,
+                  direccion_origen: loc?.direccion || "",
+                  negocio_nombre: loc?.nombre || "",
+                  local_id: p.local_id,
+                  estado: p.estado,
+                };
+              }),
+              ...misDomicilios.filter((d: any) => d.estado === "aceptado").map((d: any) => ({
+                id: d.id,
+                codigo: d.pedido_codigo || d.id,
+                tipo: "domicilio" as const,
+                cliente: d.cliente_nombre,
+                cliente_telefono: d.cliente_telefono || "",
+                direccion: d.direccion_destino,
+                direccion_origen: d.direccion_origen || "",
+                negocio_nombre: d.negocio_nombre || "",
+                estado: d.estado,
+              })),
+              ...pcPedidos.filter((p: any) => !["entregado", "cancelado"].includes(p.estado)).map((p: any) => ({
+                id: p.id,
+                codigo: p.codigo,
+                tipo: "marketplace" as const,
+                cliente: p.cliente_nombre,
+                cliente_telefono: p.cliente_telefono || "",
+                direccion: p.cliente_direccion,
+                direccion_origen: "",
+                negocio_nombre: "",
+                estado: p.estado,
+              })),
+            ];
+
+            return (
+              <MapView
+                rider={{
+                  id: riderData?.id || "",
+                  nombre: riderData?.nombre || "",
+                }}
+                deliveries={activeDeliveries}
+              />
+            );
+          })()}
         </div>
       )}
 
@@ -1522,7 +1517,7 @@ function RiderAppContent({ user, profile, logout }: { user: any; profile: any; l
                   }
                 }}
               />
-              <p style={{ margin: 0, fontSize: 12, color: colors.gray500 }}>#{riderData.codigo || "—"}</p>
+              <p style={{ margin: 0, fontSize: 12, color: colors.gray500 }}>Repartidor</p>
             </div>
 
             {[

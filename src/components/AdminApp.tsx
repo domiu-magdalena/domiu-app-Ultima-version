@@ -271,9 +271,43 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
 
   /* ======================== TURNOS ======================== */
   const abrirTurno = async () => {
-    const { error } = await sb.from("turnos").insert({ user_id: user?.id, activo: true, opened_at: new Date().toISOString() });
+    // Primero, eliminar todos los pedidos del turno anterior si existe
+    if (turnoActivo) {
+      const { error: deleteError } = await sb
+        .from("pedidos")
+        .delete()
+        .eq("turno_id", turnoActivo.id);
+      
+      if (deleteError) {
+        console.error("Error eliminando pedidos anteriores:", deleteError);
+      }
+      
+      // Cerrar el turno anterior
+      await sb.from("turnos").update({
+        activo: false,
+        closed_at: new Date().toISOString(),
+      }).eq("id", turnoActivo.id);
+    }
+    
+    // Crear nuevo turno
+    const { data: nuevoTurno, error } = await sb
+      .from("turnos")
+      .insert({ 
+        user_id: user?.id, 
+        activo: true, 
+        opened_at: new Date().toISOString() 
+      })
+      .select()
+      .single();
+      
     if (error) return fail(error.message);
-    ok("Turno abierto"); load();
+    
+    // Resetear estado local
+    setPedidos([]);
+    setTurnoActivo(nuevoTurno);
+    
+    ok("Nuevo turno abierto - Pedidos anteriores eliminados");
+    load();
   };
   const cerrarTurno = async () => {
     if (!turnoActivo) return fail("No hay turno activo");
@@ -741,11 +775,11 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
   ];
   const FINANCIERO_NAV_ITEMS = ALL_NAV_ITEMS.filter(n => ["panel", "liquidaciones", "reportes", "wallets"].includes(n.key));
   const navItems = role === "financiero" ? FINANCIERO_NAV_ITEMS : ALL_NAV_ITEMS;
-  const inpC = "w-full px-4 py-3 rounded-xl border border-slate-700 bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 text-sm";
-  const lblC = "block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide";
+  const inpC = "w-full px-4 py-3 rounded-xl border border-white/[0.08] bg-white/[0.04] text-white placeholder-slate-500 focus:outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-sm transition-all";
+  const lblC = "block text-[10px] font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider";
   const badgeEst: Record<string, string> = {
     Disponible: "bg-green-500/20 text-green-400",
-    Ocupado: "bg-yellow-500/20 text-yellow-400",
+    Ocupado: "bg-[#F59E0B]/10 text-[#F59E0B]",
     "No disponible": "bg-red-500/20 text-red-400",
     Pendiente: "bg-slate-500/20 text-slate-400",
     Asignado: "bg-blue-500/20 text-blue-400",
@@ -758,37 +792,42 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
   };
 
   if (loading && pedidos.length === 0) return (
-    <div className="h-screen flex items-center justify-center bg-slate-950"><Loader2 className="animate-spin text-yellow-400" size={48} /></div>
+    <div className="h-screen flex items-center justify-center bg-[#0F172A]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#10B981] to-[#059669] flex items-center justify-center text-white font-black text-xl shadow-lg shadow-[#10B981]/20">D</div>
+        <Loader2 className="animate-spin text-[#10B981]" size={24} />
+      </div>
+    </div>
   );
 
   /* ======================== RENDER ======================== */
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-200 overflow-hidden">
+    <div className="flex h-screen bg-[#0F172A] text-[#F8FAFC] overflow-hidden">
       {/* Sidebar overlay */}
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
       {/* SIDEBAR */}
-      <aside className={`fixed lg:relative z-40 h-full w-64 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-        <div className="p-6 border-b border-slate-800">
+      <aside className={`fixed lg:relative z-40 h-full w-64 bg-[#1E293B]/50 backdrop-blur-xl border-r border-white/[0.06] flex flex-col transition-transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+        <div className="p-6 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-yellow-400 rounded-xl flex items-center justify-center"><span className="text-lg font-black text-slate-900">D</span></div>
-            <div><h1 className="text-lg font-black text-white">Domi<span className="text-yellow-400">U</span></h1><p className="text-[10px] text-slate-500 uppercase tracking-wider">Panel Administrador</p></div>
+            <div className="w-10 h-10 bg-gradient-to-br from-[#10B981] to-[#059669] rounded-xl flex items-center justify-center shadow-lg shadow-[#10B981]/20"><span className="text-lg font-black text-white">D</span></div>
+            <div><h1 className="text-lg font-black text-white">Domi<span className="text-[#10B981]">U</span></h1><p className="text-[10px] text-[#64748B] uppercase tracking-wider">Panel Administrador</p></div>
           </div>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map(n => (
             <button key={n.key} onClick={() => { setTab(n.key); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${tab === n.key ? "bg-yellow-400/10 text-yellow-400 border border-yellow-400/20" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}>
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${tab === n.key ? "bg-[#10B981]/10 text-[#10B981] font-semibold" : "text-[#64748B] hover:text-white hover:bg-white/[0.04]"}`}>
               <n.icon size={18} /> {n.label}
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-800">
+        <div className="p-4 border-t border-white/[0.06]">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-full bg-yellow-400/20 flex items-center justify-center text-xs font-bold text-yellow-400">{profile?.nombre?.charAt(0).toUpperCase()}</div>
-            <div className="flex-1 min-w-0"><p className="text-xs font-semibold text-white truncate">{profile?.nombre}</p><p className="text-[10px] text-slate-500 truncate">{profile?.email}</p></div>
+            <div className="w-8 h-8 rounded-full bg-[#10B981]/10 border border-[#10B981]/20 flex items-center justify-center text-xs font-bold text-[#10B981]">{profile?.nombre?.charAt(0).toUpperCase()}</div>
+            <div className="flex-1 min-w-0"><p className="text-xs font-semibold text-white truncate">{profile?.nombre}</p><p className="text-[10px] text-[#64748B] truncate">{profile?.email}</p></div>
           </div>
-          <button onClick={() => { logout(); }} className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold hover:bg-red-500/10 hover:text-red-400 transition-all">
+          <button onClick={() => { logout(); }} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white/[0.04] text-[#64748B] text-xs font-semibold hover:bg-[#EF4444]/10 hover:text-[#EF4444] transition-all border border-white/[0.04]">
             <LogOut size={14} /> Cerrar Sesion
           </button>
         </div>
@@ -797,21 +836,21 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
       {/* MAIN */}
       <main className="flex-1 overflow-y-auto">
         {/* Header */}
-        <header className="sticky top-0 z-20 bg-slate-950/80 backdrop-blur border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+        <header className="sticky top-0 z-20 bg-[#0F172A]/95 backdrop-blur-xl border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button className="lg:hidden text-slate-400" onClick={() => setSidebarOpen(true)}><Menu size={24} /></button>
+            <button className="lg:hidden text-[#64748B]" onClick={() => setSidebarOpen(true)}><Menu size={24} /></button>
             <h2 className="text-xl font-bold text-white capitalize">
               {tab === "nuevo" ? "Crear Pedido" : tab === "panel" ? "Dashboard" : tab}
             </h2>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <RealTimeClock />
             {turnoActivo ? (
-              <button onClick={cerrarTurno} className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20 hover:bg-red-500/20">
+              <button onClick={cerrarTurno} className="flex items-center gap-2 px-4 py-2 bg-[#EF4444]/10 text-[#EF4444] rounded-xl text-xs font-bold border border-[#EF4444]/20 hover:bg-[#EF4444]/15 transition-all">
                 <ArrowDownRight size={14} /> Cerrar Turno
               </button>
             ) : (
-              <button onClick={abrirTurno} className="flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-400 rounded-lg text-xs font-bold border border-green-500/20 hover:bg-green-500/20">
+              <button onClick={abrirTurno} className="flex items-center gap-2 px-4 py-2 bg-[#10B981]/10 text-[#10B981] rounded-xl text-xs font-bold border border-[#10B981]/20 hover:bg-[#10B981]/15 transition-all">
                 <ArrowUpRight size={14} /> Abrir Turno
               </button>
             )}
@@ -820,8 +859,8 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
 
         {/* Messages */}
         <div className="px-6 pt-4">
-          {msg && <div className="flex items-center gap-2 mb-4 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400"><CheckCircle size={18} />{msg}</div>}
-          {err && <div className="flex items-center gap-2 mb-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400"><AlertCircle size={18} />{err}</div>}
+          {msg && <div className="flex items-center gap-2 mb-4 p-4 rounded-2xl bg-[#10B981]/10 border border-[#10B981]/20 text-[#10B981] animate-fade-up"><CheckCircle size={18} />{msg}</div>}
+          {err && <div className="flex items-center gap-2 mb-4 p-4 rounded-2xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-[#EF4444] animate-fade-up"><AlertCircle size={18} />{err}</div>}
         </div>
 
         <div className="p-6">
@@ -845,21 +884,21 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                 <Card title={`Disponibles (${repDisp.length})`} icon={UserCheck} iconColor="text-green-400">
                   {repDisp.length === 0 ? <Empty msg="Ninguno disponible" /> :
                     <div className="space-y-2">{repDisp.map(r => (
-                      <div key={r.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+                      <div key={r.id} className="flex items-center justify-between p-3 bg-white/[0.03] rounded-xl">
                         <div><p className="text-sm font-semibold text-white">{r.nombre}</p><p className="text-xs text-slate-500">{r.telefono || "Sin telefono"}</p></div>
                         <span className="text-[10px] px-2 py-1 rounded-full bg-green-500/20 text-green-400 font-bold">DISPONIBLE</span>
                       </div>
                     ))}</div>}
                 </Card>
-                <Card title={`Ocupados (${repOcup.length})`} icon={UserX} iconColor="text-yellow-400">
+                <Card title={`Ocupados (${repOcup.length})`} icon={UserX} iconColor="text-[#10B981]">
                   {repOcup.length === 0 ? <Empty msg="Ninguno ocupado" /> :
                     <div className="space-y-2">{repOcup.map(r => {
                       const pedActivo = pedidos.find((p: any) => p.repartidor_id === r.id && !["Entregado", "Cancelado"].includes(p.estado));
                       return (
-                        <div key={r.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+                        <div key={r.id} className="flex items-center justify-between p-3 bg-white/[0.03] rounded-xl">
                           <div><p className="text-sm font-semibold text-white">{r.nombre}</p>
                             <p className="text-xs text-slate-500">{pedActivo ? pedActivo.codigo : "Sin pedido"}</p></div>
-                          <span className="text-[10px] px-2 py-1 rounded-full bg-yellow-500/20 text-yellow-400 font-bold">OCUPADO</span>
+                          <span className="text-[10px] px-2 py-1 rounded-full bg-[#F59E0B]/10 text-[#F59E0B] font-bold">OCUPADO</span>
                         </div>
                       );
                     })}</div>}
@@ -870,9 +909,9 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
               <Card title="Pedidos Recientes" icon={History} iconColor="text-blue-400">
                 {pedidos.length === 0 ? <Empty msg="Sin pedidos" /> :
                   <div className="space-y-2">{pedidos.slice(0, 8).map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+                    <div key={p.id} className="flex items-center justify-between p-3 bg-white/[0.03] rounded-xl">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-bold text-yellow-400">#{p.codigo}</span>
+                        <span className="text-sm font-bold text-[#10B981]">#{p.codigo}</span>
                         <span className="text-sm text-white">{p.cliente}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -889,18 +928,18 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
           {tab === "nuevo" && (
             <div className="max-w-3xl space-y-6">
               {/* Pegar info */}
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
-                <h3 className="font-bold text-white text-lg mb-4 flex items-center gap-2"><ClipboardPaste size={20} className="text-yellow-400" /> Pegar informacion del local</h3>
+              <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-6">
+                <h3 className="font-bold text-white text-lg mb-4 flex items-center gap-2"><ClipboardPaste size={20} className="text-[#10B981]" /> Pegar informacion del local</h3>
                 <div className="flex gap-3">
                   <textarea className={`${inpC} flex-1`} rows={4} value={fPegarTexto} onChange={(e) => setFPegarTexto(e.target.value)} placeholder="Pega aqui el texto recibido por WhatsApp del local..." />
                 </div>
-                <button onClick={extraerDatosPegados} className="mt-3 px-6 py-3 bg-yellow-400 text-slate-900 font-bold rounded-xl hover:bg-yellow-300 flex items-center gap-2">
+                <button onClick={extraerDatosPegados} className="mt-3 px-6 py-3 bg-[#10B981] text-[#0F172A] font-bold rounded-xl hover:bg-[#059669] flex items-center gap-2">
                   <Search size={16} /> Extraer datos
                 </button>
               </div>
 
               {/* Formulario */}
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+              <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-6">
                 <h3 className="font-bold text-white text-lg mb-6">{editId ? "Editar Pedido" : "Nuevo Pedido"}</h3>
                 <form onSubmit={savePedido} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -915,7 +954,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                   {/* Modo de asignacion */}
                   <div className="flex gap-4 p-3 rounded-xl bg-slate-800/50 border border-slate-700">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="modo" value="asignar" checked={fModoAsignacion === "asignar"} onChange={() => setFModoAsignacion("asignar")} className="accent-yellow-400" />
+                      <input type="radio" name="modo" value="asignar" checked={fModoAsignacion === "asignar"} onChange={() => setFModoAsignacion("asignar")} className="accent-[#10B981]" />
                       <span className="text-sm text-white font-semibold">Asignar manualmente</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -958,13 +997,13 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                   </div>
                   {tarifPrev && !fPrecio && (
                     <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700 space-y-1">
-                      <p className="text-sm font-bold text-yellow-400">Tarifa sugerida ({Number(fKm).toFixed(1)} km): {fmt(tarifPrev.precio)}</p>
+                      <p className="text-sm font-bold text-[#10B981]">Tarifa sugerida ({Number(fKm).toFixed(1)} km): {fmt(tarifPrev.precio)}</p>
                       <p className="text-xs text-green-400">Repartidor: {fmt(tarifPrev.pagoRepartidor)}</p>
                       <p className="text-xs text-blue-400">Empresa: {fmt(tarifPrev.empresaRecibe)}</p>
                     </div>
                   )}
                   <div className="flex gap-3 pt-2">
-                    <button type="submit" className="flex-1 py-3 bg-yellow-400 text-slate-900 font-bold rounded-xl hover:bg-yellow-300">{editId ? "Actualizar" : "Crear Pedido"}</button>
+                    <button type="submit" className="flex-1 py-3 bg-[#10B981] text-[#0F172A] font-bold rounded-xl hover:bg-[#059669]">{editId ? "Actualizar" : "Crear Pedido"}</button>
                     {editId && <button type="button" onClick={() => { resetPedidoForm(); }} className="px-6 py-3 bg-slate-800 text-slate-300 rounded-xl">Cancelar</button>}
                   </div>
                 </form>
@@ -986,7 +1025,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                   <div key={p.id} className="bg-slate-900 rounded-xl border border-slate-800 p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                       <div className="flex items-center gap-3">
-                        <span className="text-yellow-400 font-bold text-lg">#{p.codigo}</span>
+                        <span className="text-[#10B981] font-bold text-lg">#{p.codigo}</span>
                         <span className={`text-xs px-2 py-1 rounded-full font-bold ${badgeEst[p.estado] || "bg-slate-700 text-slate-400"}`}>{p.estado}</span>
                       </div>
                       <div className="flex gap-2">
@@ -1011,7 +1050,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                       <button onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(p.direccion)}`, "_blank")} className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg text-xs font-semibold border border-blue-500/20 hover:bg-blue-500/20"><Navigation size={12} /> Maps</button>
                       {p.repartidor_id && <button onClick={() => waRepPedido(p)} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg text-xs font-semibold border border-indigo-500/20 hover:bg-indigo-500/20"><MessageCircle size={12} /> WA repartidor</button>}
                       {!p.repartidor_id && p.estado === "Pendiente" && (
-                        <select className="px-3 py-1.5 bg-yellow-400/10 text-yellow-400 rounded-lg text-xs font-semibold border border-yellow-400/20" onChange={(e) => { if (e.target.value) asignarRep(p.id, e.target.value); }} defaultValue="">
+                        <select className="px-3 py-1.5 bg-[#10B981]/10 text-[#10B981] rounded-lg text-xs font-semibold border border-[#10B981]/20" onChange={(e) => { if (e.target.value) asignarRep(p.id, e.target.value); }} defaultValue="">
                           <option value="">Asignar repartidor...</option>
                           {repDisp.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
                         </select>
@@ -1035,12 +1074,12 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
           {tab === "repartidores" && (
             <div className="space-y-6">
               {/* Form crear/editar */}
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+              <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-6">
                 <h3 className="font-bold text-white mb-4">{rEdit ? "Editar Repartidor" : "Nuevo Repartidor"}</h3>
                 <form onSubmit={saveRep} className="space-y-4">
                   {!rEdit && (
-                    <div className="p-4 rounded-xl bg-yellow-400/5 border border-yellow-400/20 mb-2">
-                      <p className="text-xs text-yellow-400 font-semibold mb-2">Cuenta de acceso para el repartidor</p>
+                    <div className="p-4 rounded-xl bg-[#10B981]/5 border border-[#10B981]/20 mb-2">
+                      <p className="text-xs text-[#10B981] font-semibold mb-2">Cuenta de acceso para el repartidor</p>
                       <div className="grid grid-cols-2 gap-4">
                         <div><label className={lblC}>Email</label><input className={inpC} type="email" value={rEmail} onChange={(e) => setREmail(e.target.value)} placeholder="repartidor@email.com" required /></div>
                         <div><label className={lblC}>Contraseña</label><input className={inpC} type="password" value={rPass} onChange={(e) => setRPass(e.target.value)} placeholder="Contraseña" required /></div>
@@ -1055,7 +1094,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                     <div><label className={lblC}>Placa</label><input className={inpC} value={rPla} onChange={(e) => setRPla(e.target.value)} placeholder="ABC123" /></div>
                   </div>
                   <div className="flex gap-3">
-                    <button type="submit" className="px-6 py-3 bg-yellow-400 text-slate-900 font-bold rounded-xl">{rEdit ? "Actualizar" : "Crear"}</button>
+                    <button type="submit" className="px-6 py-3 bg-[#10B981] text-white font-bold rounded-xl hover:bg-[#059669]">{rEdit ? "Actualizar" : "Crear"}</button>
                     {rEdit && <button type="button" onClick={() => { setREdit(null); setREmail(""); setRPass(""); setRNom(""); setRTel(""); setRDoc(""); setRVeh(""); setRPla(""); }} className="px-6 py-3 bg-slate-800 text-slate-300 rounded-xl">Cancelar</button>}
                   </div>
                 </form>
@@ -1073,7 +1112,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                     <div key={r.id} className="bg-slate-900 rounded-xl border border-slate-800 p-5">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-yellow-400/20 flex items-center justify-center text-yellow-400 font-bold">{r.nombre.charAt(0)}</div>
+                          <div className="w-10 h-10 rounded-full bg-[#10B981]/10 flex items-center justify-center text-[#10B981] font-bold">{r.nombre.charAt(0)}</div>
                           <div><p className="font-bold text-white text-sm">{r.nombre}</p><p className="text-xs text-slate-500">{r.telefono || "Sin telefono"}</p></div>
                         </div>
                         <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${badgeEst[r.estado] || "bg-slate-700 text-slate-400"}`}>{r.estado || "No disponible"}</span>
@@ -1083,7 +1122,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                         <p>Placa: {r.placa || "N/A"}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
-                        <div className="bg-slate-800/50 p-2 rounded-lg"><p className="text-slate-500">Activos</p><p className="text-yellow-400 font-bold">{act.length}</p></div>
+                        <div className="bg-slate-800/50 p-2 rounded-lg"><p className="text-slate-500">Activos</p><p className="text-[#10B981] font-bold">{act.length}</p></div>
                         <div className="bg-slate-800/50 p-2 rounded-lg"><p className="text-slate-500">Entregados</p><p className="text-green-400 font-bold">{ent.length}</p></div>
                         <div className="bg-slate-800/50 p-2 rounded-lg"><p className="text-slate-500">Generado</p><p className="text-white font-bold">{fmt(totalGen)}</p></div>
                         <div className="bg-slate-800/50 p-2 rounded-lg"><p className="text-slate-500">Debe empresa</p><p className="text-blue-400 font-bold">{fmt(totalDebe)}</p></div>
@@ -1102,7 +1141,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
 
                       {/* Detalle repartidor */}
                       {rDetalle === r.id && (
-                        <div className="mt-4 p-4 bg-slate-800/50 rounded-xl space-y-3">
+                        <div className="mt-4 p-4 bg-white/[0.03] rounded-xl space-y-3">
                           <h4 className="font-bold text-white text-sm flex items-center justify-between">
                             Historial - {r.nombre}
                             <button onClick={() => setRDetalle(null)}><X size={14} className="text-slate-400" /></button>
@@ -1110,7 +1149,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                           <div className="space-y-2 max-h-48 overflow-y-auto">
                             {pedidos.filter((p: any) => p.repartidor_id === r.id).slice(0, 10).map(p => (
                               <div key={p.id} className="flex justify-between text-xs p-2 bg-slate-900 rounded-lg">
-                                <span className="text-yellow-400 font-semibold">#{p.codigo}</span>
+                                <span className="text-[#10B981] font-semibold">#{p.codigo}</span>
                                 <span className={`px-1.5 py-0.5 rounded ${badgeEst[p.estado]}`}>{p.estado}</span>
                                 <span className="text-white">{fmt(p.precio)}</span>
                               </div>
@@ -1119,7 +1158,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                           <div className="text-xs text-slate-400">
                             <p>Ganancia repartidor: <span className="text-green-400 font-bold">{fmt(totalGana)}</span></p>
                           </div>
-                          <button onClick={() => { setTab("liquidaciones"); }} className="w-full py-2 bg-yellow-400/10 text-yellow-400 rounded-lg text-xs font-semibold border border-yellow-400/20">Ver liquidacion</button>
+                          <button onClick={() => { setTab("liquidaciones"); }} className="w-full py-2 bg-[#10B981]/10 text-[#10B981] rounded-lg text-xs font-semibold border border-[#10B981]/20">Ver liquidacion</button>
                         </div>
                       )}
                     </div>
@@ -1134,15 +1173,15 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
           {tab === "turnos" && (
             <div className="space-y-6">
               {/* Turno activo */}
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
-                <h3 className="font-bold text-white text-lg mb-4 flex items-center gap-2"><Clock size={20} className="text-yellow-400" /> Turno Activo</h3>
+              <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-6">
+                <h3 className="font-bold text-white text-lg mb-4 flex items-center gap-2"><Clock size={20} className="text-[#10B981]" /> Turno Activo</h3>
                 {turnoActivo ? (
                   <div>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                       <div className="bg-slate-800/50 p-4 rounded-xl"><p className="text-xs text-slate-500">Apertura</p><p className="text-sm text-white font-semibold">{new Date(turnoActivo.opened_at).toLocaleString("es-CO")}</p></div>
                       <div className="bg-slate-800/50 p-4 rounded-xl"><p className="text-xs text-slate-500">Pedidos</p><p className="text-lg font-bold text-white">{pedidos.length}</p></div>
                       <div className="bg-slate-800/50 p-4 rounded-xl"><p className="text-xs text-slate-500">Entregados</p><p className="text-lg font-bold text-green-400">{todayEnt}</p></div>
-                      <div className="bg-slate-800/50 p-4 rounded-xl"><p className="text-xs text-slate-500">Recaudado</p><p className="text-lg font-bold text-yellow-400">{fmt(todayTotal)}</p></div>
+                      <div className="bg-slate-800/50 p-4 rounded-xl"><p className="text-xs text-slate-500">Recaudado</p><p className="text-lg font-bold text-[#10B981]">{fmt(todayTotal)}</p></div>
                     </div>
                     <button onClick={cerrarTurno} className="px-6 py-3 bg-red-500/10 text-red-400 rounded-xl text-sm font-bold border border-red-500/20 hover:bg-red-500/20 flex items-center gap-2"><ArrowDownRight size={16} /> Cerrar Turno</button>
                   </div>
@@ -1155,7 +1194,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
               </div>
 
               {/* Historial */}
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+              <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-6">
                 <h3 className="font-bold text-white text-lg mb-4 flex items-center gap-2"><History size={20} className="text-blue-400" /> Historial de Turnos</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -1178,7 +1217,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                           <td className="py-3 px-4 text-center text-white font-bold">{t.total_turno || 0}</td>
                           <td className="py-3 px-4 text-center text-green-400 font-bold">{t.entregados || 0}</td>
                           <td className="py-3 px-4 text-center text-red-400 font-bold">{t.cancelados || 0}</td>
-                          <td className="py-3 px-4 text-right text-yellow-400 font-bold">{fmt(t.recaudado_total || 0)}</td>
+                          <td className="py-3 px-4 text-right text-[#10B981] font-bold">{fmt(t.recaudado_total || 0)}</td>
                           <td className="py-3 px-4 text-right text-blue-400 font-bold">{fmt(t.empresa_recibe_total || 0)}</td>
                         </tr>
                       ))}
@@ -1194,8 +1233,8 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
           {tab === "liquidaciones" && (
             <div className="space-y-6">
               {/* Tabla principal */}
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
-                <h3 className="font-bold text-white text-lg mb-4 flex items-center gap-2"><Banknote size={20} className="text-yellow-400" /> Liquidacion por Repartidor</h3>
+              <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-6">
+                <h3 className="font-bold text-white text-lg mb-4 flex items-center gap-2"><Banknote size={20} className="text-[#10B981]" /> Liquidacion por Repartidor</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -1217,13 +1256,13 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                           <td className="py-3 px-4 text-center">{l.count}</td>
                           <td className="py-3 px-4 text-right text-green-400 font-bold">{fmt(l.totalEfectivo)}</td>
                           <td className="py-3 px-4 text-right text-blue-400 font-bold">{fmt(l.totalTransferencia)}</td>
-                          <td className="py-3 px-4 text-right text-yellow-400 font-bold">{fmt(l.debe)}</td>
+                          <td className="py-3 px-4 text-right text-[#10B981] font-bold">{fmt(l.debe)}</td>
                           <td className="py-3 px-4 text-right text-emerald-400 font-bold">{fmt(l.gana)}</td>
                           <td className="py-3 px-4 text-center">
-                            <span className={`text-xs px-2 py-1 rounded-full font-bold ${l.liquidado ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>{l.liquidado ? "Liquidado" : "Pendiente"}</span>
+                            <span className={`text-xs px-2 py-1 rounded-full font-bold ${l.liquidado ? "bg-[#10B981]/10 text-[#10B981]" : "bg-[#F59E0B]/10 text-[#F59E0B]"}`}>{l.liquidado ? "Liquidado" : "Pendiente"}</span>
                           </td>
                           <td className="py-3 px-4 text-center space-x-2">
-                            <button onClick={() => liquidar(l.rep.id)} disabled={l.liquidado || l.count === 0} className="px-3 py-1.5 bg-yellow-400 text-slate-900 rounded-lg text-xs font-bold disabled:opacity-30 hover:bg-yellow-300">Liquidar</button>
+                            <button onClick={() => liquidar(l.rep.id)} disabled={l.liquidado || l.count === 0} className="px-3 py-1.5 bg-[#10B981] text-white rounded-lg text-xs font-bold disabled:opacity-30 hover:bg-[#059669]">Liquidar</button>
                             <button onClick={() => descargarDesprendible(l.rep.id)} disabled={l.count === 0} className="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold disabled:opacity-30 hover:bg-red-500/20 border border-red-500/20"><FileDown size={14} /></button>
                             {l.rep.telefono && <button onClick={() => {
                               const msg = `Liquidacion ${l.rep.nombre}:\nPedidos: ${l.count}\nEmpresa: ${fmt(l.debe)}\nTu ganancia: ${fmt(l.gana)}`;
@@ -1268,9 +1307,9 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
 
           {/* ======================== GPS (MAPA INTERACTIVO) ======================== */}
           <div className="space-y-6" style={{ display: tab === "gps" ? "block" : "none" }}>
-            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+            <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-6">
               <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                <Navigation size={20} className="text-yellow-400" /> GPS en Vivo - Repartidores
+                <Navigation size={20} className="text-[#10B981]" /> GPS en Vivo - Repartidores
               </h3>
               <GoogleMapsLive />
             </div>
@@ -1315,7 +1354,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
               <div className="flex gap-2 border-b border-slate-800 pb-3">
                 {["orders", "stores"].map(st => (
                   <button key={st} onClick={() => setMpSubTab(st as any)}
-                    className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${mpSubTab === st ? "bg-yellow-400/10 text-yellow-400 border border-yellow-400/20" : "text-slate-400 hover:text-white"}`}>
+                    className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${mpSubTab === st ? "bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20" : "text-[#64748B] hover:text-white"}`}>
                     {st === "orders" ? "Pedidos" : "Negocios y Productos"}
                   </button>
                 ))}
@@ -1327,9 +1366,9 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
           {/* ======================== USUARIOS ======================== */}
           {tab === "usuarios" && (
             <div className="space-y-6">
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+              <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-6">
                 <h3 className="text-xl font-bold text-white mb-5 flex items-center gap-2">
-                  <User size={22} className="text-yellow-400" /> Gestión de Usuarios
+                  <User size={22} className="text-[#10B981]" /> Gestión de Usuarios
                 </h3>
                 <AdminUsuarios />
               </div>
@@ -1350,25 +1389,25 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
           {tab === "indriver" && (
             <div className="space-y-6 max-w-4xl">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Bike size={20} className="text-yellow-400" /> Publicar Domicilios</h3>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Bike size={20} className="text-[#10B981]" /> Publicar Domicilios</h3>
                 <button onClick={() => { loadPedidosCliente(); loadDomiDisponibles(); }} className="flex items-center gap-1 px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-700"><RefreshCw size={14} /> Refrescar</button>
               </div>
 
               {/* Domicilios activos */}
               {domDisponibles.length > 0 && (
-                <div className="bg-slate-900 rounded-2xl border border-yellow-400/20 p-5">
-                  <h4 className="font-bold text-yellow-400 text-sm mb-4 flex items-center gap-2"><Bike size={16} /> Domicilios publicados ({domDisponibles.length})</h4>
+                <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-[#10B981]/20 p-5">
+                  <h4 className="font-bold text-[#10B981] text-sm mb-4 flex items-center gap-2"><Bike size={16} /> Domicilios publicados ({domDisponibles.length})</h4>
                   <div className="space-y-2">
                     {domDisponibles.map((d: any) => (
-                      <div key={d.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+                      <div key={d.id} className="flex items-center justify-between p-3 bg-white/[0.03] rounded-xl">
                         <div className="flex items-center gap-4">
-                          <span className="text-yellow-400 font-bold text-sm">#{d.pedido_codigo}</span>
+                          <span className="text-[#10B981] font-bold text-sm">#{d.pedido_codigo}</span>
                           <span className="text-sm text-white">{d.cliente_nombre}</span>
                           <span className="text-xs text-slate-400 truncate max-w-[200px]">{d.direccion_destino}</span>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-green-400 font-bold text-sm">{fmt(d.valor_domicilio)}</span>
-                          <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${d.estado === "aceptado" ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>{d.estado}</span>
+                          <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${d.estado === "aceptado" ? "bg-[#10B981]/10 text-[#10B981]" : "bg-[#F59E0B]/10 text-[#F59E0B]"}`}>{d.estado}</span>
                           {d.repartidor_id && (
                             <span className="text-[10px] px-2 py-1 rounded-full bg-blue-500/20 text-blue-400">Aceptado</span>
                           )}
@@ -1380,8 +1419,8 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
               )}
 
               {/* Pedidos listos para publicar */}
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5">
-                <h4 className="font-bold text-white text-sm mb-4 flex items-center gap-2"><Package size={16} className="text-yellow-400" /> Pedidos de clientes</h4>
+              <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-5">
+                <h4 className="font-bold text-white text-sm mb-4 flex items-center gap-2"><Package size={16} className="text-[#10B981]" /> Pedidos de clientes</h4>
                 {pcPedidos.length === 0 ? (
                   <p className="text-slate-500 text-sm text-center py-8">No hay pedidos de clientes</p>
                 ) : (
@@ -1394,7 +1433,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                           <div key={p.id} className="flex items-center justify-between p-4 bg-slate-800/30 rounded-xl border border-slate-700/50 hover:border-slate-600/50 transition">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-3 mb-1">
-                                <span className="text-yellow-400 font-bold text-sm">#{p.codigo}</span>
+                                <span className="text-[#10B981] font-bold text-sm">#{p.codigo}</span>
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                                   p.estado === "esperando_domiciliario" ? "bg-amber-500/20 text-amber-400" :
                                   p.estado_negocio === "listo_para_recoger" ? "bg-green-500/20 text-green-400" :
@@ -1423,7 +1462,7 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
                                 } finally { setPubId(null); }
                               }}
                               disabled={pubId === p.id}
-                              className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-yellow-400/10 text-yellow-400 rounded-xl text-xs font-bold border border-yellow-400/20 hover:bg-yellow-400/20 disabled:opacity-40 transition"
+                              className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-[#10B981]/10 text-[#10B981] rounded-xl text-xs font-bold border border-[#10B981]/20 hover:bg-[#10B981]/15 disabled:opacity-40 transition"
                             >
                               {pubId === p.id ? (
                                 <><Loader2 className="animate-spin" size={14} /> Publicando...</>
@@ -1451,29 +1490,29 @@ export default function AdminApp({ role }: { role?: "admin" | "financiero" }) {
 /* ======================== SUB-COMPONENTES ======================== */
 function StatCard({ label, value, icon: Icon, color, sub }: { label: string; value: string; icon: any; color: string; sub?: string }) {
   const colors: Record<string, string> = {
-    blue: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    yellow: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    green: "bg-green-500/10 text-green-400 border-green-500/20",
-    red: "bg-red-500/10 text-red-400 border-red-500/20",
-    emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    blue: "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/20",
+    yellow: "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20",
+    green: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
+    red: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
+    emerald: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
     indigo: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
     violet: "bg-violet-500/10 text-violet-400 border-violet-500/20",
   };
   return (
-    <div className={`p-5 rounded-2xl border ${colors[color] || colors.blue}`}>
+    <div className={`p-5 rounded-2xl border backdrop-blur-sm ${colors[color] || colors.blue}`}>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-semibold uppercase opacity-70">{label}</p>
+        <p className="text-[10px] font-semibold uppercase opacity-70">{label}</p>
         <Icon size={18} />
       </div>
       <p className="text-2xl font-black text-white">{value}</p>
-      {sub && <p className="text-xs opacity-60 mt-1">{sub}</p>}
+      {sub && <p className="text-[10px] opacity-60 mt-1">{sub}</p>}
     </div>
   );
 }
 
 function Card({ title, icon: Icon, iconColor, children }: { title: string; icon: any; iconColor: string; children: React.ReactNode }) {
   return (
-    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5">
+    <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-5">
       <h3 className={`font-bold text-white mb-4 flex items-center gap-2`}><Icon size={20} className={iconColor} /> {title}</h3>
       {children}
     </div>
@@ -1481,28 +1520,28 @@ function Card({ title, icon: Icon, iconColor, children }: { title: string; icon:
 }
 
 function Empty({ msg }: { msg: string }) {
-  return <p className="text-slate-500 text-sm text-center py-6">{msg}</p>;
+  return <p className="text-[#64748B] text-sm text-center py-6">{msg}</p>;
 }
 
 function ReportCard({ title, desc, icon: Icon, color, onExcel, onPdf }: { title: string; desc: string; icon: any; color: string; onExcel: () => void; onPdf: () => void }) {
   const colors: Record<string, { bg: string; border: string; icon: string }> = {
-    blue: { bg: "bg-blue-500/10", border: "border-blue-500/20", icon: "text-blue-400" },
-    green: { bg: "bg-green-500/10", border: "border-green-500/20", icon: "text-green-400" },
-    red: { bg: "bg-red-500/10", border: "border-red-500/20", icon: "text-red-400" },
+    blue: { bg: "bg-[#2563EB]/10", border: "border-[#2563EB]/20", icon: "text-[#2563EB]" },
+    green: { bg: "bg-[#10B981]/10", border: "border-[#10B981]/20", icon: "text-[#10B981]" },
+    red: { bg: "bg-[#EF4444]/10", border: "border-[#EF4444]/20", icon: "text-[#EF4444]" },
     violet: { bg: "bg-violet-500/10", border: "border-violet-500/20", icon: "text-violet-400" },
-    yellow: { bg: "bg-yellow-500/10", border: "border-yellow-500/20", icon: "text-yellow-400" },
+    yellow: { bg: "bg-[#F59E0B]/10", border: "border-[#F59E0B]/20", icon: "text-[#F59E0B]" },
     indigo: { bg: "bg-indigo-500/10", border: "border-indigo-500/20", icon: "text-indigo-400" },
   };
   const c = colors[color] || colors.blue;
   return (
-    <div className={`bg-slate-900 rounded-2xl border border-slate-800 p-6 ${c.border}`}>
+    <div className={`bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border ${c.border} p-6 hover:border-white/[0.1] transition-all`}>
       <div className="flex items-center gap-3 mb-3">
         <div className={`w-10 h-10 rounded-xl ${c.bg} flex items-center justify-center`}><Icon size={20} className={c.icon} /></div>
-        <div><p className="font-bold text-white">{title}</p><p className="text-xs text-slate-500">{desc}</p></div>
+        <div><p className="font-bold text-white">{title}</p><p className="text-xs text-[#64748B]">{desc}</p></div>
       </div>
       <div className="flex gap-2 mt-4">
-        <button onClick={onExcel} className="flex-1 py-2 bg-green-500/10 text-green-400 rounded-lg text-xs font-semibold border border-green-500/20 hover:bg-green-500/20 flex items-center justify-center gap-1"><FileSpreadsheet size={14} /> Excel</button>
-        <button onClick={onPdf} className="flex-1 py-2 bg-red-500/10 text-red-400 rounded-lg text-xs font-semibold border border-red-500/20 hover:bg-red-500/20 flex items-center justify-center gap-1"><FileDown size={14} /> PDF</button>
+        <button onClick={onExcel} className="flex-1 py-2.5 bg-[#10B981]/10 text-[#10B981] rounded-xl text-xs font-semibold border border-[#10B981]/20 hover:bg-[#10B981]/15 flex items-center justify-center gap-1 transition-all"><FileSpreadsheet size={14} /> Excel</button>
+        <button onClick={onPdf} className="flex-1 py-2.5 bg-[#EF4444]/10 text-[#EF4444] rounded-xl text-xs font-semibold border border-[#EF4444]/20 hover:bg-[#EF4444]/15 flex items-center justify-center gap-1 transition-all"><FileDown size={14} /> PDF</button>
       </div>
     </div>
   );

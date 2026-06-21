@@ -83,30 +83,30 @@ export default function ChatPage() {
 
   if (showPrompt) {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary)] animate-fade-in">
+      <div className="min-h-screen bg-[#0F172A] animate-fade-in">
         <div className="px-5 pt-5 pb-8">
-          <div className="flex items-center gap-3 mb-6">
-            <button onClick={() => router.back()} className="w-11 h-11 rounded-2xl bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)] active:scale-90 transition-all">
-              <ArrowLeft size={18} className="text-[var(--text-secondary)]" />
+          <div className="flex items-center gap-3 mb-6 backdrop-blur-xl">
+            <button onClick={() => router.back()} className="w-11 h-11 rounded-2xl bg-[#1E293B]/70 flex items-center justify-center border border-white/[0.06] active:scale-90 transition-all backdrop-blur-xl">
+              <ArrowLeft size={18} className="text-[#64748B]" />
             </button>
-            <h1 className="text-xl font-bold">Chat del pedido</h1>
+            <h1 className="text-xl font-bold text-[#F8FAFC]">Chat del pedido</h1>
           </div>
-          <p className="text-xs text-[var(--text-secondary)] mb-6">Pedido #{codigo}</p>
-          <div className="glass-card p-6 animate-fade-up">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--primary)10" }}>
-                <MessageCircle size={22} style={{ color: "var(--primary)" }} />
+          <p className="text-xs text-[#64748B] mb-6">Pedido #{codigo}</p>
+          <div className="rounded-3xl p-7 animate-fade-up bg-[#1E293B]/70 border border-white/[0.06] backdrop-blur-xl shadow-2xl shadow-black/20">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#10B981]/25 to-[#10B981]/5 flex items-center justify-center border border-[#10B981]/15 shadow-lg shadow-[#10B981]/10">
+                <MessageCircle size={24} className="text-[#10B981] drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
               </div>
               <div>
-                <p className="font-bold text-sm">Identifícate para chatear</p>
-                <p className="text-xs text-[var(--text-secondary)]">Con el negocio y repartidor</p>
+                <p className="font-bold text-sm text-[#F8FAFC]">Identifícate para chatear</p>
+                <p className="text-xs text-[#64748B]">Con el negocio y repartidor</p>
               </div>
             </div>
             <div className="space-y-3">
               <input type="text" placeholder="Tu nombre" value={nombre} onChange={e => setNombre(e.target.value)} className="input-field" />
               <input type="tel" placeholder="Tu teléfono" value={telefono} onChange={e => setTelefono(e.target.value)} className="input-field" />
               <button onClick={() => iniciarChat()} disabled={loading || !nombre || !telefono}
-                className="btn-primary w-full text-sm disabled:opacity-40 active:scale-[0.98]">
+                className="w-full text-sm font-bold py-4 rounded-2xl text-white disabled:opacity-40 active:scale-[0.98] transition-all shadow-xl shadow-[#10B981]/20" style={{ background: "linear-gradient(135deg, #10B981, #059669)" }}>
                 {loading ? "Cargando..." : "Iniciar chat"}
               </button>
             </div>
@@ -117,18 +117,18 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col animate-fade-in">
-      <div className="px-5 pt-4 pb-3 border-b border-[var(--border-color)]" style={{ background: "var(--bg-secondary)" }}>
+    <div className="min-h-screen bg-[#0F172A] flex flex-col animate-fade-in">
+      <div className="px-5 pt-4 pb-3 border-b border-white/[0.06] backdrop-blur-xl bg-[#0F172A]/80">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="w-10 h-10 rounded-2xl bg-[var(--bg-primary)] flex items-center justify-center shrink-0 border border-[var(--border-color)] active:scale-90 transition-all">
-            <ArrowLeft size={18} className="text-[var(--text-secondary)]" />
+          <button onClick={() => router.back()} className="w-10 h-10 rounded-2xl bg-[#1E293B]/70 flex items-center justify-center shrink-0 border border-white/[0.06] active:scale-90 transition-all backdrop-blur-xl">
+            <ArrowLeft size={18} className="text-[#64748B]" />
           </button>
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center font-bold shrink-0" style={{ background: "var(--primary)10", color: "var(--primary)" }}>
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#10B981]/25 to-[#10B981]/5 flex items-center justify-center font-bold shrink-0 border border-[#10B981]/15 text-[#10B981] text-sm">
             {negocioNombre[0] || "?"}
           </div>
           <div>
-            <h1 className="text-sm font-bold">{negocioNombre}</h1>
-            <p className="text-[10px] text-[var(--text-secondary)]">#{codigo} — Chat en vivo</p>
+            <h1 className="text-sm font-bold text-[#F8FAFC]">{negocioNombre}</h1>
+            <p className="text-[10px] text-[#64748B]">#{codigo} — Chat en vivo</p>
           </div>
         </div>
       </div>
@@ -139,36 +139,38 @@ export default function ChatPage() {
             <div key={m.id} className={`flex ${m.remitente_tipo === "cliente" ? "justify-end" : "justify-start"} animate-fade-up`}>
               <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                 m.remitente_tipo === "cliente"
-                  ? "text-white rounded-br-md"
-                  : "glass-card text-[var(--text-primary)] rounded-bl-md"
-              }`} style={m.remitente_tipo === "cliente" ? { background: "var(--primary)" } : {}}>
+                  ? "text-white rounded-br-md shadow-lg shadow-[#10B981]/15"
+                  : "rounded-bl-md bg-[#1E293B]/70 border border-white/[0.06] backdrop-blur-xl text-[#F8FAFC]"
+              }`} style={m.remitente_tipo === "cliente" ? { background: "linear-gradient(135deg, #10B981, #059669)" } : {}}>
                 {m.remitente_tipo !== "cliente" && (
-                  <p className="text-[10px] font-bold mb-0.5" style={{ color: "var(--primary)" }}>{m.remitente_nombre}</p>
+                  <p className="text-[10px] font-bold mb-0.5 text-[#10B981]">{m.remitente_nombre}</p>
                 )}
                 <p className="text-sm">{m.mensaje}</p>
-                <p className={`text-[10px] mt-0.5 text-right ${m.remitente_tipo === "cliente" ? "text-white/70" : "text-[var(--text-muted)]"}`}>
+                <p className={`text-[9px] mt-1 text-right ${m.remitente_tipo === "cliente" ? "text-white/50" : "text-[#64748B]/60"}`}>
                   {new Date(m.created_at).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
                 </p>
               </div>
             </div>
           ))}
           {mensajes.length === 0 && (
-            <div className="text-center py-12">
-              <MessageCircle size={32} className="mx-auto mb-3" style={{ color: "var(--text-muted)", opacity: 0.3 }} />
-              <p className="text-sm text-[var(--text-secondary)]">No hay mensajes aún</p>
-              <p className="text-xs text-[var(--text-muted)] mt-1">Escribe algo para iniciar la conversación</p>
+            <div className="text-center py-16">
+              <div className="w-16 h-16 rounded-2xl bg-[#1E293B]/50 border border-white/[0.04] flex items-center justify-center mx-auto mb-4">
+                <MessageCircle size={28} className="text-[#64748B]/30" />
+              </div>
+              <p className="text-sm text-[#64748B]">No hay mensajes aún</p>
+              <p className="text-xs text-[#64748B]/50 mt-1">Escribe algo para iniciar la conversación</p>
             </div>
           )}
           <div ref={bottomRef} />
         </div>
       </div>
 
-      <div className="border-t border-[var(--border-color)] p-4" style={{ background: "var(--bg-secondary)" }}>
-        <div className="flex items-center gap-2 max-w-lg mx-auto">
+      <div className="border-t border-white/[0.06] p-4 backdrop-blur-xl bg-[#0F172A]/80">
+        <div className="flex items-center gap-3 max-w-lg mx-auto">
           <input type="text" placeholder="Escribe un mensaje..." value={texto} onChange={e => setTexto(e.target.value)} onKeyDown={e => e.key === "Enter" && enviarMensaje()}
-            className="input-field flex-1" />
+            className="flex-1 h-12 rounded-2xl bg-[#1E293B]/70 border border-white/[0.06] px-4 text-sm text-[#F8FAFC] placeholder-[#64748B]/50 outline-none focus:border-[#10B981]/30 transition-colors backdrop-blur-xl" />
           <button onClick={enviarMensaje} disabled={!texto.trim()}
-            className="w-12 h-12 rounded-2xl text-white flex items-center justify-center disabled:opacity-30 shrink-0 transition-all active:scale-90 shadow-lg" style={{ background: "var(--primary)", boxShadow: "0 4px 15px var(--primary)30" }}>
+            className="w-12 h-12 rounded-2xl text-white flex items-center justify-center disabled:opacity-30 shrink-0 transition-all active:scale-90 shadow-xl shadow-[#10B981]/25" style={{ background: "linear-gradient(135deg, #10B981, #059669)" }}>
             <Send size={18} />
           </button>
         </div>

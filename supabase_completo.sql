@@ -263,6 +263,10 @@ DROP POLICY IF EXISTS "Pedidos rider update" ON pedidos;
 CREATE POLICY "Pedidos rider update" ON pedidos FOR UPDATE USING (
   repartidor_id IN (SELECT id FROM repartidores WHERE user_id = auth.uid())
 );
+DROP POLICY IF EXISTS "Pedidos rider delete" ON pedidos;
+CREATE POLICY "Pedidos rider delete" ON pedidos FOR DELETE USING (
+  repartidor_id IN (SELECT id FROM repartidores WHERE user_id = auth.uid())
+);
 
 -- TURNOS
 DROP POLICY IF EXISTS "Turnos select any" ON turnos;

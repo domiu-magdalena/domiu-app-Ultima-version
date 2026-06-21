@@ -37,72 +37,72 @@ function ConfirmacionContent() {
   if (!codigo) { router.replace("/cliente"); return null; }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col animate-fade-in">
+    <div className="min-h-screen bg-[#0F172A] flex flex-col animate-fade-in">
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center max-w-lg mx-auto w-full">
-        {/* Success */}
-        <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-[var(--success)]/20 to-[var(--success)]/5 flex items-center justify-center mb-6 animate-scale-in shadow-2xl shadow-[var(--success)]/10">
-          <CheckCircle size={56} className="text-[var(--success)]" />
+        <div className="relative mb-8">
+          <div className="absolute inset-0 w-32 h-32 rounded-[2rem] bg-[#10B981]/20 blur-2xl animate-pulse mx-auto" />
+          <div className="relative w-32 h-32 rounded-[2rem] bg-gradient-to-br from-[#10B981]/30 to-[#10B981]/5 flex items-center justify-center shadow-2xl shadow-[#10B981]/20 border border-[#10B981]/25 backdrop-blur-xl animate-scale-in">
+            <CheckCircle size={60} className="text-[#10B981] drop-shadow-[0_0_20px_rgba(16,185,129,0.5)]" />
+          </div>
         </div>
 
-        <h1 className="text-3xl font-black mb-2 gradient-text">¡Pedido confirmado!</h1>
-        <p className="text-[var(--text-secondary)] text-sm mb-8">Tu pedido ha sido recibido y pronto será preparado.</p>
+        <h1 className="text-3xl font-black mb-2 bg-gradient-to-r from-[#10B981] via-emerald-300 to-[#10B981] bg-clip-text text-transparent">¡Pedido confirmado!</h1>
+        <p className="text-[#64748B] text-sm mb-8">Tu pedido ha sido recibido y pronto será preparado.</p>
 
-        {/* Order code */}
-        <div className="glass-card p-6 w-full mb-6 animate-fade-up">
-          <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-[2px] font-semibold mb-2">Código de pedido</p>
-          <p className="text-3xl font-black text-[var(--primary)] tracking-[4px]">{pedido?.codigo || codigo}</p>
+        <div className="w-full mb-6 animate-fade-up rounded-3xl bg-[#1E293B]/70 border border-white/[0.06] backdrop-blur-xl p-7 shadow-2xl shadow-black/20">
+          <p className="text-[10px] text-[#64748B] uppercase tracking-[3px] font-semibold mb-3">Código de pedido</p>
+          <p className="text-4xl font-black tracking-[6px] bg-gradient-to-r from-[#10B981] to-emerald-300 bg-clip-text text-transparent">{pedido?.codigo || codigo}</p>
 
-          <div className="h-px bg-gradient-to-r from-[var(--primary)]/20 via-white/10 to-transparent my-5" />
+          <div className="h-px bg-gradient-to-r from-[#10B981]/20 via-white/[0.06] to-transparent my-6" />
 
           {pedido && (
-            <div className="text-left space-y-3">
+            <div className="text-left space-y-4">
               <div className="flex items-center gap-3 text-sm">
-                <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
-                  <Package size={14} className="text-[var(--primary)]" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#10B981]/20 to-[#10B981]/5 flex items-center justify-center border border-[#10B981]/10">
+                  <Package size={16} className="text-[#10B981]" />
                 </div>
-                <span className="text-[var(--text-secondary)]">{pedido.negocios?.nombre || "Negocio"}</span>
+                <span className="text-[#64748B]">{pedido.negocios?.nombre || "Negocio"}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
-                  <MapPin size={14} className="text-[var(--primary)]" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#10B981]/20 to-[#10B981]/5 flex items-center justify-center border border-[#10B981]/10">
+                  <MapPin size={16} className="text-[#10B981]" />
                 </div>
-                <span className="text-[var(--text-secondary)] truncate">{pedido.cliente_direccion}</span>
+                <span className="text-[#64748B] truncate">{pedido.cliente_direccion}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
-                  <Bike size={14} className="text-[var(--primary)]" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#10B981]/20 to-[#10B981]/5 flex items-center justify-center border border-[#10B981]/10">
+                  <Bike size={16} className="text-[#10B981]" />
                 </div>
-                <span className="text-[var(--text-secondary)]">Domicilio: ${pedido.domicilio.toLocaleString()}</span>
+                <span className="text-[#64748B]">Domicilio: ${pedido.domicilio.toLocaleString()}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
-                  <CreditCard size={14} className="text-[var(--primary)]" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#10B981]/20 to-[#10B981]/5 flex items-center justify-center border border-[#10B981]/10">
+                  <CreditCard size={16} className="text-[#10B981]" />
                 </div>
-                <span className="text-[var(--text-secondary)]">
+                <span className="text-[#64748B]">
                   {pedido.metodo_pago ? (metodosLabels[pedido.metodo_pago]?.label || pedido.metodo_pago) : "Pago contra entrega"}
                 </span>
               </div>
-              <div className="h-px bg-gradient-to-r from-white/5 via-white/10 to-transparent my-3" />
+              <div className="h-px bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-transparent my-4" />
               <div className="flex justify-between font-bold text-lg">
-                <span>Total</span>
-                <span className="gradient-text">${pedido.total.toLocaleString()}</span>
+                <span className="text-[#F8FAFC]">Total</span>
+                <span className="bg-gradient-to-r from-[#10B981] to-emerald-300 bg-clip-text text-transparent">${pedido.total.toLocaleString()}</span>
               </div>
             </div>
           )}
         </div>
 
-        {/* Tracking button */}
         <button onClick={() => router.push(`/cliente/seguimiento/${pedido?.codigo || codigo}`)}
-          className="btn-primary w-full text-sm mb-3 flex items-center justify-center gap-2 active:scale-[0.97] transition-all shadow-lg shadow-[var(--primary)]/20">
+          className="w-full text-sm font-bold mb-3 py-4 rounded-2xl text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all shadow-xl shadow-[#10B981]/25" style={{ background: "linear-gradient(135deg, #10B981, #059669)" }}>
           <Clock size={18} /> Seguir pedido <ArrowRight size={16} />
         </button>
 
         <button onClick={() => router.push(`/cliente/chat/${codigo}`)}
-          className="w-full text-sm mb-3 py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 active:scale-[0.97] transition-all border border-[var(--border-color)]" style={{ background: "var(--bg-secondary)" }}>
-          <MessageCircle size={18} style={{ color: "var(--primary)" }} /> Chat en vivo
+          className="w-full text-sm font-bold mb-3 py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-[0.97] transition-all border border-[#10B981]/20 bg-[#1E293B]/70 backdrop-blur-xl hover:border-[#10B981]/40 hover:shadow-lg hover:shadow-[#10B981]/5">
+          <MessageCircle size={18} className="text-[#10B981]" /> <span className="text-[#F8FAFC]">Chat en vivo</span>
         </button>
 
-        <button onClick={() => router.push("/cliente")} className="text-sm text-[var(--text-muted)] font-medium py-3 hover:text-[var(--text-secondary)] transition-colors">
+        <button onClick={() => router.push("/cliente")} className="text-sm text-[#64748B] font-medium py-3 hover:text-[#F8FAFC] transition-colors">
           Volver al inicio
         </button>
       </div>
@@ -112,7 +112,7 @@ function ConfirmacionContent() {
 
 export default function ConfirmacionPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-[var(--bg-primary)]"><div className="w-10 h-10 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" /></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-[#0F172A]"><div className="w-12 h-12 border-2 border-[#10B981] border-t-transparent rounded-full animate-spin" /></div>}>
       <ConfirmacionContent />
     </Suspense>
   );

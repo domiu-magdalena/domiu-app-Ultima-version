@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Store, ClipboardList, Package, TrendingUp, DollarSign, Clock, ChevronRight, Bell } from "lucide-react";
+import { Store, ClipboardList, Package, TrendingUp, DollarSign, Clock, ChevronRight, Bell, ArrowUpRight } from "lucide-react";
 import { useNegocio } from "@/context/negocio/NegocioContext";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -35,69 +35,65 @@ export default function NegocioDashboard() {
   if (!negocio) return null;
 
   const cards = [
-    { label: "Pedidos pendientes", value: stats.pendientes, icon: ClipboardList, color: "bg-yellow-500/20 text-yellow-400", href: "/negocio/pedidos" },
-    { label: "En preparacion", value: stats.preparacion, icon: Clock, color: "bg-blue-500/20 text-blue-400", href: "/negocio/pedidos" },
-    { label: "Listos para recoger", value: stats.listos, icon: Bell, color: "bg-green-500/20 text-green-400", href: "/negocio/pedidos" },
-    { label: "Ventas del dia", value: `$${stats.ventasHoy.toLocaleString()}`, icon: DollarSign, color: "bg-purple-500/20 text-purple-400", href: "" },
-    { label: "Productos activos", value: stats.productosActivos, icon: Package, color: "bg-orange-500/20 text-orange-400", href: "/negocio/productos" },
+    { label: "Pendientes", value: stats.pendientes, icon: ClipboardList, color: "from-[#F59E0B]/15 to-[#F59E0B]/[0.02]", borderColor: "border-[#F59E0B]/20", iconColor: "text-[#F59E0B]", href: "/negocio/pedidos" },
+    { label: "En preparacion", value: stats.preparacion, icon: Clock, color: "from-[#2563EB]/15 to-[#2563EB]/[0.02]", borderColor: "border-[#2563EB]/20", iconColor: "text-[#2563EB]", href: "/negocio/pedidos" },
+    { label: "Listos", value: stats.listos, icon: Bell, color: "from-[#10B981]/15 to-[#10B981]/[0.02]", borderColor: "border-[#10B981]/20", iconColor: "text-[#10B981]", href: "/negocio/pedidos" },
+    { label: "Ventas del dia", value: `$${stats.ventasHoy.toLocaleString()}`, icon: DollarSign, color: "from-purple-500/15 to-purple-500/[0.02]", borderColor: "border-purple-500/20", iconColor: "text-purple-400", href: "" },
+    { label: "Productos activos", value: stats.productosActivos, icon: Package, color: "from-orange-500/15 to-orange-500/[0.02]", borderColor: "border-orange-500/20", iconColor: "text-orange-400", href: "/negocio/productos" },
   ];
 
   return (
-    <div>
-      {/* Header */}
+    <div className="animate-fade-up">
       <div className="flex items-start gap-4 mb-8">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-domi-yellow/20 to-domi-yellow/5 flex items-center justify-center text-domi-yellow font-bold text-2xl border border-white/10">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#10B981]/20 to-[#10B981]/5 flex items-center justify-center text-[#10B981] font-bold text-2xl border border-[#10B981]/20">
           {negocio.nombre[0]}
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">{negocio.nombre}</h1>
-          <p className="text-sm text-white/50 mt-0.5">{negocio.categoria}</p>
+        <div className="flex-1">
+          <h1 className="text-2xl font-black text-white">{negocio.nombre}</h1>
+          <p className="text-sm text-[#64748B] mt-0.5">{negocio.categoria}</p>
           <div className="flex items-center gap-3 mt-2">
-            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${negocio.abierto ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
+            <span className={`px-3 py-1 rounded-full text-[11px] font-bold border ${negocio.abierto ? "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20" : "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20"}`}>
               {negocio.abierto ? "Abierto" : "Cerrado"}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
-            <button key={card.label} onClick={() => card.href && router.push(card.href)} className={`bg-domi-dark rounded-2xl p-4 text-left hover:bg-white/5 transition-all active:scale-[0.98] ${card.href ? "cursor-pointer" : "cursor-default"}`}>
-              <div className={`w-10 h-10 rounded-xl ${card.color} flex items-center justify-center mb-3`}>
-                <Icon size={20} />
+            <button key={card.label} onClick={() => card.href && router.push(card.href)} className={`bg-gradient-to-br ${card.color} rounded-2xl p-5 text-left border ${card.borderColor} hover:border-white/[0.12] transition-all active:scale-[0.98] ${card.href ? "cursor-pointer" : "cursor-default"}`}>
+              <div className={`w-10 h-10 rounded-xl bg-white/[0.06] flex items-center justify-center mb-3`}>
+                <Icon size={20} className={card.iconColor} />
               </div>
-              <p className="text-2xl font-bold mb-1">{card.value}</p>
-              <p className="text-xs text-white/50">{card.label}</p>
+              <p className="text-2xl font-black text-white mb-1">{card.value}</p>
+              <p className="text-xs text-[#64748B] font-medium">{card.label}</p>
             </button>
           );
         })}
       </div>
 
-      {/* Recent orders */}
-      <div className="bg-domi-dark rounded-2xl p-5 mb-4">
+      <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-5 mb-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-base">Pedidos recientes</h2>
-          <button onClick={() => router.push("/negocio/pedidos")} className="text-xs text-domi-yellow font-medium flex items-center gap-1">
+          <h2 className="font-bold text-base text-white">Pedidos recientes</h2>
+          <button onClick={() => router.push("/negocio/pedidos")} className="text-xs text-[#10B981] font-semibold flex items-center gap-1 hover:text-[#34d399] transition-colors">
             Ver todos <ChevronRight size={14} />
           </button>
         </div>
         <RecentOrders negocioId={negocio.id} />
       </div>
 
-      {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => router.push("/negocio/productos")} className="bg-domi-dark rounded-2xl p-5 text-left hover:bg-white/5 transition-all active:scale-[0.98]">
-          <Package size={24} className="text-domi-yellow mb-2" />
-          <p className="font-semibold text-sm">Gestionar productos</p>
-          <p className="text-xs text-white/40 mt-0.5">Agregar, editar o desactivar</p>
+        <button onClick={() => router.push("/negocio/productos")} className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-5 text-left hover:border-[#10B981]/20 transition-all active:scale-[0.98] group">
+          <Package size={24} className="text-[#10B981] mb-3 group-hover:scale-110 transition-transform" />
+          <p className="font-bold text-sm text-white">Gestionar productos</p>
+          <p className="text-xs text-[#64748B] mt-0.5">Agregar, editar o desactivar</p>
         </button>
-        <button onClick={() => router.push("/negocio/perfil")} className="bg-domi-dark rounded-2xl p-5 text-left hover:bg-white/5 transition-all active:scale-[0.98]">
-          <Store size={24} className="text-domi-yellow mb-2" />
-          <p className="font-semibold text-sm">Mi perfil</p>
-          <p className="text-xs text-white/40 mt-0.5">Editar info del negocio</p>
+        <button onClick={() => router.push("/negocio/perfil")} className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-5 text-left hover:border-[#10B981]/20 transition-all active:scale-[0.98] group">
+          <Store size={24} className="text-[#10B981] mb-3 group-hover:scale-110 transition-transform" />
+          <p className="font-bold text-sm text-white">Mi perfil</p>
+          <p className="text-xs text-[#64748B] mt-0.5">Editar info del negocio</p>
         </button>
       </div>
     </div>
@@ -128,22 +124,38 @@ function RecentOrders({ negocioId }: { negocioId: string }) {
   }, [negocioId]);
 
   if (orders.length === 0) {
-    return <p className="text-sm text-white/30 py-4 text-center">No hay pedidos recientes</p>;
+    return (
+      <div className="text-center py-8">
+        <ClipboardList size={28} className="mx-auto text-[#64748B]/30 mb-2" />
+        <p className="text-sm text-[#64748B]">No hay pedidos recientes</p>
+      </div>
+    );
   }
+
+  const estadoMap: Record<string, { color: string; bg: string }> = {
+    recibido: { color: "text-[#F59E0B]", bg: "bg-[#F59E0B]/10" },
+    en_preparacion: { color: "text-[#2563EB]", bg: "bg-[#2563EB]/10" },
+    listo_para_recoger: { color: "text-[#10B981]", bg: "bg-[#10B981]/10" },
+  };
 
   return (
     <div className="space-y-2">
       {orders.map((o) => {
-        const estadoMap: Record<string, string> = { recibido: "text-yellow-400", en_preparacion: "text-blue-400", listo_para_recoger: "text-green-400" };
+        const est = estadoMap[o.estado_negocio] || { color: "text-[#64748B]", bg: "bg-white/[0.04]" };
         return (
-          <button key={o.id} onClick={() => router.push(`/negocio/pedido/${o.id}`)} className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">#{o.codigo}</p>
-              <p className="text-xs text-white/50 truncate">{o.cliente_nombre}</p>
+          <button key={o.id} onClick={() => router.push(`/negocio/pedido/${o.id}`)} className="w-full flex items-center justify-between p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.04] hover:border-white/[0.1] hover:bg-white/[0.05] transition-all group">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex flex-col">
+                <p className="text-sm font-bold text-white">#{o.codigo}</p>
+                <p className="text-xs text-[#64748B] truncate">{o.cliente_nombre}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className={`text-xs font-semibold ${estadoMap[o.estado_negocio] || "text-white/50"}`}>{o.estado_negocio?.replace("_", " ")}</p>
-              <p className="text-xs text-white/40">${o.total.toLocaleString()}</p>
+            <div className="flex items-center gap-3">
+              <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold ${est.bg} ${est.color}`}>
+                {o.estado_negocio?.replace(/_/g, " ")}
+              </span>
+              <span className="text-xs text-white font-bold">${o.total.toLocaleString()}</span>
+              <ArrowUpRight size={14} className="text-[#64748B] group-hover:text-[#10B981] transition-colors" />
             </div>
           </button>
         );

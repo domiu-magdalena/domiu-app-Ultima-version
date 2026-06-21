@@ -39,12 +39,31 @@ export default function ProductosPage() {
 
   const handleSave = async () => {
     if (!negocio?.id || !form.nombre || !form.precio) return;
-    const data = { nombre: form.nombre, descripcion: form.descripcion, precio: Number(form.precio), categoria_producto: form.categoria_producto, imagen_url: form.imagen_url, negocio_id: negocio.id };
+    const data = { 
+      nombre: form.nombre, 
+      descripcion: form.descripcion, 
+      precio: Number(form.precio), 
+      categoria_producto: form.categoria_producto, 
+      imagen_url: form.imagen_url, 
+      negocio_id: negocio.id,
+      disponible: true 
+    };
+    
+    let error;
     if (editId) {
-      await getSupabaseClient().from("productos").update(data).eq("id", editId);
+      const { error: updateError } = await getSupabaseClient().from("productos").update(data).eq("id", editId);
+      error = updateError;
     } else {
-      await getSupabaseClient().from("productos").insert(data);
+      const { error: insertError } = await getSupabaseClient().from("productos").insert(data);
+      error = insertError;
     }
+    
+    if (error) {
+      console.error("Error guardando producto:", error);
+      alert(`Error: ${error.message}`);
+      return;
+    }
+    
     const { data: updated } = await getSupabaseClient().from("productos").select("*").eq("negocio_id", negocio.id).order("created_at", { ascending: false });
     if (updated) setProductos(updated);
     resetForm();

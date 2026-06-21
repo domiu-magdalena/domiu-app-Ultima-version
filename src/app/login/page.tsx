@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { Mail, Lock, User, Phone, Car, FileText, Shield, ChevronRight, Loader2, ArrowRight, Bike, Store, LayoutDashboard } from "lucide-react";
 
 export default function LoginPage() {
   const { login, registerAdmin, registerRepartidor, registerNegocio, registerFinanciero, loading } = useAuth();
@@ -77,71 +78,216 @@ export default function LoginPage() {
     }
   };
 
+  const rolOptions = [
+    { key: "admin" as const, label: "Admin", icon: Shield, desc: "Panel administrativo" },
+    { key: "repartidor" as const, label: "Repartidor", icon: Bike, desc: "Entrega domicilios" },
+    { key: "negocio" as const, label: "Negocio", icon: Store, desc: "Gestiona tu tienda" },
+    { key: "financiero" as const, label: "Financiero", icon: LayoutDashboard, desc: "Control financiero" },
+  ];
+
+  const isSuccess = error.includes("creado");
+
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#02060d", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: 460, background: "#0f172a", borderRadius: 24, padding: 40, border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <h1 style={{ fontSize: 36, fontWeight: 900, color: "#f8fafc", margin: 0 }}>Domi<span style={{ color: "#facc15" }}>U</span></h1>
-          <p style={{ color: "#94a3b8", marginTop: 8 }}>Magdalena</p>
-        </div>
-        <h2 style={{ color: "#f8fafc", marginBottom: 24, fontSize: 20 }}>{isRegister ? "Crear cuenta" : "Iniciar sesión"}</h2>
-        {error && (
-          <div style={{ padding: "12px 16px", borderRadius: 12, background: error.includes("creado") ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", border: `1px solid ${error.includes("creado") ? "#22c55e" : "#ef4444"}`, color: error.includes("creado") ? "#86efac" : "#fca5a5", marginBottom: 20, fontSize: 14 }}>
-            {error}
+    <div className="min-h-screen flex items-center justify-center bg-[#0F172A] p-4 relative overflow-hidden">
+      <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-[#10B981]/[0.03] blur-3xl pointer-events-none" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] rounded-full bg-[#2563EB]/[0.03] blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-[440px] relative z-10 animate-fade-up">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#10B981] to-[#059669] flex items-center justify-center text-white font-black text-2xl mx-auto mb-4 shadow-lg shadow-[#10B981]/20">
+            D
           </div>
-        )}
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
-          {isRegister && (
-            <>
-              <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-                <button type="button" onClick={() => setRol("admin")} style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: rol === "admin" ? "#facc15" : "rgba(255,255,255,0.06)", color: rol === "admin" ? "#0f172a" : "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Admin</button>
-                <button type="button" onClick={() => setRol("repartidor")} style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: rol === "repartidor" ? "#facc15" : "rgba(255,255,255,0.06)", color: rol === "repartidor" ? "#0f172a" : "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Repartidor</button>
-                <button type="button" onClick={() => setRol("negocio")} style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: rol === "negocio" ? "#facc15" : "rgba(255,255,255,0.06)", color: rol === "negocio" ? "#0f172a" : "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Negocio</button>
-                <button type="button" onClick={() => setRol("financiero")} style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: rol === "financiero" ? "#facc15" : "rgba(255,255,255,0.06)", color: rol === "financiero" ? "#0f172a" : "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Financiero</button>
-              </div>
-              <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Nombre completo / Negocio</label><input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={rol === "negocio" ? "Nombre del negocio" : "Tu nombre"} required style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
-              <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Telefono</label><input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="3001234567" required style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
-              {rol === "repartidor" && (
-                <>
-                  <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Vehiculo</label><input type="text" value={vehiculo} onChange={(e) => setVehiculo(e.target.value)} placeholder="Moto, bicicleta, carro..." style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Placa</label><input type="text" value={placa} onChange={(e) => setPlaca(e.target.value)} placeholder="ABC123" style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
-                    <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Documento</label><input type="text" value={documento} onChange={(e) => setDocumento(e.target.value)} placeholder="Cedula" style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
-                  </div>
-                </>
-              )}
-              {rol === "negocio" && (
-                <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Categoria</label>
-                  <select value={categoria} onChange={(e) => setCategoria(e.target.value)} style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }}>
+          <h1 className="text-3xl font-black text-[#F8FAFC]">Domi<span className="text-[#10B981]">U</span></h1>
+          <p className="text-[#64748B] text-sm mt-1">Magdalena</p>
+        </div>
+
+        <div className="bg-[#1E293B]/70 backdrop-blur-xl rounded-3xl border border-white/[0.06] p-8 shadow-2xl shadow-black/20">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-bold text-[#F8FAFC]">{isRegister ? "Crear cuenta" : "Iniciar sesion"}</h2>
+            <button
+              type="button"
+              onClick={() => { setIsRegister(!isRegister); setError(""); setTelefono(""); setVehiculo(""); setPlaca(""); setDocumento(""); setAccessCode(""); setCategoria("Restaurantes"); }}
+              className="text-xs font-semibold text-[#10B981] hover:text-[#34d399] transition-colors flex items-center gap-1"
+            >
+              {isRegister ? "Iniciar sesion" : "Registrarse"}
+              <ChevronRight size={14} />
+            </button>
+          </div>
+
+          {error && (
+            <div className={`mb-5 p-4 rounded-2xl border text-sm font-medium animate-fade-up ${isSuccess ? "bg-[#10B981]/10 border-[#10B981]/20 text-[#34d399]" : "bg-[#EF4444]/10 border-[#EF4444]/20 text-[#fca5a5]"}`}>
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegister && (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  {rolOptions.map((opt) => {
+                    const Icon = opt.icon;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setRol(opt.key)}
+                        className={`flex items-center gap-2.5 px-3 py-3 rounded-2xl border text-left transition-all ${
+                          rol === opt.key
+                            ? "bg-[#10B981]/10 border-[#10B981]/30 text-[#10B981]"
+                            : "bg-white/[0.02] border-white/[0.06] text-[#64748B] hover:border-white/[0.12] hover:text-[#94A3B8]"
+                        }`}
+                      >
+                        <Icon size={16} />
+                        <div>
+                          <p className="text-xs font-bold">{opt.label}</p>
+                          <p className="text-[9px] opacity-60 hidden sm:block">{opt.desc}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="relative">
+                  <User size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" />
+                  <input
+                    type="text"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    placeholder={rol === "negocio" ? "Nombre del negocio" : "Nombre completo"}
+                    required
+                    className="input-field"
+                  />
+                </div>
+
+                <div className="relative">
+                  <Phone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" />
+                  <input
+                    type="tel"
+                    value={telefono}
+                    onChange={(e) => setTelefono(e.target.value)}
+                    placeholder="Telefono"
+                    required
+                    className="input-field"
+                  />
+                </div>
+
+                {rol === "repartidor" && (
+                  <>
+                    <div className="relative">
+                      <Car size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" />
+                      <input
+                        type="text"
+                        value={vehiculo}
+                        onChange={(e) => setVehiculo(e.target.value)}
+                        placeholder="Vehiculo (moto, bicicleta...)"
+                        className="input-field"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="relative">
+                        <FileText size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" />
+                        <input
+                          type="text"
+                          value={placa}
+                          onChange={(e) => setPlaca(e.target.value)}
+                          placeholder="Placa"
+                          className="input-field"
+                        />
+                      </div>
+                      <div className="relative">
+                        <Shield size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" />
+                        <input
+                          type="text"
+                          value={documento}
+                          onChange={(e) => setDocumento(e.target.value)}
+                          placeholder="Documento"
+                          className="input-field"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {rol === "negocio" && (
+                  <select
+                    value={categoria}
+                    onChange={(e) => setCategoria(e.target.value)}
+                    className="w-full h-[52px] px-4 rounded-xl border border-white/[0.08] bg-[#1E293B] text-[#F8FAFC] text-sm outline-none focus:border-[#10B981] transition-colors"
+                  >
                     <option value="Restaurantes">Restaurantes</option>
                     <option value="Tiendas">Tiendas</option>
                     <option value="Licoreras">Licoreras</option>
                     <option value="Droguerias">Droguerias</option>
                     <option value="Promociones">Promociones</option>
                   </select>
-                </div>
+                )}
+
+                {(rol === "admin" || rol === "financiero") && (
+                  <div className="relative">
+                    <Shield size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" />
+                    <input
+                      type="text"
+                      value={accessCode}
+                      onChange={(e) => setAccessCode(e.target.value)}
+                      placeholder="Codigo de acceso"
+                      required
+                      className="input-field"
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="relative">
+              <Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="correo@ejemplo.com"
+                required
+                className="input-field"
+              />
+            </div>
+
+            <div className="relative">
+              <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Contrasena"
+                required
+                minLength={6}
+                className="input-field"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitLoading || loading}
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#10B981] to-[#059669] text-white font-bold text-sm transition-all hover:shadow-lg hover:shadow-[#10B981]/20 hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-50 disabled:cursor-wait disabled:transform-none flex items-center justify-center gap-2"
+            >
+              {(submitLoading || loading) ? (
+                <><Loader2 size={16} className="animate-spin" /> Procesando...</>
+              ) : (
+                <>{isRegister ? "Crear cuenta" : "Iniciar sesion"} <ArrowRight size={16} /></>
               )}
-              {(rol === "admin" || rol === "financiero") && (
-                <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Codigo de acceso *</label><input type="text" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} placeholder="Codigo requerido" required style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
-              )}
-            </>
-          )}
-          <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="correo@ejemplo.com" required style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
-          <div><label style={{ display: "block", color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Contrasena</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Minimo 6 caracteres" required minLength={6} style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#09111d", color: "#f8fafc", fontSize: 16, boxSizing: "border-box" }} /></div>
-          <button type="submit" disabled={submitLoading || loading} style={{ padding: "16px 24px", borderRadius: 14, border: "none", background: "linear-gradient(135deg, #facc15 0%, #f59e0b 100%)", color: "#0f172a", fontWeight: 700, fontSize: 16, cursor: (submitLoading || loading) ? "wait" : "pointer", marginTop: 8 }}>{(submitLoading || loading) ? "Procesando..." : isRegister ? "Crear cuenta" : "Iniciar sesion"}</button>
-        </form>
-        <p style={{ textAlign: "center", marginTop: 16, color: "#94a3b8", fontSize: 14 }}>
-          {isRegister ? "Ya tienes cuenta? " : "No tienes cuenta? "}
-          <button type="button" onClick={() => { setIsRegister(!isRegister); setError(""); setTelefono(""); setVehiculo(""); setPlaca(""); setDocumento(""); setAccessCode(""); setCategoria("Restaurantes"); }} style={{ background: "none", border: "none", color: "#facc15", cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
-            {isRegister ? "Inicia sesion" : "Registrate"}
-          </button>
-        </p>
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", gap: 8 }}>
-          <a href="/cliente" style={{ flex: 1, textAlign: "center", padding: "12px 24px", borderRadius: 14, background: "rgba(250,204,21,0.1)", color: "#facc15", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>
-            🛒 Ir a cliente
-          </a>
+            </button>
+          </form>
         </div>
-        <p style={{ textAlign: "center", marginTop: 12, color: "#64748b", fontSize: 12 }}>¿Eres cliente? Registrate directamente desde la página de inicio de DomiU.</p>
+
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <a
+            href="/cliente"
+            className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#10B981]/10 border border-[#10B981]/20 text-[#10B981] font-semibold text-sm hover:bg-[#10B981]/15 transition-all active:scale-[0.98]"
+          >
+            Explorar como cliente <ArrowRight size={14} />
+          </a>
+          <p className="text-[11px] text-[#64748B]">
+            Eres cliente? Accede directamente desde la app
+          </p>
+        </div>
       </div>
     </div>
   );

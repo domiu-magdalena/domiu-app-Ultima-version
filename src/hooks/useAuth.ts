@@ -121,6 +121,14 @@ export function useAuth() {
     });
     if (error) { setLoading(false); throw error; }
     if (!data.user) { setLoading(false); throw new Error("No se pudo crear el usuario"); }
+    
+    // Actualizar el perfil con el rol correcto
+    try {
+      await supabase.from("profiles").update({ rol: "repartidor" }).eq("id", data.user.id);
+    } catch (e) {
+      // Si falla, continuar de todos modos
+    }
+    
     setLoading(false);
     return data.user;
   }, []);

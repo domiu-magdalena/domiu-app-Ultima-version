@@ -258,11 +258,11 @@ export default function ClienteHome() {
   };
 
   const Modal = ({ children }: { children: React.ReactNode }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => setActiveModal(null)}>
-      <div className="bg-[#1E293B] border border-white/10 rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-scale-in shadow-2xl shadow-black/40" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/70 animate-fade-in" onClick={() => setActiveModal(null)}>
+      <div className="bg-[#1E293B] border border-white/10 rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-scale-in" onClick={e => e.stopPropagation()}>
         <div className="sticky top-0 z-10 flex items-center justify-between p-5 pb-3 border-b border-white/10 bg-[#1E293B]">
           <h2 className="font-black text-lg text-[#F8FAFC]">{modalContent[activeModal as string]?.title || "DomiU"}</h2>
-          <button onClick={() => setActiveModal(null)} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center active:scale-90 transition-all border border-white/10">
+          <button onClick={() => setActiveModal(null)} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center active:scale-90 transition-transform border border-white/10">
             <X size={16} className="text-slate-400" />
           </button>
         </div>
@@ -272,84 +272,84 @@ export default function ClienteHome() {
   );
 
   return (
-    <div className="min-h-screen pb-24">
-      {/* HEADER — Premium */}
-      <div className="px-5 pt-5 pb-3">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#10B981] to-[#059669] flex items-center justify-center text-white font-black text-base shadow-lg shadow-[#10B981]/25 shrink-0">D</div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-[#10B981]/70 font-semibold tracking-[2px] uppercase">DomiU Magdalena</p>
-            <h1 className="text-lg font-black text-[#F8FAFC] leading-tight">Si tienes <span className="text-[#10B981]">DomiU,</span> tienes <span className="text-[#10B981]">Todo.</span></h1>
-          </div>
-          <button onClick={() => setActiveModal("notifications")} className="relative w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all shrink-0 backdrop-blur-sm">
-            <Bell size={18} className="text-white" />
-            {noLeidas > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-[#10B981] text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-[#10B981]/30">
-                {noLeidas > 9 ? "9+" : noLeidas}
-              </span>
-            )}
-          </button>
-        </div>
+    <div className="min-h-screen pb-24 bg-[#0F172A]">
 
-        {/* Location — con label "Entregar en:" */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-semibold text-slate-500 shrink-0">Entregar en:</span>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/5">
-            <MapPin size={12} className="text-[#10B981] shrink-0" />
-            <span className="text-xs font-semibold text-[#F8FAFC] truncate">{locationText}</span>
-            <ChevronDown size={12} className="text-[#10B981] shrink-0" />
-          </div>
-        </div>
+      <div className="relative">
+        <div className="relative px-5 pt-6 pb-3">
 
-        {/* Search */}
-        <div className="relative">
-          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="¿Qué se te antoja hoy?"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-[48px] pl-11 pr-4 rounded-2xl bg-[#1E293B] border border-white/10 text-sm text-[#F8FAFC] placeholder-slate-500 outline-none transition-all duration-200 focus:border-[#10B981] focus:shadow-[0_0_0_3px_rgba(16,185,129,0.1)]"
-          />
-        </div>
-
-        {search && (
-          <div className="mt-4 animate-fade-up">
-            <p className="text-sm text-white/60 mb-2">Resultados para &ldquo;{search}&rdquo;</p>
-            {negocios.filter(n => n.nombre.toLowerCase().includes(search.toLowerCase())).length === 0 ? (
-              <div className="bg-white/5 rounded-2xl p-8 text-center border border-white/5">
-                <Search size={36} className="mx-auto text-white/20 mb-3" />
-                <p className="text-white/50 text-sm">No encontramos resultados</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {negocios.filter(n => n.nombre.toLowerCase().includes(search.toLowerCase())).map(n => (
-                  <button key={n.id} onClick={() => n.es_local ? null : router.push(`/cliente/negocio/${n.id}`)}
-                    className="w-full bg-white/5 hover:bg-white/10 rounded-2xl p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left border border-white/5">
-                    <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center text-white font-bold text-sm overflow-hidden">{n.logo ? <img src={n.logo} alt="" className="w-full h-full object-cover" /> : n.nombre[0]}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-white truncate">{n.nombre}</p>
-                      <p className="text-xs text-white/50">{n.es_local ? "Tienda" : `${n.categoria} · 🕐 ${n.tiempo_estimado}`}</p>
-                    </div>
-                    <ChevronRight size={16} className="text-white/30 shrink-0" />
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#10B981] to-[#059669] flex items-center justify-center text-white font-black text-base shrink-0">D</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-[#10B981]/70 font-semibold tracking-[2px] uppercase">DomiU Magdalena</p>
+              <h1 className="text-lg font-black text-[#F8FAFC] leading-tight">Si tienes <span className="text-[#10B981]">DomiU,</span> tienes <span className="text-[#10B981]">Todo.</span></h1>
+            </div>
+            <button onClick={() => setActiveModal("notifications")} className="relative w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-transform shrink-0">
+              <Bell size={18} className="text-white" />
+              {noLeidas > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-[#10B981] text-white text-[9px] font-bold flex items-center justify-center px-1">
+                  {noLeidas > 9 ? "9+" : noLeidas}
+                </span>
+              )}
+            </button>
           </div>
-        )}
+
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs font-semibold text-slate-500 shrink-0">Entregar en:</span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/5">
+              <MapPin size={12} className="text-[#10B981] shrink-0" />
+              <span className="text-xs font-semibold text-[#F8FAFC] truncate">{locationText}</span>
+              <ChevronDown size={12} className="text-[#10B981] shrink-0" />
+            </div>
+          </div>
+
+          <div className="relative">
+            <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="¿Qué se te antoja hoy?"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-[52px] pl-13 pr-5 rounded-2xl bg-[#1E293B] border border-white/[0.08] text-sm text-[#F8FAFC] placeholder-slate-500 outline-none focus:border-[#10B981]/50 transition-colors"
+            />
+          </div>
+
+          {search && (
+            <div className="mt-5 animate-fade-up">
+              <p className="text-sm text-white/50 mb-3 font-medium">Resultados para &ldquo;{search}&rdquo;</p>
+              {negocios.filter(n => n.nombre.toLowerCase().includes(search.toLowerCase())).length === 0 ? (
+                <div className="bg-white/[0.03] backdrop-blur-sm rounded-3xl p-10 text-center border border-white/[0.05]">
+                  <Search size={40} className="mx-auto text-white/15 mb-4" />
+                  <p className="text-white/40 text-sm font-medium">No encontramos resultados</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {negocios.filter(n => n.nombre.toLowerCase().includes(search.toLowerCase())).map(n => (
+                    <button key={n.id} onClick={() => n.es_local ? null : router.push(`/cliente/negocio/${n.id}`)}
+                      className="w-full bg-white/[0.03] hover:bg-white/[0.07] rounded-2xl p-4 flex items-center gap-4 active:scale-[0.98] transition-all duration-200 text-left border border-white/[0.05] hover:border-white/[0.1]">
+                      <div className="w-12 h-12 rounded-2xl bg-white/[0.06] flex items-center justify-center text-white font-bold text-sm overflow-hidden">{n.logo ? <img src={n.logo} alt="" className="w-full h-full object-cover" /> : n.nombre[0]}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-white truncate">{n.nombre}</p>
+                        <p className="text-xs text-white/40">{n.es_local ? "Tienda" : `${n.categoria} · 🕐 ${n.tiempo_estimado}`}</p>
+                      </div>
+                      <ChevronRight size={16} className="text-white/20 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {!search && (
         <>
-          {/* CATEGORIES — 5 círculos premium */}
-          <div className="px-5 mt-4">
+          <div className="px-5 mt-5">
             <div className="grid grid-cols-5 gap-3">
               {categories.map((cat, i) => (
                 <button key={cat.label} onClick={() => router.push(`/cliente/negocios?categoria=${cat.slug}`)}
-                  className="flex flex-col items-center gap-2 group active:scale-90 transition-all">
-                  <div className="w-[62px] h-[62px] rounded-full bg-gradient-to-br from-white/8 to-white/[0.02] border border-white/10 flex items-center justify-center text-2xl shadow-lg shadow-black/20 group-hover:border-[#10B981]/40 group-hover:shadow-[#10B981]/10 transition-all duration-200">
-                    <span className="drop-shadow-sm">{cat.icon}</span>
+                  className="flex flex-col items-center gap-2 group active:scale-90 transition-transform">
+                  <div className="w-[62px] h-[62px] rounded-full bg-gradient-to-br from-white/8 to-white/[0.02] border border-white/10 flex items-center justify-center text-2xl">
+                    <span>{cat.icon}</span>
                   </div>
                   <span className="text-[10px] font-bold text-slate-300 text-center leading-tight group-hover:text-white transition-colors">{cat.label}</span>
                 </button>
@@ -357,24 +357,21 @@ export default function ClienteHome() {
             </div>
           </div>
 
-          {/* BANNER CAROUSEL — con gradiente oscuro */}
-          <div className="px-5 mt-5">
+          <div className="px-5 mt-6">
             <div className="relative overflow-hidden rounded-2xl">
               <div className={`relative bg-gradient-to-r ${banners[bannerIdx].color} p-5 pt-14 pb-12 min-h-[150px] transition-all duration-500`}>
                 <div className="text-4xl mb-2 drop-shadow-lg">{banners[bannerIdx].emoji}</div>
                 <p className="font-black text-white text-base leading-tight">{banners[bannerIdx].title}</p>
                 <p className="text-xs text-white/60 mt-1">{banners[bannerIdx].subtitle}</p>
               </div>
-              {/* Dots */}
               <div className="absolute bottom-3 left-5 flex gap-1.5">
                 {banners.map((_, i) => (
-                  <button key={i} onClick={() => setBannerIdx(i)} className={`h-1.5 rounded-full transition-all duration-300 ${i === bannerIdx ? "w-6 bg-[#10B981] shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "w-1.5 bg-white/30"}`} />
+                  <button key={i} onClick={() => setBannerIdx(i)} className={`h-1.5 rounded-full transition-all duration-300 ${i === bannerIdx ? "w-6 bg-[#10B981]" : "w-1.5 bg-white/30"}`} />
                 ))}
               </div>
             </div>
           </div>
 
-          {/* TOP SEARCHED */}
           <div className="mt-6 px-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-bold text-sm text-[#F8FAFC] flex items-center gap-1.5">
@@ -394,7 +391,6 @@ export default function ClienteHome() {
             </div>
           </div>
 
-          {/* RECOMMENDED STORES */}
           <div className="mt-6">
             <div className="flex items-center justify-between px-5 mb-3">
               <h2 className="font-bold text-sm text-[#F8FAFC] flex items-center gap-1.5">
@@ -423,7 +419,14 @@ export default function ClienteHome() {
                     className={`store-card animate-fade-up ${n.es_local ? 'opacity-60' : ''}`} style={{ animationDelay: `${i * 80}ms` }}>
                     <div className="store-card-img" style={{ background: n.logo ? `url(${n.logo}) center/cover` : (n.es_local ? "linear-gradient(135deg, #1e293b, #0f172a)" : "linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.02))") }}>
                       {!n.logo && <span className="text-4xl opacity-20 text-white">{n.nombre[0]}</span>}
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#1E293B] via-transparent to-transparent opacity-80 pointer-events-none" />
                       <div className="store-card-logo">{n.logo ? <img src={n.logo} alt="" className="w-full h-full rounded-full object-cover" /> : n.nombre[0]}</div>
+                      {(n.rating || n.calificacion) > 0 && (
+                        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60">
+                          <Star size={10} className="text-yellow-400 fill-yellow-400" />
+                          <span className="text-[11px] font-bold text-white">{n.rating || n.calificacion}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="store-card-body text-left">
                       <h4>{n.nombre}</h4>
@@ -438,21 +441,20 @@ export default function ClienteHome() {
               </div>
             ) : (
               <div className="px-5">
-                <div className="glass-card p-6 text-center">
-                  <Store size={32} className="mx-auto text-slate-600 mb-2" />
-                  <p className="text-slate-400 text-xs">No hay tiendas destacadas aún</p>
+                <div className="glass-card p-8 text-center">
+                  <Store size={36} className="mx-auto text-slate-600 mb-3" />
+                  <p className="text-slate-400 text-sm font-medium">No hay tiendas destacadas aún</p>
                 </div>
               </div>
             )}
           </div>
 
-          {/* OFERTAS DEL DÍA */}
           <div className="mt-6 px-5">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 rounded-xl bg-[#10B981]/10 flex items-center justify-center">
                 <Sparkles size={14} className="text-[#10B981]" />
               </div>
-              <h2 className="font-black text-sm text-[#F8FAFC]">Ofertas del día</h2>
+              <h2 className="font-bold text-sm text-[#F8FAFC]">Ofertas del día</h2>
               <span className="text-[9px] font-semibold text-[#10B981] bg-[#10B981]/10 px-2 py-0.5 rounded-full">
                 {["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][new Date().getDay()]}
               </span>
@@ -464,7 +466,7 @@ export default function ClienteHome() {
                 { emoji: "🥤", title: "Bebida gratis", negocio: "McDonald's", validez: "Pedidos > $15k", color: "from-yellow-900/40 to-transparent" },
                 { emoji: "🍰", title: "Postre 2x1", negocio: "Dulce Pecado", validez: "Válido hoy", color: "from-rose-900/40 to-transparent" },
               ].map((oferta, i) => (
-                <div key={i} className="rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 overflow-hidden active:scale-[0.97] transition-all">
+                <div key={i} className="rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 overflow-hidden active:scale-[0.97] transition-transform">
                   <div className={`h-20 bg-gradient-to-br ${oferta.color} flex items-center justify-center text-3xl`}>
                     {oferta.emoji}
                   </div>
@@ -478,13 +480,12 @@ export default function ClienteHome() {
             </div>
           </div>
 
-          {/* PUBLICIDAD / FLAYER DE LOCALES */}
           <div className="mt-6 px-5">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 rounded-xl bg-[#10B981]/10 flex items-center justify-center">
                 <Store size={14} className="text-[#10B981]" />
               </div>
-              <h2 className="font-black text-sm text-[#F8FAFC]">Publicidad de locales</h2>
+              <h2 className="font-bold text-sm text-[#F8FAFC]">Publicidad de locales</h2>
             </div>
             {loading ? (
               <div className="space-y-3">
@@ -494,7 +495,7 @@ export default function ClienteHome() {
               <div className="space-y-3">
                 {negocios.filter(n => n.destacado || n.logo).slice(0, 4).map((n, i) => (
                   <button key={n.id} onClick={() => n.es_local ? null : router.push(`/cliente/negocio/${n.id}`)}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/10 active:scale-[0.98] transition-all text-left">
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/10 active:scale-[0.98] transition-transform text-left">
                     <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-gradient-to-br from-[#10B981]/20 to-transparent">
                       {n.logo ? <img src={n.logo} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-lg font-black text-[#10B981]">{n.nombre[0]}</div>}
                     </div>
@@ -520,39 +521,36 @@ export default function ClienteHome() {
         </>
       )}
 
-      {/* Cookie bar */}
       {!cookieOk && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#1E293B] border-t border-white/10 px-5 py-3 flex items-center justify-between gap-4 flex-wrap">
           <p className="text-xs text-slate-400 flex-1 min-w-[200px]">
-            Usamos cookies para asegurarnos que tengas la mejor experiencia.{" "}
-            <button onClick={() => setActiveModal("privacy")} className="text-[#10B981] underline bg-transparent border-none p-0 cursor-pointer font-inherit text-xs">Más información</button>
+            Usamos cookies para asegurarte que tengas la mejor experiencia.{" "}
+            <button onClick={() => setActiveModal("privacy")} className="text-[#10B981] underline bg-transparent border-none p-0 cursor-pointer text-xs">Más información</button>
           </p>
           <button onClick={() => { setCookieOk(true); localStorage.setItem("cookie_ok", "true"); }}
-            className="px-5 py-2 rounded-xl bg-[#10B981] text-white text-xs font-bold border-none cursor-pointer whitespace-nowrap hover:bg-[#059669] transition-colors">
+            className="px-5 py-2 rounded-xl bg-[#10B981] text-white text-xs font-bold border-none cursor-pointer whitespace-nowrap active:scale-95 transition-transform">
             Ok, entendido
           </button>
         </div>
       )}
 
-      {/* INFO / LEGAL MODALS */}
       {activeModal && activeModal !== "register" && activeModal !== "notifications" && modalContent[activeModal] && (
         <Modal>
           <div className="space-y-4">
             {modalContent[activeModal].body.map((p, i) => (
-              <p key={i} className="text-sm text-slate-300 leading-relaxed">{p}</p>
+              <p key={i} className="text-[14px] text-slate-300 leading-relaxed">{p}</p>
             ))}
             <button onClick={() => setActiveModal(null)} className="btn-primary w-full text-sm mt-4">Entendido</button>
           </div>
         </Modal>
       )}
 
-      {/* REGISTER MODAL */}
       {activeModal === "register" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => { if (!regLoading) setActiveModal(null); }}>
-          <div className="bg-[#1E293B] border border-white/10 rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-scale-in shadow-2xl shadow-black/40" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/70 animate-fade-in" onClick={() => { if (!regLoading) setActiveModal(null); }}>
+          <div className="bg-[#1E293B] border border-white/10 rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-scale-in" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 z-10 flex items-center justify-between p-5 pb-3 border-b border-white/10 bg-[#1E293B]">
               <h2 className="font-black text-lg text-[#F8FAFC]">Crear cuenta en DomiU</h2>
-              <button onClick={() => { if (!regLoading) setActiveModal(null); }} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center active:scale-90 transition-all border border-white/10">
+              <button onClick={() => { if (!regLoading) setActiveModal(null); }} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center active:scale-90 transition-transform border border-white/10">
                 <X size={16} className="text-slate-400" />
               </button>
             </div>
@@ -577,13 +575,13 @@ export default function ClienteHome() {
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input type="checkbox" checked={regAceptaTerminos} onChange={e => setRegAceptaTerminos(e.target.checked)} className="mt-1 w-4 h-4 rounded border-white/20 bg-slate-800 accent-[#10B981]" />
                     <span className="text-xs text-slate-400">
-                      Acepto los <button type="button" onClick={() => setActiveModal("terms")} className="text-[#10B981] underline bg-transparent border-none p-0 cursor-pointer font-inherit text-xs">términos</button> y la <button type="button" onClick={() => setActiveModal("privacy")} className="text-[#10B981] underline bg-transparent border-none p-0 cursor-pointer font-inherit text-xs">privacidad</button>
+                      Acepto los <button type="button" onClick={() => setActiveModal("terms")} className="text-[#10B981] underline bg-transparent border-none p-0 cursor-pointer text-xs">términos</button> y la <button type="button" onClick={() => setActiveModal("privacy")} className="text-[#10B981] underline bg-transparent border-none p-0 cursor-pointer text-xs">privacidad</button>
                     </span>
                   </label>
-                  <button onClick={handleRegister} disabled={regLoading} className="btn-primary w-full text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
+                  <button onClick={handleRegister} disabled={regLoading} className="btn-primary w-full text-sm disabled:opacity-40 active:scale-[0.98] transition-transform">
                     {regLoading ? <span className="flex items-center justify-center gap-2"><div className="w-5 h-5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" /> Creando cuenta...</span> : "Crear cuenta"}
                   </button>
-                  <p className="text-xs text-slate-500 text-center">¿Ya tienes cuenta? <button onClick={() => { setActiveModal(null); }} className="text-[#10B981] font-semibold bg-transparent border-none p-0 cursor-pointer font-inherit text-xs">Inicia sesión</button></p>
+                  <p className="text-xs text-slate-500 text-center">¿Ya tienes cuenta? <button onClick={() => { setActiveModal(null); }} className="text-[#10B981] font-semibold bg-transparent border-none p-0 cursor-pointer text-xs">Inicia sesión</button></p>
                 </div>
               )}
             </div>
@@ -591,22 +589,21 @@ export default function ClienteHome() {
         </div>
       )}
 
-      {/* NOTIFICATIONS MODAL */}
       {activeModal === "notifications" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => setActiveModal(null)}>
-          <div className="bg-[#1E293B] border border-white/10 rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-scale-in shadow-2xl shadow-black/40" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/70 animate-fade-in" onClick={() => setActiveModal(null)}>
+          <div className="bg-[#1E293B] border border-white/10 rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-scale-in" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 z-10 flex items-center justify-between p-5 pb-3 border-b border-white/10 bg-[#1E293B]">
               <h2 className="font-black text-lg text-[#F8FAFC]">Notificaciones</h2>
               <div className="flex items-center gap-2">
-                {noLeidas > 0 && <button onClick={marcarTodasLeidas} className="text-xs font-semibold text-[#10B981] bg-transparent border border-[#10B981]/30 rounded-lg px-3 py-1.5 active:scale-95 transition-all">Leer todas</button>}
-                <button onClick={() => setActiveModal(null)} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center active:scale-90 transition-all border border-white/10"><X size={16} className="text-slate-400" /></button>
+                {noLeidas > 0 && <button onClick={marcarTodasLeidas} className="text-xs font-semibold text-[#10B981] bg-transparent border border-[#10B981]/30 rounded-lg px-3 py-1.5 active:scale-95 transition-transform">Leer todas</button>}
+                <button onClick={() => setActiveModal(null)} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center active:scale-90 transition-transform border border-white/10"><X size={16} className="text-slate-400" /></button>
               </div>
             </div>
             <div className="p-5">
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 mb-4">
                 <div className="flex items-center justify-between">
                   <div><p className="text-sm font-semibold text-white">Notificaciones push</p><p className="text-xs text-slate-400 mt-0.5">{permiso === "granted" ? "✓ Activadas" : permiso === "denied" ? "✗ Bloqueadas" : "No activadas"}</p></div>
-                  {permiso !== "granted" && <button onClick={solicitarPermiso} className="px-4 py-2 rounded-xl bg-[#10B981] text-white text-xs font-bold active:scale-95 transition-all">{permiso === "denied" ? "Configurar" : "Activar"}</button>}
+                  {permiso !== "granted" && <button onClick={solicitarPermiso} className="px-4 py-2 rounded-xl bg-[#10B981] text-white text-xs font-bold active:scale-95 transition-transform">{permiso === "denied" ? "Configurar" : "Activar"}</button>}
                 </div>
               </div>
               {notificaciones.length === 0 ? (
