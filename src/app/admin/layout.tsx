@@ -24,9 +24,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (profile?.id && !sessionRegistered.current) {
       sessionRegistered.current = true;
-      adminAuthService.registerSession(profile.id);
-      adminAuthService.addHistory(profile.id, 'login', 'Acceso al panel de administración');
-      auditService.log(profile.id, `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Admin', 'login', 'session', null, 'Acceso al panel de administración');
+      try { adminAuthService.registerSession(profile.id); } catch {}
+      try { adminAuthService.addHistory(profile.id, 'login', 'Acceso al panel de administración'); } catch {}
+      try { auditService.log(profile.id, `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Admin', 'login', 'session', null, 'Acceso al panel de administración'); } catch {}
     }
   }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

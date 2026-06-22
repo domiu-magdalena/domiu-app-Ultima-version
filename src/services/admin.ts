@@ -503,33 +503,37 @@ export const adminService = {
   },
 
   async getRecentActivity(limit = 10): Promise<AuditLog[]> {
-    const supabase = await getClient();
-    const { data } = await supabase
-      .from('admin_audit_log')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    return (data || []) as AuditLog[];
+    try {
+      const supabase = await getClient();
+      const { data } = await supabase
+        .from('admin_audit_log')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      return (data || []) as AuditLog[];
+    } catch { return []; }
   },
 
   async logAudit(adminId: string, adminName: string | null, action: string, entityType: string, entityId: string | null, details: string | null, result: 'success' | 'error' = 'success'): Promise<void> {
-    const supabase = await getClient();
-    const info = (() => {
-      if (typeof window === 'undefined') return { ip: null, browser: null, device: null, os: null };
-      const ua = navigator.userAgent;
-      return {
-        ip: null,
-        browser: ua.includes('Chrome') ? 'Chrome' : ua.includes('Firefox') ? 'Firefox' : ua.includes('Safari') ? 'Safari' : 'Unknown',
-        device: ua.includes('Mobile') ? 'Mobile' : ua.includes('Tablet') ? 'Tablet' : 'Desktop',
-        os: ua.includes('Windows') ? 'Windows' : ua.includes('Mac') ? 'macOS' : ua.includes('Linux') ? 'Linux' : 'Unknown',
-      };
-    })();
-    await supabase.from('admin_audit_log').insert({
-      admin_id: adminId, admin_name: adminName, action,
-      entity_type: entityType, entity_id: entityId, details,
-      ip_address: info.ip, browser: info.browser, device: info.device, os: info.os,
-      result,
-    });
+    try {
+      const supabase = await getClient();
+      const info = (() => {
+        if (typeof window === 'undefined') return { ip: null, browser: null, device: null, os: null };
+        const ua = navigator.userAgent;
+        return {
+          ip: null,
+          browser: ua.includes('Chrome') ? 'Chrome' : ua.includes('Firefox') ? 'Firefox' : ua.includes('Safari') ? 'Safari' : 'Unknown',
+          device: ua.includes('Mobile') ? 'Mobile' : ua.includes('Tablet') ? 'Tablet' : 'Desktop',
+          os: ua.includes('Windows') ? 'Windows' : ua.includes('Mac') ? 'macOS' : ua.includes('Linux') ? 'Linux' : 'Unknown',
+        };
+      })();
+      await supabase.from('admin_audit_log').insert({
+        admin_id: adminId, admin_name: adminName, action,
+        entity_type: entityType, entity_id: entityId, details,
+        ip_address: info.ip, browser: info.browser, device: info.device, os: info.os,
+        result,
+      });
+    } catch {}
   },
 
   async updateAdminRole(adminId: string, newRole: string): Promise<void> {

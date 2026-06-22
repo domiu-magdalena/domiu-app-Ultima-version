@@ -31,40 +31,48 @@ function getClientInfo() {
 
 export const adminAuthService = {
   async registerSession(adminId: string): Promise<void> {
-    const supabase = await getBrowserClient();
-    const info = getClientInfo();
-    await supabase.from('admin_sessions').insert({
-      admin_id: adminId,
-      ip_address: info.ip,
-      browser: info.browser,
-      device: info.device,
-      os: info.os,
-      is_current: true,
-    });
+    try {
+      const supabase = await getBrowserClient();
+      const info = getClientInfo();
+      await supabase.from('admin_sessions').insert({
+        admin_id: adminId,
+        ip_address: info.ip,
+        browser: info.browser,
+        device: info.device,
+        os: info.os,
+        is_current: true,
+      });
+    } catch {}
   },
 
   async markOtherSessionsInactive(adminId: string, currentSessionId: string): Promise<void> {
-    const supabase = await getBrowserClient();
-    await supabase
-      .from('admin_sessions')
-      .update({ is_current: false })
-      .eq('admin_id', adminId)
-      .neq('id', currentSessionId);
+    try {
+      const supabase = await getBrowserClient();
+      await supabase
+        .from('admin_sessions')
+        .update({ is_current: false })
+        .eq('admin_id', adminId)
+        .neq('id', currentSessionId);
+    } catch {}
   },
 
   async getSessions(adminId: string): Promise<AdminSession[]> {
-    const supabase = await getBrowserClient();
-    const { data } = await supabase
-      .from('admin_sessions')
-      .select('*')
-      .eq('admin_id', adminId)
-      .order('last_active_at', { ascending: false });
-    return (data || []) as AdminSession[];
+    try {
+      const supabase = await getBrowserClient();
+      const { data } = await supabase
+        .from('admin_sessions')
+        .select('*')
+        .eq('admin_id', adminId)
+        .order('last_active_at', { ascending: false });
+      return (data || []) as AdminSession[];
+    } catch { return []; }
   },
 
   async terminateSession(sessionId: string): Promise<void> {
-    const supabase = await getBrowserClient();
-    await supabase.from('admin_sessions').delete().eq('id', sessionId);
+    try {
+      const supabase = await getBrowserClient();
+      await supabase.from('admin_sessions').delete().eq('id', sessionId);
+    } catch {}
   },
 
   async reauthenticate(password: string): Promise<boolean> {
@@ -80,40 +88,46 @@ export const adminAuthService = {
     eventType: AdminHistory['event_type'],
     details: string | null,
   ): Promise<void> {
-    const supabase = await getBrowserClient();
-    const info = getClientInfo();
-    await supabase.from('admin_history').insert({
-      admin_id: adminId,
-      event_type: eventType,
-      ip_address: info.ip,
-      browser: info.browser,
-      device: info.device,
-      os: info.os,
-      details,
-    });
+    try {
+      const supabase = await getBrowserClient();
+      const info = getClientInfo();
+      await supabase.from('admin_history').insert({
+        admin_id: adminId,
+        event_type: eventType,
+        ip_address: info.ip,
+        browser: info.browser,
+        device: info.device,
+        os: info.os,
+        details,
+      });
+    } catch {}
   },
 
   async getHistory(adminId: string, limit = 50): Promise<AdminHistory[]> {
-    const supabase = await getBrowserClient();
-    const { data } = await supabase
-      .from('admin_history')
-      .select('*')
-      .eq('admin_id', adminId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    return (data || []) as AdminHistory[];
+    try {
+      const supabase = await getBrowserClient();
+      const { data } = await supabase
+        .from('admin_history')
+        .select('*')
+        .eq('admin_id', adminId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      return (data || []) as AdminHistory[];
+    } catch { return []; }
   },
 
   async getAllHistory(page = 1, pageSize = 50): Promise<{ entries: AdminHistory[]; total: number }> {
-    const supabase = await getBrowserClient();
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-    const { data, count } = await supabase
-      .from('admin_history')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(from, to);
-    return { entries: (data || []) as AdminHistory[], total: count || 0 };
+    try {
+      const supabase = await getBrowserClient();
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      const { data, count } = await supabase
+        .from('admin_history')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      return { entries: (data || []) as AdminHistory[], total: count || 0 };
+    } catch { return { entries: [], total: 0 }; }
   },
 
   async getSystemStatus(): Promise<SystemStatus[]> {
