@@ -55,32 +55,36 @@ export function CourierProvider({
       return;
     }
 
-    const [c, avail, courierOrders, reqs] = await Promise.all([
-      assignmentService.getCourierById(courierId),
-      orderService.getAvailableOrders(),
-      orderService.getCourierOrders(courierId),
-      assignmentService.getPendingRequests(courierId),
-    ]);
+    try {
+      const [c, avail, courierOrders, reqs] = await Promise.all([
+        assignmentService.getCourierById(courierId),
+        orderService.getAvailableOrders(),
+        orderService.getCourierOrders(courierId),
+        assignmentService.getPendingRequests(courierId),
+      ]);
 
-    setCourier(c ?? null);
-    setAvailableOrders(avail);
-    setActiveDeliveries(courierOrders.filter((o) => !['delivered', 'cancelled'].includes(o.status)));
-    setDeliveryHistory(courierOrders.filter((o) => ['delivered', 'cancelled'].includes(o.status)));
-    setPendingRequests(reqs);
+      setCourier(c ?? null);
+      setAvailableOrders(avail);
+      setActiveDeliveries(courierOrders.filter((o) => !['delivered', 'cancelled'].includes(o.status)));
+      setDeliveryHistory(courierOrders.filter((o) => ['delivered', 'cancelled'].includes(o.status)));
+      setPendingRequests(reqs);
 
-    // Generate mock earnings from delivered orders
-    const earned: DeliveryEarning[] = courierOrders
-      .filter((o) => o.status === 'delivered')
-      .map((o) => ({
-        id: `earn-${o.id}`,
-        order_id: o.id,
-        order_number: o.order_number,
-        amount: assignmentService.calculateEarnings(3.0, 2.5),
-        date: o.updated_at,
-        business_name: o.business_name,
-      }));
-    setEarnings(earned);
-    setLoading(false);
+      const earned: DeliveryEarning[] = courierOrders
+        .filter((o) => o.status === 'delivered')
+        .map((o) => ({
+          id: `earn-${o.id}`,
+          order_id: o.id,
+          order_number: o.order_number,
+          amount: assignmentService.calculateEarnings(3.0, 2.5),
+          date: o.updated_at,
+          business_name: o.business_name,
+        }));
+      setEarnings(earned);
+    } catch (err) {
+      console.error('[CourierContext] refresh error:', err);
+    } finally {
+      setLoading(false);
+    }
   }, [courierId]);
 
   useEffect(() => {
