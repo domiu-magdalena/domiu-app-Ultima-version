@@ -23,7 +23,8 @@ export function CourierDocumentsCard() {
   const [licenseNumber, setLicenseNumber] = useState('');
   const [licenseExpiry, setLicenseExpiry] = useState('');
   const [saving, setSaving] = useState(false);
-  const [documents, setDocuments] = useState(DOCUMENT_TYPES);
+  type DocStatus = 'verified' | 'pending' | 'expired';
+  const [documents, setDocuments] = useState<{ key: string; label: string; status: DocStatus; icon: string }[]>(DOCUMENT_TYPES);
 
   useEffect(() => {
     (async () => {
@@ -43,7 +44,7 @@ export function CourierDocumentsCard() {
             const expired = expiry && new Date(expiry).getTime() < Date.now();
             return { ...d, status: expired ? 'expired' as const : (driver.license_number ? 'verified' as const : 'pending' as const) };
           }
-          if (d.key === 'id') return { ...d, status: (profile?.verified_at ? 'verified' : 'pending') as typeof d.status };
+          if (d.key === 'id') return { ...d, status: (profile?.verified_at ? 'verified' as const : 'pending' as const) };
           return d;
         }));
       }

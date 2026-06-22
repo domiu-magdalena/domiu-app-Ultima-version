@@ -14,6 +14,8 @@ interface RecentDelivery {
   businessName: string;
   status: string;
   deliveredAt: string;
+  rating: number;
+  amount: number;
 }
 
 export function CourierRecentDeliveries() {
