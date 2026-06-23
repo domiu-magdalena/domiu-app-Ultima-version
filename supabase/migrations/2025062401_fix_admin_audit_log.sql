@@ -19,13 +19,38 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Add missing columns if table already existed without them
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'admin_audit_log' AND column_name = 'result'
+  ) THEN
+    ALTER TABLE admin_audit_log ADD COLUMN result TEXT NOT NULL DEFAULT 'success' CHECK (result IN ('success', 'error'));
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_admin_audit_log_admin_id ON admin_audit_log(admin_id);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_log_action ON admin_audit_log(action);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_log_entity_type ON admin_audit_log(entity_type);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created_at ON admin_audit_log(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_admin_audit_log_result ON admin_audit_log(result);
+
+-- Create index for result column only if it exists
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'admin_audit_log' AND column_name = 'result'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_log_result ON admin_audit_log(result);
+  END IF;
+END $$;
 
 ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies first to allow re-runs
+DROP POLICY IF EXISTS "Admins can read admin_audit_log" ON admin_audit_log;
+DROP POLICY IF EXISTS "Authenticated users can insert admin_audit_log" ON admin_audit_log;
 
 CREATE POLICY "Admins can read admin_audit_log"
   ON admin_audit_log FOR SELECT
@@ -34,7 +59,7 @@ CREATE POLICY "Admins can read admin_audit_log"
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('admin', 'superadmin')
+      AND profiles.role = 'admin'
     )
   );
 
