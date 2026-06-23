@@ -1,5 +1,5 @@
 // src/services/audit.ts
-// Enhanced audit logging service with IP, browser, device, result
+// Client-side audit logging service (fail-safe: never throws)
 
 'use client';
 
@@ -23,26 +23,32 @@ export interface AuditLog {
   created_at: string;
 }
 
+const hasWindow = typeof window !== 'undefined';
+
 function getClientInfo() {
-  if (typeof window === 'undefined') {
+  if (!hasWindow) {
     return { ip: null, browser: null, device: null, os: null };
   }
-  const ua = navigator.userAgent;
-  const browser = ua.includes('Chrome') ? 'Chrome'
-    : ua.includes('Firefox') ? 'Firefox'
-    : ua.includes('Safari') ? 'Safari'
-    : ua.includes('Edge') ? 'Edge'
-    : 'Unknown';
-  const os = ua.includes('Windows') ? 'Windows'
-    : ua.includes('Mac') ? 'macOS'
-    : ua.includes('Linux') ? 'Linux'
-    : ua.includes('Android') ? 'Android'
-    : ua.includes('iOS') ? 'iOS'
-    : 'Unknown';
-  const device = ua.includes('Mobile') ? 'Mobile'
-    : ua.includes('Tablet') ? 'Tablet'
-    : 'Desktop';
-  return { ip: null, browser, device, os };
+  try {
+    const ua = navigator.userAgent;
+    const browser = ua.includes('Chrome') ? 'Chrome'
+      : ua.includes('Firefox') ? 'Firefox'
+      : ua.includes('Safari') ? 'Safari'
+      : ua.includes('Edge') ? 'Edge'
+      : 'Unknown';
+    const os = ua.includes('Windows') ? 'Windows'
+      : ua.includes('Mac') ? 'macOS'
+      : ua.includes('Linux') ? 'Linux'
+      : ua.includes('Android') ? 'Android'
+      : ua.includes('iOS') ? 'iOS'
+      : 'Unknown';
+    const device = ua.includes('Mobile') ? 'Mobile'
+      : ua.includes('Tablet') ? 'Tablet'
+      : 'Desktop';
+    return { ip: null, browser, device, os };
+  } catch {
+    return { ip: null, browser: null, device: null, os: null };
+  }
 }
 
 export const auditService = {
@@ -58,7 +64,7 @@ export const auditService = {
     try {
       const supabase = await getBrowserClient();
       const info = getClientInfo();
-      await supabase.from('admin_audit_log').insert({
+      const { error } = await supabase.from('admin_audit_log').insert({
         admin_id: adminId,
         admin_name: adminName,
         action,
@@ -71,19 +77,36 @@ export const auditService = {
         os: info.os,
         result,
       });
-    } catch {}
+      if (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[auditService.log] Supabase error:', error);
+        }
+      }
+    } catch {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[auditService.log] Exception (non-critical):', adminId, action);
+      }
+    }
   },
 
   async getRecent(limit = 20): Promise<AuditLog[]> {
     try {
       const supabase = await getBrowserClient();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('admin_audit_log')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(limit);
+      if (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[auditService.getRecent] Supabase error:', error);
+        }
+        return [];
+      }
       return (data || []) as AuditLog[];
-    } catch { return []; }
+    } catch {
+      return [];
+    }
   },
 
   async getAll(
@@ -110,22 +133,38 @@ export const auditService = {
         query = query.or(`admin_name.ilike.%${filters.search}%,action.ilike.%${filters.search}%,entity_type.ilike.%${filters.search}%,details.ilike.%${filters.search}%`);
       }
 
-      const { data, count } = await query
+      const { data, count, error } = await query
         .order('created_at', { ascending: false })
         .range(from, to);
+      if (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[auditService.getAll] Supabase error:', error);
+        }
+        return { logs: [], total: 0 };
+      }
       return { logs: (data || []) as AuditLog[], total: count || 0 };
-    } catch { return { logs: [], total: 0 }; }
+    } catch {
+      return { logs: [], total: 0 };
+    }
   },
 
   async getAllActions(): Promise<string[]> {
     try {
       const supabase = await getBrowserClient();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('admin_audit_log')
         .select('action')
         .order('action');
+      if (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[auditService.getAllActions] Supabase error:', error);
+        }
+        return [];
+      }
       const mapped = ((data ?? []) as { action: string }[]).map((r) => r.action);
       return [...new Set(mapped)];
-    } catch { return []; }
+    } catch {
+      return [];
+    }
   },
 };

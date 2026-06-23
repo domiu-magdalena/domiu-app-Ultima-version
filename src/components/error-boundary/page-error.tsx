@@ -14,9 +14,9 @@ export function PageError({ error, resetErrorBoundary }: PageErrorProps) {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
           <AlertTriangle className="h-8 w-8 text-destructive" />
         </div>
-        <h2 className="mt-6 text-xl font-semibold text-foreground">Algo sali贸 mal</h2>
+        <h2 className="mt-6 text-xl font-semibold text-foreground">Algo sali&oacute; mal</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          {error?.message || 'Ocurri贸 un error inesperado. Por favor, intenta de nuevo.'}
+          {error?.message || 'Ocurri\u00f3 un error inesperado. Por favor, intenta de nuevo.'}
         </p>
         {resetErrorBoundary && (
           <button

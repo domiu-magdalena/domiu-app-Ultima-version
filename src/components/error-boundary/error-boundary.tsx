@@ -39,7 +39,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       }
       return (
         <div className="flex min-h-[400px] flex-col items-center justify-center p-8">
-          <h2 className="text-lg font-semibold text-destructive">Algo sali贸 mal</h2>
+          <h2 className="text-lg font-semibold text-destructive">Algo sali&oacute; mal</h2>
           <p className="mt-2 text-sm text-muted-foreground">{this.state.error?.message}</p>
           <button
             onClick={this.resetErrorBoundary}
