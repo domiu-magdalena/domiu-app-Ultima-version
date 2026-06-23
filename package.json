@@ -15,7 +15,8 @@
     "check:env": "node scripts/check-environment.cjs",
     "create:super-admin": "node scripts/create-super-admin.cjs",
     "create:test-courier": "node scripts/create-test-courier.cjs",
-    "debug:courier-login": "node scripts/debug-courier-login.cjs"
+    "debug:courier-login": "node scripts/debug-courier-login.cjs",
+    "audit:rls": "node scripts/audit-rls-status.cjs"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",

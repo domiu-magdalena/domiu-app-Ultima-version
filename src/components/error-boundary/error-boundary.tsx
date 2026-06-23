@@ -3,7 +3,7 @@
 import React from 'react';
 
 interface ErrorBoundaryProps {
-  fallback?: React.ReactElement<{ resetErrorBoundary?: () => void }>;
+  fallback?: React.ReactElement<{ resetErrorBoundary?: () => void; error?: { message: string; name: string; stack?: string } | Error | null }>;
   onReset?: () => void;
   children: React.ReactNode;
 }
@@ -34,15 +34,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   render() {
     if (this.state.hasError) {
-      const logError = {
-        message: this.state.error?.message,
-        name: this.state.error?.name,
-        stack: this.state.error?.stack,
-      };
       if (this.props.fallback) {
         return React.cloneElement(this.props.fallback, {
           resetErrorBoundary: this.resetErrorBoundary,
-          error: logError,
+          error: this.state.error,
         });
       }
       return (
