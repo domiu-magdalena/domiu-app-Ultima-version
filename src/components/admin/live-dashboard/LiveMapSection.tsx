@@ -2,15 +2,9 @@
 
 import React, { useState } from 'react';
 import { MapLegend } from './MapLegend';
-import { SkeletonMap } from '@/components/ui/skeleton';
 import { Layers, Maximize2, Minimize2, TrafficCone } from 'lucide-react';
-import dynamic from 'next/dynamic';
 import { MapsProvider } from '@/contexts/MapsContext';
-
-const DynamicMapWrapper = dynamic(
-  () => import('@/components/tracking/maps/DynamicMapWrapper').then(m => ({ default: m.DynamicMapWrapper })),
-  { ssr: false, loading: () => <SkeletonMap /> }
-);
+import { DynamicMapWrapper } from '@/components/tracking/maps/DynamicMapWrapper';
 
 interface LiveMapSectionProps {
   totalOrders: number;
