@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { parseManualOrderText } from '@/lib/orders/parse-manual-order';
 import { calculateDeliveryPrice } from '@/lib/orders/delivery-pricing';
 import { createManualOrderAction, getBusinessDetailsForOrder } from '@/app/actions/admin-orders';
-import { calculateRouteDistance, geocodeAddressServer } from '@/lib/maps/distance';
+import { calculateRouteDistance } from '@/lib/maps/distance';
 import { Loader2, MapPin, Phone, User, Navigation, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -222,32 +222,11 @@ export function ManualOrderForm() {
     setPriceResult(null);
 
     try {
-      let originLat = business.latitude;
-      let originLng = business.longitude;
-      let destinationLat: number | undefined;
-      let destinationLng: number | undefined;
-
-      if (!originLat || !originLng) {
-        const geoOrigin = await geocodeAddressServer(business.address);
-        if (geoOrigin) {
-          originLat = geoOrigin.lat;
-          originLng = geoOrigin.lng;
-        }
-      }
-
-      const geoDest = await geocodeAddressServer(deliveryAddress);
-      if (geoDest) {
-        destinationLat = geoDest.lat;
-        destinationLng = geoDest.lng;
-      }
-
       const route = await calculateRouteDistance(
         business.address,
         deliveryAddress,
-        originLat ?? undefined,
-        originLng ?? undefined,
-        destinationLat,
-        destinationLng,
+        business.latitude ?? undefined,
+        business.longitude ?? undefined,
       );
 
       form.setValue('distanceKm', route.distanceKm);

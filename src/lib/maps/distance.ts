@@ -33,37 +33,66 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 export async function geocodeAddressServer(address: string, city = 'Santa Marta'): Promise<GeocodeResult | null> {
   if (!address || address.length < 5) return null;
 
-  const hasMapsKey = !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const fullQuery = `${address}, ${city}, Colombia`;
 
+  // Try Google Maps first if key is available
+  const hasMapsKey = !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   if (hasMapsKey) {
     try {
       const params = new URLSearchParams({
-        address: `${address}, ${city}, Colombia`,
+        address: fullQuery,
         key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
       });
       const res = await fetch(
         `https://maps.googleapis.com/maps/api/geocode/json?${params}`,
         { signal: AbortSignal.timeout(5000) },
       );
-      if (!res.ok) return null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data: any = await res.json();
-      if (data.status === 'OK' && data.results?.[0]) {
-        const loc = data.results[0].geometry.location;
-        const cityComp = data.results[0].address_components?.find(
-          (c: { types: string[]; long_name: string }) => c.types.includes('locality') || c.types.includes('sublocality'),
-        );
-        return {
-          lat: loc.lat,
-          lng: loc.lng,
-          formattedAddress: data.results[0].formatted_address,
-          city: cityComp?.long_name || city,
-          confidence: data.results[0].geometry.location_type === 'ROOFTOP' ? 'high' : 'medium',
-        };
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'OK' && data.results?.[0]) {
+          const loc = data.results[0].geometry.location;
+          const cityComp = data.results[0].address_components?.find(
+            (c: { types: string[]; long_name: string }) => c.types.includes('locality') || c.types.includes('sublocality'),
+          );
+          return {
+            lat: loc.lat,
+            lng: loc.lng,
+            formattedAddress: data.results[0].formatted_address,
+            city: cityComp?.long_name || city,
+            confidence: data.results[0].geometry.location_type === 'ROOFTOP' ? 'high' : 'medium',
+          };
+        }
       }
     } catch {
-      return null;
+      // fall through to Nominatim
     }
+  }
+
+  // Fallback: Nominatim (OpenStreetMap) — free, no API key needed
+  try {
+    const nomRes = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(fullQuery)}&format=json&limit=1&addressdetails=1`,
+      {
+        headers: { 'User-Agent': 'DomiU-App/1.0' },
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    if (nomRes.ok) {
+      const nomData = await nomRes.json();
+      if (nomData?.length > 0) {
+        const place = nomData[0];
+        const addrDetails = place.address || {};
+        return {
+          lat: parseFloat(place.lat),
+          lng: parseFloat(place.lon),
+          formattedAddress: place.display_name || fullQuery,
+          city: addrDetails.city || addrDetails.town || addrDetails.municipality || city,
+          confidence: 'medium',
+        };
+      }
+    }
+  } catch {
+    // return null below
   }
 
   return null;
@@ -80,6 +109,23 @@ export async function calculateRouteDistance(
   const warnings: string[] = [];
   const hasMapsKey = !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
+  // Try to geocode missing coordinates
+  if (!originLat || !originLng) {
+    const geoOrigin = await geocodeAddressServer(originAddress);
+    if (geoOrigin) {
+      originLat = geoOrigin.lat;
+      originLng = geoOrigin.lng;
+    }
+  }
+  if (!destinationLat || !destinationLng) {
+    const geoDest = await geocodeAddressServer(destinationAddress);
+    if (geoDest) {
+      destinationLat = geoDest.lat;
+      destinationLng = geoDest.lng;
+    }
+  }
+
+  // Google Maps Distance Matrix (requires API key + all coordinates)
   if (hasMapsKey && originLat && originLng && destinationLat && destinationLng) {
     try {
       const params = new URLSearchParams({
@@ -115,6 +161,7 @@ export async function calculateRouteDistance(
     }
   }
 
+  // Haversine fallback (linea recta) — works with any coordinates
   if (originLat && originLng && destinationLat && destinationLng) {
     const distanceKm = haversineKm(originLat, originLng, destinationLat, destinationLng);
     warnings.push('Distancia calculada en línea recta (no ruta real). Verifica manualmente.');
@@ -133,7 +180,24 @@ export async function calculateRouteDistance(
     };
   }
 
-  warnings.push('No hay coordenadas disponibles. Ingresa los kilómetros manualmente.');
+  // Last resort: estimate based on origin only (use a generous radius)
+  if (originLat && originLng) {
+    const estimatedKm = 3;
+    warnings.push('No se pudo geocodificar la dirección de entrega. Distancia estimada a 3 km.');
+    return {
+      originAddress,
+      destinationAddress,
+      originLat,
+      originLng,
+      distanceKm: estimatedKm,
+      durationMinutes: Math.round((estimatedKm / 25) * 60),
+      calculationSource: 'manual',
+      confidence: 'low',
+      warnings,
+    };
+  }
+
+  warnings.push('No hay coordenadas disponibles para el origen ni el destino. Ingresa los kilómetros manualmente.');
   return {
     originAddress,
     destinationAddress,
