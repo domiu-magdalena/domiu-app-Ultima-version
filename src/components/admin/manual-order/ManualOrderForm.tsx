@@ -49,9 +49,12 @@ interface BusinessDetail {
   name: string;
   address: string;
   neighborhood: string;
+  city: string;
   latitude: number | null;
   longitude: number | null;
   is_active: boolean;
+  is_verified: boolean;
+  accepts_orders: boolean;
   hasAddress: boolean;
   hasCoordinates: boolean;
 }
@@ -93,6 +96,7 @@ export function ManualOrderForm() {
     confidence: Record<string, number>;
     warnings: string[];
   } | null>(null);
+  const [distanceMode, setDistanceMode] = React.useState<'auto' | 'manual'>('auto');
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -174,9 +178,40 @@ export function ManualOrderForm() {
       return;
     }
 
+    if (distanceMode === 'manual') {
+      const km = form.getValues('distanceKm');
+      if (!km || km <= 0) {
+        toast.error('Ingresa los kilómetros manualmente');
+        return;
+      }
+      const pricing = calculateDeliveryPrice(km);
+      form.setValue('durationMinutes', pricing.durationMinutes);
+      form.setValue('deliveryFee', pricing.finalPrice);
+      setPriceResult({
+        distanceKm: km,
+        durationMinutes: pricing.durationMinutes,
+        rawPrice: pricing.rawPrice,
+        finalPrice: pricing.finalPrice,
+        calculationSource: 'manual',
+        confidence: 'medium',
+        warnings: pricing.warnings,
+      });
+      if (pricing.warnings.length > 0) {
+        pricing.warnings.forEach(w => toast.warning(w));
+      } else {
+        toast.success(`Precio sugerido: $${pricing.finalPrice.toLocaleString('es-CO')}`);
+      }
+      return;
+    }
+
     const deliveryAddress = form.getValues('deliveryAddress');
     if (!deliveryAddress || deliveryAddress.length < 5) {
       toast.error('Ingresa la dirección de entrega');
+      return;
+    }
+
+    if (!business.hasAddress) {
+      toast.error('El local no tiene dirección registrada. Cambia a modo manual.');
       return;
     }
 
@@ -234,7 +269,7 @@ export function ManualOrderForm() {
         toast.success(`Distancia: ${route.distanceKm} km | Precio sugerido: $${pricing.finalPrice.toLocaleString('es-CO')}`);
       }
     } catch {
-      toast.error('Error al calcular. Ingresa los datos manualmente.');
+      toast.error('Error al calcular con Maps. Cambia a modo manual.');
     } finally {
       setCalculating(false);
     }
@@ -261,7 +296,10 @@ export function ManualOrderForm() {
       neighborhood: values.neighborhood || undefined,
       addressNotes: values.addressNotes || undefined,
       businessId: values.businessId,
+      businessName: selectedBusiness?.name || undefined,
       businessAddress: selectedBusiness?.address || '',
+      businessNeighborhood: selectedBusiness?.neighborhood || undefined,
+      businessCity: selectedBusiness?.city || undefined,
       businessLat: selectedBusiness?.latitude ?? undefined,
       businessLng: selectedBusiness?.longitude ?? undefined,
       distanceKm: values.distanceKm,
@@ -443,18 +481,76 @@ export function ManualOrderForm() {
           </div>
 
           {selectedBusiness && (
-            <div className="mt-4 rounded-lg border border-slate-600/50 bg-slate-700/30 p-3">
-              <div className="flex items-center gap-2 text-sm">
-                <MapPin className="h-4 w-4 text-emerald-400" />
-                <span className="text-slate-300">{selectedBusiness.name}</span>
-                {selectedBusiness.hasCoordinates ? (
-                  <span className="ml-auto text-xs text-green-400">Coordenadas verificadas</span>
-                ) : selectedBusiness.hasAddress ? (
-                  <span className="ml-auto text-xs text-yellow-400">Sin coordenadas</span>
-                ) : (
-                  <span className="ml-auto text-xs text-red-400">Dirección faltante</span>
-                )}
+            <div className="mt-5 rounded-xl border border-slate-600/50 bg-slate-700/30 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-emerald-400" />
+                  <span className="text-base font-semibold text-white">{selectedBusiness.name}</span>
+                </div>
+                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  selectedBusiness.hasCoordinates
+                    ? 'bg-green-900/40 text-green-400'
+                    : selectedBusiness.hasAddress
+                    ? 'bg-yellow-900/40 text-yellow-400'
+                    : 'bg-red-900/40 text-red-400'
+                }`}>
+                  {selectedBusiness.hasCoordinates ? 'Listo' : selectedBusiness.hasAddress ? 'Sin coordenadas' : 'Incompleto'}
+                </span>
               </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="text-slate-400">Dirección:</div>
+                <div className="text-slate-200">{selectedBusiness.address || <span className="text-yellow-400">No registrada</span>}</div>
+                <div className="text-slate-400">Barrio:</div>
+                <div className="text-slate-200">{selectedBusiness.neighborhood || <span className="text-slate-500">—</span>}</div>
+                <div className="text-slate-400">Ciudad:</div>
+                <div className="text-slate-200">{selectedBusiness.city || 'Santa Marta'}</div>
+                <div className="text-slate-400">Coordenadas:</div>
+                <div className="text-slate-200">
+                  {selectedBusiness.hasCoordinates
+                    ? `${selectedBusiness.latitude!.toFixed(4)}, ${selectedBusiness.longitude!.toFixed(4)}`
+                    : <span className="text-yellow-400">No disponibles</span>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5">
+            <label className="mb-3 block text-sm font-semibold text-slate-300">Modo de distancia</label>
+            <div className="flex flex-wrap gap-3">
+              <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2.5 text-sm ${
+                distanceMode === 'auto'
+                  ? 'border-emerald-500 bg-emerald-900/30 text-emerald-300'
+                  : 'border-slate-600 bg-slate-700/50 text-slate-300'
+              }`}>
+                <input
+                  type="radio"
+                  checked={distanceMode === 'auto'}
+                  onChange={() => setDistanceMode('auto')}
+                  className="accent-emerald-500"
+                />
+                <Navigation className="h-4 w-4" />
+                Automático (Google Maps)
+              </label>
+              <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2.5 text-sm ${
+                distanceMode === 'manual'
+                  ? 'border-emerald-500 bg-emerald-900/30 text-emerald-300'
+                  : 'border-slate-600 bg-slate-700/50 text-slate-300'
+              }`}>
+                <input
+                  type="radio"
+                  checked={distanceMode === 'manual'}
+                  onChange={() => setDistanceMode('manual')}
+                  className="accent-emerald-500"
+                />
+                <DollarSign className="h-4 w-4" />
+                Manual (ingresar km)
+              </label>
+            </div>
+          </div>
+
+          {distanceMode === 'manual' && (
+            <div className="mt-1 rounded-lg border border-yellow-700/30 bg-yellow-900/10 p-3 text-xs text-yellow-300">
+              Ingresa los kilómetros estimados manualmente. El precio se calculará según la tarifa base.
             </div>
           )}
 
@@ -468,8 +564,9 @@ export function ManualOrderForm() {
                 type="number"
                 step="0.1"
                 {...form.register('distanceKm', { valueAsNumber: true })}
-                placeholder="0.0"
-                className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                placeholder={distanceMode === 'auto' ? 'Se llenará automáticamente' : 'Ej: 5.5'}
+                readOnly={distanceMode === 'auto'}
+                className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 read-only:opacity-60"
               />
               {form.formState.errors.distanceKm && (
                 <p className="mt-1 text-xs text-red-400">{form.formState.errors.distanceKm.message}</p>
@@ -482,7 +579,8 @@ export function ManualOrderForm() {
                 type="number"
                 {...form.register('durationMinutes', { valueAsNumber: true })}
                 placeholder="0 min"
-                className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                readOnly
+                className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 read-only:opacity-60"
               />
             </div>
           </div>
@@ -491,11 +589,11 @@ export function ManualOrderForm() {
             <button
               type="button"
               onClick={handleCalculate}
-              disabled={calculating || !selectedBusiness}
+              disabled={calculating || !selectedBusiness || (!form.getValues('deliveryAddress') && distanceMode === 'auto')}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
-              Calcular domicilio
+              {distanceMode === 'auto' ? 'Calcular domicilio' : 'Calcular precio'}
             </button>
           </div>
 
@@ -608,6 +706,31 @@ export function ManualOrderForm() {
               placeholder="Instrucciones especiales para el repartidor..."
               className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
+          <h3 className="mb-3 text-sm font-medium text-slate-400">Estado del pedido</h3>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            {[
+              { label: 'Cliente', ok: !!form.getValues('customerName') && form.getValues('customerName').length >= 3 },
+              { label: 'Teléfono', ok: /^3\d{9}$/.test(form.getValues('customerPhone')) },
+              { label: 'Dirección entrega', ok: form.getValues('deliveryAddress').length >= 5 },
+              { label: 'Local seleccionado', ok: !!selectedBusiness },
+              { label: 'Local con dirección', ok: selectedBusiness?.hasAddress ?? false },
+              { label: 'Distancia calculada', ok: form.getValues('distanceKm') > 0 },
+              { label: 'Precio calculado', ok: form.getValues('deliveryFee') > 0 },
+              { label: 'Método de pago', ok: !!form.getValues('paymentMethod') },
+            ].map((check) => (
+              <div key={check.label} className="flex items-center gap-2">
+                {check.ok ? (
+                  <CheckCircle className="h-4 w-4 text-emerald-400" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-slate-500" />
+                )}
+                <span className={check.ok ? 'text-slate-300' : 'text-slate-500'}>{check.label}</span>
+              </div>
+            ))}
           </div>
         </div>
 

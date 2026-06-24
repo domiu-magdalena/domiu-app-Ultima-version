@@ -15,7 +15,10 @@ const createManualOrderSchema = z.object({
   neighborhood: z.string().optional(),
   addressNotes: z.string().optional(),
   businessId: z.string().uuid('Selecciona un local válido'),
+  businessName: z.string().optional(),
   businessAddress: z.string().min(1, 'La dirección del local es requerida'),
+  businessNeighborhood: z.string().optional(),
+  businessCity: z.string().optional(),
   businessLat: z.number().optional(),
   businessLng: z.number().optional(),
   distanceKm: z.number().positive('La distancia debe ser mayor a 0 km'),
@@ -146,7 +149,10 @@ export async function createManualOrderAction(input: CreateManualOrderInput) {
           price_calculation_source: data.priceCalculationSource,
           distance_km: data.distanceKm,
           duration_minutes: data.durationMinutes,
+          business_name: data.businessName || null,
           business_address: data.businessAddress,
+          business_neighborhood: data.businessNeighborhood || null,
+          business_city: data.businessCity || null,
           customer_address: data.deliveryAddress,
           customer_phone: data.customerPhone,
           customer_neighborhood: data.neighborhood || null,
@@ -232,11 +238,21 @@ export async function getBusinessDetailsForOrder(businessId: string) {
 
   const { data: business } = await supabase
     .from('businesses')
-    .select('id, name, address, neighborhood, latitude, longitude, city_id, is_active')
+    .select('id, name, address, neighborhood, latitude, longitude, city_id, is_active, is_verified, accepts_orders')
     .eq('id', businessId)
     .single();
 
   if (!business) return null;
+
+  let cityName = '';
+  if (business.city_id) {
+    const { data: city } = await supabase
+      .from('cities')
+      .select('name')
+      .eq('id', business.city_id)
+      .single();
+    if (city) cityName = city.name;
+  }
 
   const { data: bizAddress } = await supabase
     .from('business_addresses')
@@ -245,16 +261,22 @@ export async function getBusinessDetailsForOrder(businessId: string) {
     .eq('is_primary', true)
     .maybeSingle();
 
+  const effectiveLat = business.latitude ?? bizAddress?.latitude ?? null;
+  const effectiveLng = business.longitude ?? bizAddress?.longitude ?? null;
+
   return {
     id: business.id,
     name: business.name,
     address: business.address || bizAddress?.street_address || '',
-    neighborhood: business.neighborhood || '',
-    latitude: business.latitude ?? bizAddress?.latitude ?? null,
-    longitude: business.longitude ?? bizAddress?.longitude ?? null,
+    neighborhood: business.neighborhood || bizAddress?.city || '',
+    city: cityName,
+    latitude: effectiveLat,
+    longitude: effectiveLng,
     is_active: business.is_active,
+    is_verified: business.is_verified ?? false,
+    accepts_orders: business.accepts_orders ?? true,
     hasAddress: !!(business.address || bizAddress?.street_address),
-    hasCoordinates: !!(business.latitude || bizAddress?.latitude),
+    hasCoordinates: !!(effectiveLat && effectiveLng),
   };
 }
 
