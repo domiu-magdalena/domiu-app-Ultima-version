@@ -29,7 +29,7 @@ export function CourierProfileHeader() {
   const city = String(profile?.metadata?.city || profile?.metadata?.zone || 'Santa Marta');
   const driverId = profile?.id ? `DU-${profile.id.slice(0, 8).toUpperCase()}` : 'DU-PENDIENTE';
   const notificationCount = activeDeliveries.length;
-  const courierStatus = (courier?.status || 'offline') as DriverStatus;
+  const courierStatus = courier?.status || 'offline';
   const statusConfig = STATUS_HEADER_CONFIG[courierStatus] || STATUS_HEADER_CONFIG.offline;
 
   return (
