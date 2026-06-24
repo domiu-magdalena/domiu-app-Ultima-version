@@ -20,39 +20,47 @@ interface MapWrapperProps {
 }
 
 function DynamicMapInner({ config, children, className = 'w-full h-full min-h-[300px]', onLoad }: MapWrapperProps) {
-  const { isReady, maps, error, hasKey } = useMaps();
+  const { isReady, maps, error: mapsError, hasKey } = useMaps();
   const containerRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
   useEffect(() => {
     if (!isReady || !maps || !containerRef.current || map) return;
+    if (typeof maps.Map !== 'function') return;
 
-    const instance = new maps.Map(containerRef.current, {
-      center: config.center,
-      zoom: config.zoom ?? 14,
-      styles: config.styles ?? defaultMapStyle,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: false,
-      zoomControl: true,
-      gestureHandling: 'greedy',
-      ...config.options,
-    });
+    try {
+      const instance = new maps.Map(containerRef.current, {
+        center: config.center,
+        zoom: config.zoom ?? 14,
+        styles: config.styles ?? defaultMapStyle,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControl: true,
+        gestureHandling: 'greedy',
+        ...config.options,
+      });
 
-    setMap(instance);
-    onLoad?.(instance);
+      setMap(instance);
+      onLoad?.(instance);
+    } catch {
+      // Google Maps initialization failed — handled via render path
+    }
   }, [isReady, maps, config, map, onLoad]);
 
-  if (!hasKey || error) {
+  const noMapApi = isReady && maps && typeof maps.Map !== 'function';
+  const showFallback = !hasKey || mapsError || noMapApi;
+
+  if (showFallback) {
     return (
       <div className={`flex items-center justify-center rounded-2xl bg-muted/30 ${className}`}>
         <div className="text-center p-8">
           <MapPin className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">
-            {!hasKey ? 'Google Maps no configurado' : 'Error al cargar Google Maps'}
+            {!hasKey ? 'Google Maps no configurado' : 'Mapa no disponible'}
           </p>
           <p className="text-xs text-muted-foreground/60 mt-1">
-            Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY en .env.local
+            {mapsError ? 'Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY en .env.local' : ''}
           </p>
         </div>
       </div>
