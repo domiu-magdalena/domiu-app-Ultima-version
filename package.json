@@ -17,7 +17,8 @@
     "create:test-courier": "node scripts/create-test-courier.cjs",
     "debug:courier-login": "node scripts/debug-courier-login.cjs",
     "audit:rls": "node scripts/audit-rls-status.cjs",
-    "cleanup:demo": "node scripts/cleanup-demo-accounts.cjs"
+    "cleanup:demo": "node scripts/cleanup-demo-accounts.cjs",
+    "create:olma-wings": "node scripts/create-olma-wings-business.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
