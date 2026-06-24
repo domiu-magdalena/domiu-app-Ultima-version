@@ -36,6 +36,9 @@ interface BusinessOption {
   id: string;
   name: string;
   is_active: boolean;
+  is_verified: boolean;
+  hasAddress: boolean;
+  hasCoordinates: boolean;
 }
 
 interface CourierOption {
@@ -211,7 +214,7 @@ export function ManualOrderForm() {
     }
 
     if (!business.hasAddress) {
-      toast.error('El local no tiene dirección registrada. Cambia a modo manual.');
+      toast.error(`El local "${business.name}" no tiene dirección registrada. Cambia a modo manual e ingresa los km.`);
       return;
     }
 
@@ -263,13 +266,19 @@ export function ManualOrderForm() {
         warnings: [...route.warnings, ...pricing.warnings],
       });
 
-      if (route.warnings.length > 0 || pricing.warnings.length > 0) {
+      if (route.distanceKm <= 0 && !deliveryAddress) {
+        toast.error('No se pudo calcular la distancia. Cambia a modo manual.');
+      } else if (route.warnings.length > 0 || pricing.warnings.length > 0) {
         [...route.warnings, ...pricing.warnings].forEach(w => toast.warning(w));
+        if (route.distanceKm > 0) {
+          toast.success(`Distancia: ${route.distanceKm} km | Precio sugerido: $${pricing.finalPrice.toLocaleString('es-CO')}`);
+        }
       } else {
         toast.success(`Distancia: ${route.distanceKm} km | Precio sugerido: $${pricing.finalPrice.toLocaleString('es-CO')}`);
       }
     } catch {
-      toast.error('Error al calcular con Maps. Cambia a modo manual.');
+      toast.error('Error al calcular. Cambia a modo manual e ingresa los km.');
+      setDistanceMode('manual');
     } finally {
       setCalculating(false);
     }
@@ -451,10 +460,12 @@ export function ManualOrderForm() {
                 {...form.register('businessId')}
                 className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
-                <option value="">Sin local</option>
+                <option value="">Seleccionar un local</option>
                 {businesses.map((b) => (
-                  <option key={b.id} value={b.id} disabled={!b.is_active}>
-                    {b.name} {!b.is_active ? '(inactivo)' : ''}
+                  <option key={b.id} value={b.id} disabled={!b.is_active || !b.hasAddress}>
+                    {b.name}
+                    {!b.is_active ? ' (inactivo)' : ''}
+                    {!b.hasAddress && b.is_active ? ' (sin dirección)' : ''}
                   </option>
                 ))}
               </select>

@@ -222,11 +222,39 @@ export async function getBusinessesForOrderSelect() {
   const supabase = getServiceClient();
   const { data } = await supabase
     .from('businesses')
-    .select('id, name, is_active')
+    .select('id, name, is_active, is_verified')
     .eq('is_active', true)
     .order('name');
 
-  return data || [];
+  if (!data) return [];
+
+  const businessIds = data.map((b: { id: string }) => b.id);
+  const { data: addresses } = await supabase
+    .from('business_addresses')
+    .select('business_id, street_address, latitude, longitude')
+    .in('business_id', businessIds);
+
+  const addressMap = new Map<string, { hasAddress: boolean; hasCoordinates: boolean }>();
+  for (const addr of addresses || []) {
+    if (!addressMap.has(addr.business_id)) {
+      addressMap.set(addr.business_id, {
+        hasAddress: !!(addr.street_address),
+        hasCoordinates: !!(addr.latitude && addr.longitude),
+      });
+    }
+  }
+
+  return data.map((b: { id: string; name: string; is_active: boolean; is_verified: boolean }) => {
+    const info = addressMap.get(b.id);
+    return {
+      id: b.id,
+      name: b.name,
+      is_active: b.is_active,
+      is_verified: b.is_verified ?? false,
+      hasAddress: info?.hasAddress ?? false,
+      hasCoordinates: info?.hasCoordinates ?? false,
+    };
+  });
 }
 
 export async function getBusinessDetailsForOrder(businessId: string) {
@@ -238,45 +266,34 @@ export async function getBusinessDetailsForOrder(businessId: string) {
 
   const { data: business } = await supabase
     .from('businesses')
-    .select('id, name, address, neighborhood, latitude, longitude, city_id, is_active, is_verified, accepts_orders')
+    .select('id, name, is_active, is_verified')
     .eq('id', businessId)
     .single();
 
   if (!business) return null;
 
-  let cityName = '';
-  if (business.city_id) {
-    const { data: city } = await supabase
-      .from('cities')
-      .select('name')
-      .eq('id', business.city_id)
-      .single();
-    if (city) cityName = city.name;
-  }
-
-  const { data: bizAddress } = await supabase
+  const { data: bizAddresses } = await supabase
     .from('business_addresses')
     .select('street_address, city, latitude, longitude, is_primary')
     .eq('business_id', businessId)
-    .eq('is_primary', true)
-    .maybeSingle();
+    .order('is_primary', { ascending: false })
+    .limit(1);
 
-  const effectiveLat = business.latitude ?? bizAddress?.latitude ?? null;
-  const effectiveLng = business.longitude ?? bizAddress?.longitude ?? null;
+  const bizAddress = bizAddresses?.[0] || null;
 
   return {
     id: business.id,
     name: business.name,
-    address: business.address || bizAddress?.street_address || '',
-    neighborhood: business.neighborhood || bizAddress?.city || '',
-    city: cityName,
-    latitude: effectiveLat,
-    longitude: effectiveLng,
+    address: bizAddress?.street_address || '',
+    neighborhood: bizAddress?.city || '',
+    city: bizAddress?.city || 'Santa Marta',
+    latitude: bizAddress?.latitude ?? null,
+    longitude: bizAddress?.longitude ?? null,
     is_active: business.is_active,
     is_verified: business.is_verified ?? false,
-    accepts_orders: business.accepts_orders ?? true,
-    hasAddress: !!(business.address || bizAddress?.street_address),
-    hasCoordinates: !!(effectiveLat && effectiveLng),
+    accepts_orders: true,
+    hasAddress: !!(bizAddress?.street_address),
+    hasCoordinates: !!(bizAddress?.latitude && bizAddress?.longitude),
   };
 }
 
