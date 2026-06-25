@@ -2,10 +2,11 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Wallet, TrendingUp, TrendingDown, ChevronRight, Banknote, PiggyBank, Gift } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, ChevronRight, Banknote, PiggyBank, Gift, X, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCourier } from '@/contexts/CourierContext';
 import { courierProService } from '@/services/courier-pro';
+import { getBrowserClient } from '@/lib/db/supabase';
 import { formatCurrency } from './shared';
 import { toast } from 'sonner';
 
@@ -15,6 +16,11 @@ export function CourierWalletCard() {
   const [commission, setCommission] = React.useState(0);
   const [tips, setTips] = React.useState(0);
   const [bonuses, setBonuses] = React.useState(0);
+  const [showWithdrawal, setShowWithdrawal] = React.useState(false);
+  const [withdrawalAmount, setWithdrawalAmount] = React.useState('');
+  const [withdrawalMethod, setWithdrawalMethod] = React.useState('nequi');
+  const [withdrawalDetails, setWithdrawalDetails] = React.useState('');
+  const [withdrawalSaving, setWithdrawalSaving] = React.useState(false);
 
   React.useEffect(() => {
     (async () => {
@@ -80,7 +86,7 @@ export function CourierWalletCard() {
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <button onClick={() => toast.info('Función en preparación: retiro de saldo')} className="flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow transition hover:bg-blue-700" aria-label="Retirar saldo">
+        <button onClick={() => setShowWithdrawal(true)} className="flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow transition hover:bg-blue-700" aria-label="Retirar saldo">
           <Banknote className="h-3.5 w-3.5" />
           Retirar saldo
         </button>
@@ -89,6 +95,66 @@ export function CourierWalletCard() {
           <ChevronRight className="h-3 w-3" />
         </a>
       </div>
+
+      {showWithdrawal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowWithdrawal(false)}>
+          <div className="w-full max-w-sm mx-4 rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-foreground">Solicitar retiro</h3>
+              <button onClick={() => setShowWithdrawal(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">Saldo disponible: <span className="font-bold text-foreground">{formatCurrency(totalEarnings)}</span></p>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Monto a retirar</label>
+                <input type="number" value={withdrawalAmount} onChange={e => setWithdrawalAmount(e.target.value)} min={1000} step={1000} placeholder="Ej: 50000" className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 text-sm text-foreground" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Método de retiro</label>
+                <select value={withdrawalMethod} onChange={e => setWithdrawalMethod(e.target.value)} className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 text-sm text-foreground">
+                  <option value="nequi">Nequi</option>
+                  <option value="daviplata">Daviplata</option>
+                  <option value="bancolombia">Bancolombia</option>
+                  <option value="otro">Otro banco</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Número de cuenta / detalles</label>
+                <input value={withdrawalDetails} onChange={e => setWithdrawalDetails(e.target.value)} placeholder="Número de teléfono o cuenta" className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 text-sm text-foreground" />
+              </div>
+              <button
+                onClick={async () => {
+                  const amount = parseInt(withdrawalAmount);
+                  if (!amount || amount < 1000) { toast.error('Monto mínimo: $1,000'); return; }
+                  if (amount > totalEarnings) { toast.error('Saldo insuficiente'); return; }
+                  if (!withdrawalDetails.trim()) { toast.error('Ingresa los detalles de pago'); return; }
+                  setWithdrawalSaving(true);
+                  try {
+                    const supabase = await getBrowserClient();
+                    const { error } = await supabase.from('withdrawal_requests').insert({
+                      courier_id: profile?.id,
+                      amount,
+                      payment_method: withdrawalMethod,
+                      payment_details: withdrawalDetails.trim(),
+                    });
+                    if (error) throw error;
+                    toast.success(`Solicitud de retiro por $${amount.toLocaleString('es-CO')} creada. Revisaremos tu solicitud.`);
+                    setShowWithdrawal(false);
+                    setWithdrawalAmount('');
+                    setWithdrawalDetails('');
+                  } catch { toast.error('Error al crear solicitud'); }
+                  setWithdrawalSaving(false);
+                }}
+                disabled={withdrawalSaving}
+                className="w-full rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {withdrawalSaving ? <><Loader2 className="h-4 w-4 animate-spin" /> Procesando...</> : 'Solicitar retiro'}
+              </button>
+              <p className="text-[10px] text-muted-foreground text-center">El retiro será revisado por nuestro equipo antes de procesarse.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.section>
   );
 }

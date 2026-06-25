@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { notificationService, type NotificationData } from '@/services/notifications';
 import { fallbackNotifications } from '@/lib/mock/courier-profile';
 import { getRelativeTime } from './shared';
-import { toast } from 'sonner';
 
 const notificationIcons: Record<string, React.ElementType> = {
   assignment: Package,
@@ -85,9 +84,9 @@ export function CourierNotificationsCard() {
         })}
       </div>
 
-      <button onClick={() => toast.info('Función en preparación: centro de notificaciones')} className="w-full mt-3 flex items-center justify-center gap-1 rounded-xl bg-slate-50 py-2.5 text-[11px] font-bold text-slate-600 transition hover:bg-slate-100">
+      <a href="/notificaciones" className="w-full mt-3 flex items-center justify-center gap-1 rounded-xl bg-slate-50 py-2.5 text-[11px] font-bold text-slate-600 transition hover:bg-slate-100">
         Ver todas <ChevronRight className="h-3 w-3" />
-      </button>
+      </a>
     </motion.section>
   );
 }

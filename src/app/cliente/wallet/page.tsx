@@ -3,10 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { clientService, WalletInfo, WalletTransaction } from '@/services/client';
+import { getBrowserClient } from '@/lib/db/supabase';
 import { motion } from 'framer-motion';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonCard } from '@/components/ui/skeleton';
-import { Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownLeft, Plus } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownLeft, Plus, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function WalletPage() {
@@ -14,6 +15,10 @@ export default function WalletPage() {
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showTopUp, setShowTopUp] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [topUpMethod, setTopUpMethod] = useState('nequi');
+  const [topUpSaving, setTopUpSaving] = useState(false);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -74,10 +79,64 @@ export default function WalletPage() {
 
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-foreground">Movimientos</h2>
-              <button onClick={() => toast.info('Función en preparación: recarga de wallet')} className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary">
+              <button onClick={() => setShowTopUp(true)} className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary">
                 <Plus className="h-3.5 w-3.5" /> Recargar
               </button>
             </div>
+
+            {showTopUp && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowTopUp(false)}>
+                <div className="w-full max-w-sm mx-4 rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base font-bold text-foreground">Solicitar recarga</h3>
+                    <button onClick={() => setShowTopUp(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-4">Saldo disponible: <span className="font-bold text-foreground">${wallet?.balance.toFixed(2) ?? '0.00'}</span></p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Monto a recargar</label>
+                      <input type="number" value={topUpAmount} onChange={e => setTopUpAmount(e.target.value)} min={1000} step={1000} placeholder="Ej: 50000" className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 text-sm text-foreground" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Método de pago</label>
+                      <select value={topUpMethod} onChange={e => setTopUpMethod(e.target.value)} className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 text-sm text-foreground">
+                        <option value="nequi">Nequi</option>
+                        <option value="daviplata">Daviplata</option>
+                        <option value="transferencia">Transferencia bancaria</option>
+                      </select>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const amount = parseInt(topUpAmount);
+                        if (!amount || amount < 1000) { toast.error('Monto mínimo: $1,000'); return; }
+                        if (!wallet) { toast.error('Wallet no disponible'); return; }
+                        setTopUpSaving(true);
+                        try {
+                          const supabase = await getBrowserClient();
+                          const methodMap: Record<string, string> = { nequi: 'transfer', daviplata: 'transfer', transferencia: 'transfer' };
+                          const { error } = await supabase.from('wallet_topups').insert({
+                            wallet_id: wallet.id,
+                            amount,
+                            payment_method: methodMap[topUpMethod] ?? 'transfer',
+                            status: 'pending',
+                          });
+                          if (error) throw error;
+                          toast.success(`Solicitud de recarga por $${amount.toLocaleString('es-CO')} creada. Te contactaremos para confirmar el pago.`);
+                          setShowTopUp(false);
+                          setTopUpAmount('');
+                        } catch { toast.error('Error al crear solicitud'); }
+                        setTopUpSaving(false);
+                      }}
+                      disabled={topUpSaving}
+                      className="w-full rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {topUpSaving ? <><Loader2 className="h-4 w-4 animate-spin" /> Procesando...</> : 'Solicitar recarga'}
+                    </button>
+                    <p className="text-[10px] text-muted-foreground text-center">La recarga será revisada por nuestro equipo antes de acreditarse.</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {transactions.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-8">No hay movimientos aún.</p>

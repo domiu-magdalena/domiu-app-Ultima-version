@@ -3,8 +3,8 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Bell, Circle, ChevronDown } from 'lucide-react';
-import { toast } from 'sonner';
+import { Circle, ChevronDown } from 'lucide-react';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 export function BusinessHeader() {
   const { profile } = useAuth();
@@ -21,10 +21,7 @@ export function BusinessHeader() {
       </div>
 
       <div className="flex items-center gap-2">
-        <button onClick={() => toast.info('Función en preparación: notificaciones')} className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-          <Bell className="h-4.5 w-4.5" />
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">3</span>
-        </button>
+        <NotificationBell />
         <button onClick={() => router.push('/negocio/configuracion')} className="flex items-center gap-2 rounded-xl border border-border/50 px-3 py-1.5 transition-colors hover:bg-muted">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-warning/10 to-warning/5 text-xs font-bold text-warning">
             {profile?.first_name?.[0] || 'N'}

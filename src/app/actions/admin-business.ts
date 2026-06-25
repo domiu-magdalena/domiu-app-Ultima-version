@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { getServiceClient } from '@/lib/db/supabase';
 import { requireAuth } from '@/lib/auth/server-auth';
 import { serverAudit } from '@/lib/audit/server-audit';
+import { ADMIN_ROLES } from '@/types/auth';
 
 const createBusinessSchema = z.object({
   name: z.string().min(3, 'Mínimo 3 caracteres'),
@@ -653,4 +654,51 @@ export async function getBusinessOrdersAdmin(businessId: string, limit = 50) {
     special_instructions: o.special_instructions,
     created_at: o.created_at,
   }));
+}
+
+export async function generatePasswordResetLinkAction(userEmail: string) {
+  const result = await requireAuth();
+  if (result.error || !ADMIN_ROLES.includes(result.session.profile.role)) return { error: 'No autorizado' };
+  try {
+    const supabase = getServiceClient();
+    const { data, error } = await supabase.auth.admin.generateLink({ type: 'recovery', email: userEmail });
+    if (error) throw error;
+    await serverAudit.logAction(result.session.user.id, result.session.user.email, result.session.profile.role, 'password_reset_link', 'user', undefined, { email: userEmail });
+    return { success: true, link: data.properties?.action_link ?? null };
+  } catch (err) { return { error: err instanceof Error ? err.message : 'Error al generar link' }; }
+}
+
+export async function setUserPasswordAction(userId: string, newPassword: string) {
+  const result = await requireAuth();
+  if (result.error || !ADMIN_ROLES.includes(result.session.profile.role)) return { error: 'No autorizado' };
+  try {
+    const supabase = getServiceClient();
+    const { error } = await supabase.auth.admin.updateUserById(userId, { password: newPassword });
+    if (error) throw error;
+    await serverAudit.logAction(result.session.user.id, result.session.user.email, result.session.profile.role, 'password_reset', 'user', userId);
+    return { success: true };
+  } catch (err) { return { error: err instanceof Error ? err.message : 'Error al restablecer contraseña' }; }
+}
+
+export async function reassignBusinessOwnerAction(businessId: string, newOwnerId: string) {
+  const result = await requireAuth();
+  if (result.error || !ADMIN_ROLES.includes(result.session.profile.role)) return { error: 'No autorizado' };
+  try {
+    const supabase = getServiceClient();
+    const { error } = await supabase.from('businesses').update({ owner_id: newOwnerId }).eq('id', businessId);
+    if (error) throw error;
+    await serverAudit.logAction(result.session.user.id, result.session.user.email, result.session.profile.role, 'business_reassign', 'business', businessId, { newOwnerId });
+    return { success: true };
+  } catch (err) { return { error: err instanceof Error ? err.message : 'Error al reasignar' }; }
+}
+
+export async function searchProfilesAction(searchTerm: string) {
+  const result = await requireAuth();
+  if (result.error || !ADMIN_ROLES.includes(result.session.profile.role)) return { error: 'No autorizado', data: [] };
+  try {
+    const supabase = getServiceClient();
+    const { data, error } = await supabase.from('profiles').select('id, email, first_name, last_name').or(`email.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`).limit(10);
+    if (error) throw error;
+    return { success: true, data: data ?? [] };
+  } catch (err) { return { error: err instanceof Error ? err.message : 'Error al buscar', data: [] }; }
 }

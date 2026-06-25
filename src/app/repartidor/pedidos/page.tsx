@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { CourierProvider, useCourier } from '@/contexts/CourierContext';
+import { ChatProvider, useChat } from '@/contexts/ChatContext';
+import { ChatWindow } from '@/components/chat/ChatWindow';
 import { SkeletonList } from '@/components/ui/skeleton';
-import { ClipboardList, Navigation, MapPin, Store, User, Package, DollarSign, MessageSquare, CheckCircle2, Circle, ArrowRight, Phone } from 'lucide-react';
-import { toast } from 'sonner';
+import { ClipboardList, Navigation, MapPin, Store, User, Package, DollarSign, MessageSquare, CheckCircle2, Circle, ArrowRight, Phone, X } from 'lucide-react';
 
 const formatCurrency = (n: number) => '$' + n.toLocaleString('es-CO', { minimumFractionDigits: 0 });
 
@@ -51,8 +52,11 @@ function DeliveryTimeline({ status }: { status: string }) {
 
 function PedidosContent() {
   const { availableOrders, activeDeliveries, deliveryHistory, loading, acceptDelivery, updateDeliveryStatus } = useCourier();
+  const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState<'active' | 'available' | 'history'>('active');
+  const [chatOpen, setChatOpen] = useState(false);
   const activeOrder = activeDeliveries[0];
+  const { openConversation, closeConversation } = useChat();
 
   const mapsUrl = activeOrder
     ? `https://www.google.com/maps/dir//${encodeURIComponent(activeOrder.delivery_address)}`
@@ -175,12 +179,33 @@ function PedidosContent() {
                     <Navigation className="h-4 w-4" />
                     Navegar
                   </a>
-                  <button onClick={() => toast.info('Función en preparación: chat con cliente')} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
+                  <button onClick={async () => {
+                    if (activeOrder && profile?.id) {
+                      await openConversation(activeOrder.id, activeOrder.customer_id, activeOrder.customer_name, profile.id, profile.first_name || 'Repartidor');
+                      setChatOpen(true);
+                    }
+                  }} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
                     <MessageSquare className="h-4 w-4" />
-                    Chat
+                    Chat {chatOpen ? 'abierto' : ''}
                   </button>
                 </div>
               </div>
+
+              {chatOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setChatOpen(false); closeConversation(); }}>
+                  <div className="w-full max-w-md mx-4 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                      <h3 className="text-sm font-semibold text-foreground">Chat con cliente</h3>
+                      <button onClick={() => { setChatOpen(false); closeConversation(); }} className="rounded-lg p-1 text-muted-foreground hover:bg-muted">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="h-[400px]">
+                      <ChatWindow userRole="courier" onClose={() => { setChatOpen(false); closeConversation(); }} />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-5 shadow-card">
@@ -295,7 +320,9 @@ export default function RepartidorPedidos() {
   const { profile } = useAuth();
   return (
     <CourierProvider courierId={profile?.id}>
-      <PedidosContent />
+      <ChatProvider userId={profile?.id ?? ''} userRole="courier">
+        <PedidosContent />
+      </ChatProvider>
     </CourierProvider>
   );
 }

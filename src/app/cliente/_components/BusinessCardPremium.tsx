@@ -1,12 +1,16 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { Star, Clock, MapPin, Heart } from 'lucide-react';
 import { BusinessPlaceholder } from '@/components/ui/placeholders';
+import { useAuth } from '@/contexts/AuthContext';
+import { clientService } from '@/services/client';
 import { toast } from 'sonner';
 
 interface BusinessCardPremiumProps {
+  id?: string;
   name: string;
   image?: string;
   logo?: string;
@@ -22,10 +26,25 @@ interface BusinessCardPremiumProps {
 }
 
 export function BusinessCardPremium({
-  name, image, logo, category, rating = 0, reviewCount,
+  id, name, image, logo, category, rating = 0, reviewCount,
   deliveryTime, deliveryFee, isOpen = true, isFeatured,
   distance, promotion,
 }: BusinessCardPremiumProps) {
+  const { profile } = useAuth();
+  const [isFav, setIsFav] = useState(false);
+  const [favLoading, setFavLoading] = useState(false);
+
+  const handleFav = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!profile?.id || !id || favLoading) return;
+    setFavLoading(true);
+    try {
+      const result = await clientService.toggleFavorite(profile.id, { businessId: id });
+      setIsFav(result);
+      toast.success(result ? 'Agregado a favoritos' : 'Eliminado de favoritos');
+    } catch { toast.error('Error al actualizar favorito'); }
+    setFavLoading(false);
+  };
   return (
     <motion.div
       className="group cursor-pointer"
@@ -64,8 +83,8 @@ export function BusinessCardPremium({
           </div>
         )}
 
-        <button onClick={(e) => { e.stopPropagation(); toast.info('Función en preparación: favoritos'); }} className="absolute right-3 bottom-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition-all hover:bg-white/30 hover:scale-110">
-          <Heart className="h-4 w-4" />
+        <button onClick={handleFav} disabled={favLoading} className="absolute right-3 bottom-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition-all hover:bg-white/30 hover:scale-110">
+          <Heart className={`h-4 w-4 ${isFav ? 'fill-red-500 text-red-500' : ''}`} />
         </button>
 
         {!isOpen && (
