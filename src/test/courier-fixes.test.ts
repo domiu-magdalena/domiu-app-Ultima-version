@@ -371,3 +371,167 @@ describe('Notifications server actions', () => {
     expect(content).toContain('requireAuth');
   });
 });
+
+// ─── TASK 1.5: Courier Sidebar Tests ────────────────────────────────────────
+
+describe('CourierSidebar nav items', () => {
+  it('has all required nav links with correct hrefs', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierSidebar.tsx', 'utf-8');
+
+    const expectedLinks = [
+      { label: 'Dashboard', href: '/repartidor' },
+      { label: 'Mi perfil', href: '/repartidor/perfil' },
+      { label: 'Pedidos', href: '/repartidor/pedidos' },
+      { label: 'Mapa y rutas', href: '/repartidor/mapa' },
+      { label: 'Ganancias', href: '/repartidor/ganancias' },
+      { label: 'Chat', href: '/repartidor/chat' },
+      { label: 'Notificaciones', href: '/repartidor/notificaciones' },
+      { label: 'Configuración', href: '/repartidor/configuracion' },
+      { label: 'Soporte', href: '/soporte' },
+    ];
+
+    for (const link of expectedLinks) {
+      expect(content).toContain(`href: '${link.href}'`);
+    }
+  });
+
+  it('has logout button using AuthContext.logout', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierSidebar.tsx', 'utf-8');
+    expect(content).toContain('logout');
+    expect(content).toContain('handleLogout');
+    expect(content).toContain('Cerrar sesión');
+  });
+
+  it('has Courier Pro version display', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierSidebar.tsx', 'utf-8');
+    expect(content).toContain('Courier Pro');
+    expect(content).toContain('v1.5');
+  });
+
+  it('uses useCourier for status', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierSidebar.tsx', 'utf-8');
+    expect(content).toContain('useCourier');
+    expect(content).not.toContain('profile as any');
+    expect(content).not.toContain('courier_status');
+  });
+
+  it('all nav link hrefs point to existing routes', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierSidebar.tsx', 'utf-8');
+    const linkMatches = content.match(/href: '([^']+)'/g) || [];
+    const hrefs = linkMatches.map(m => m.replace(/href: '/, '').replace(/'/, ''));
+
+    for (const href of hrefs) {
+      if (href.startsWith('#')) continue;
+      const filePath = href === '/soporte'
+        ? 'src/app/soporte/page.tsx'
+        : `src/app${href}/page.tsx`;
+      expect(fs.existsSync(filePath), `Route ${href} should have page file`).toBe(true);
+    }
+  });
+
+  it('does not contain /configuracion without /repartidor prefix', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierSidebar.tsx', 'utf-8');
+    // All config links should be /repartidor/configuracion, never standalone /configuracion
+    const standaloneConfig = content.match(/href: '\/configuracion'/g);
+    expect(standaloneConfig).toBeNull();
+  });
+
+  it('has DomiU Courier branding', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierSidebar.tsx', 'utf-8');
+    expect(content).toContain('DomiU');
+    expect(content).toContain('Courier');
+  });
+});
+
+describe('CourierTopbar', () => {
+  it('has bell link to /repartidor/notificaciones', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierTopbar.tsx', 'utf-8');
+    expect(content).toContain('/repartidor/notificaciones');
+  });
+
+  it('has gear link to /repartidor/configuracion', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierTopbar.tsx', 'utf-8');
+    expect(content).toContain('/repartidor/configuracion');
+  });
+
+  it('has logout button using AuthContext.logout', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierTopbar.tsx', 'utf-8');
+    expect(content).toContain('logout');
+    expect(content).toContain('Cerrar sesión');
+  });
+
+  it('uses useCourier for status', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/components/courier/layout/CourierTopbar.tsx', 'utf-8');
+    expect(content).toContain('useCourier');
+    expect(content).not.toContain('profile as any');
+  });
+});
+
+describe('Repartidor layout', () => {
+  it('uses CourierSidebar and CourierTopbar', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/app/repartidor/layout.tsx', 'utf-8');
+    expect(content).toContain('CourierSidebar');
+    expect(content).toContain('CourierTopbar');
+    expect(content).toContain('BottomNavigation');
+  });
+
+  it('has correct bottom nav items', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/app/repartidor/layout.tsx', 'utf-8');
+    const expectedItems = ['Inicio', 'Pedidos', 'Mapa', 'Ganancias', 'Perfil'];
+    for (const item of expectedItems) {
+      expect(content).toContain(item);
+    }
+  });
+
+  it('has CourierProvider wrapping full layout', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/app/repartidor/layout.tsx', 'utf-8');
+    expect(content).toContain('<CourierProvider');
+    // The provider should wrap sidebar, topbar AND children
+    const providerOpen = content.match(/<CourierProvider/g) || [];
+    expect(providerOpen.length).toBe(1);
+  });
+
+  it('uses useEffect for redirect, not during render', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync('src/app/repartidor/layout.tsx', 'utf-8');
+    expect(content).toContain('useEffect');
+    // No router.replace in render body
+    const lines = content.split('\n');
+    let inEffect = false;
+    let renderRouterCall = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.includes('useEffect(()')) inEffect = true;
+      if (inEffect && line.includes('})')) inEffect = false;
+      if (!inEffect && (line.includes('router.replace') || line.includes('router.push'))) {
+        renderRouterCall = true;
+      }
+    }
+    expect(renderRouterCall).toBe(false);
+  });
+});
+
+describe('PWA manifest', () => {
+  it('has correct theme color #0F172A', async () => {
+    const fs = await import('fs');
+    const manifest = JSON.parse(fs.readFileSync('public/manifest.json', 'utf-8'));
+    expect(manifest.theme_color).toBe('#0F172A');
+    expect(manifest.background_color).toBe('#0F172A');
+    expect(manifest.display).toBe('standalone');
+    expect(manifest.short_name).toBe('DomiU');
+  });
+});

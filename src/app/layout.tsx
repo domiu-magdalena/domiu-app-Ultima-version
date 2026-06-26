@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   other: {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "default",
-    "theme-color": "#6366f1",
+    "theme-color": "#0F172A",
   },
 };
 
