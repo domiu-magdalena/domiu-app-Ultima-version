@@ -11,13 +11,15 @@ import { ClipboardList, Navigation, MapPin, Store, User, Package, DollarSign, Me
 const formatCurrency = (n: number) => '$' + n.toLocaleString('es-CO', { minimumFractionDigits: 0 });
 
 const STAGE_LABELS: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; desc: string }> = {
+  pending: { label: 'Pendiente', icon: Circle, desc: 'Esperando repartidor' },
   assigned: { label: 'Asignado', icon: Circle, desc: 'Pedido asignado' },
+  accepted: { label: 'Aceptado', icon: Circle, desc: 'Repartidor confirmó' },
   picked_up: { label: 'Recogido', icon: Package, desc: 'Producto recogido' },
   in_transit: { label: 'En camino', icon: Navigation, desc: 'Dirección del cliente' },
   delivered: { label: 'Entregado', icon: CheckCircle2, desc: 'Pedido entregado' },
 };
 
-const STAGE_ORDER = ['assigned', 'picked_up', 'in_transit', 'delivered'];
+const STAGE_ORDER = ['assigned', 'accepted', 'picked_up', 'in_transit', 'delivered'];
 
 function DeliveryTimeline({ status }: { status: string }) {
   const currentIdx = STAGE_ORDER.indexOf(status);
@@ -65,7 +67,8 @@ function PedidosContent() {
 
   const getNextAction = () => {
     if (!activeOrder) return null;
-    if (activeOrder.status === 'assigned') return { label: 'Marcar como Recogido', nextStatus: 'picked_up' as const, color: 'from-info to-blue-500', action: 'markOrderPickedUpAction' as const };
+    if (activeOrder.status === 'pending') return { label: 'Aceptar Pedido', nextStatus: 'accepted' as const, color: 'from-warning to-orange-500', action: 'acceptOrderByCourierAction' as const };
+    if (activeOrder.status === 'assigned' || activeOrder.status === 'accepted') return { label: 'Marcar como Recogido', nextStatus: 'picked_up' as const, color: 'from-info to-blue-500', action: 'markOrderPickedUpAction' as const };
     if (activeOrder.status === 'picked_up') return { label: 'En Camino', nextStatus: 'in_transit' as const, color: 'from-warning to-orange-500', action: 'markOrderInTransitAction' as const };
     if (activeOrder.status === 'in_transit') return { label: 'Marcar como Entregado', nextStatus: 'delivered' as const, color: 'from-success to-emerald-500', action: 'markOrderDeliveredAction' as const };
     return null;
@@ -79,7 +82,9 @@ function PedidosContent() {
     try {
       const mod = await import('@/app/actions/courier-orders');
       let result: { success: boolean; error?: string };
-      if (actionName === 'markOrderPickedUpAction') {
+      if (actionName === 'acceptOrderByCourierAction') {
+        result = await mod.acceptOrderByCourierAction(orderId);
+      } else if (actionName === 'markOrderPickedUpAction') {
         result = await mod.markOrderPickedUpAction(orderId);
       } else if (actionName === 'markOrderInTransitAction') {
         result = await mod.markOrderInTransitAction(orderId);

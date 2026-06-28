@@ -21,9 +21,12 @@ import { RefreshCw } from 'lucide-react';
 
 const statusConfig: Record<string, 'warning' | 'info' | 'success' | 'destructive' | 'default'> = {
   pending: 'warning',
+  assigned: 'info',
+  accepted: 'info',
   confirmed: 'info',
   preparing: 'info',
   ready: 'info',
+  picked_up: 'info',
   in_transit: 'default',
   delivered: 'success',
   cancelled: 'destructive',
@@ -31,7 +34,7 @@ const statusConfig: Record<string, 'warning' | 'info' | 'success' | 'destructive
 };
 
 const ORDER_STATUSES = [
-  'pending', 'confirmed', 'preparing', 'ready', 'in_transit', 'delivered', 'cancelled', 'refunded',
+  'pending', 'confirmed', 'preparing', 'ready', 'assigned', 'accepted', 'picked_up', 'in_transit', 'delivered', 'cancelled', 'refunded',
 ];
 
 const formatCurrency = (n: number) => '$' + n.toLocaleString('es-CO', { minimumFractionDigits: 0 });
@@ -75,6 +78,10 @@ export default function AdminOrders() {
     { key: 'customer_name', header: 'Cliente', render: (o) => o.customer_name || '—' },
     { key: 'business_name', header: 'Negocio', sortable: true },
     {
+      key: 'order_type', header: 'Tipo',
+      render: (o) => <Badge variant={o.order_type === 'manual_delivery' ? 'warning' : 'default'}>{o.order_type === 'manual_delivery' ? 'Domicilio' : 'Producto'}</Badge>,
+    },
+    {
       key: 'status', header: 'Estado',
       render: (o) => <Badge variant={statusConfig[o.status] || 'default'}>{o.status.replace('_', ' ')}</Badge>,
     },
@@ -83,6 +90,8 @@ export default function AdminOrders() {
       render: (o) => <Badge variant={o.payment_status === 'completed' ? 'success' : 'warning'}>{o.payment_status}</Badge>,
     },
     { key: 'total_amount', header: 'Total', render: (o) => formatCurrency(o.total_amount), sortable: true },
+    { key: 'courier_earnings', header: 'Gan. Repartidor', render: (o) => o.courier_earnings != null ? formatCurrency(o.courier_earnings) : '—' },
+    { key: 'platform_earnings', header: 'Gan. DomiU', render: (o) => o.platform_earnings != null ? formatCurrency(o.platform_earnings) : '—' },
     { key: 'courier_name', header: 'Repartidor', render: (o) => o.courier_name || '—' },
     { key: 'created_at', header: 'Fecha', render: (o) => new Date(o.created_at).toLocaleString('es-CO') },
     { key: 'actions', header: 'Acciones', render: (o) => (
@@ -129,9 +138,12 @@ export default function AdminOrders() {
           <div className="space-y-3">
             <div><span className="text-sm text-muted-foreground">Cliente:</span> <span className="font-medium">{selected.customer_name || '—'}</span></div>
             <div><span className="text-sm text-muted-foreground">Negocio:</span> <span className="font-medium">{selected.business_name}</span></div>
+            <div><span className="text-sm text-muted-foreground">Tipo:</span> <Badge variant={selected.order_type === 'manual_delivery' ? 'warning' : 'default'}>{selected.order_type === 'manual_delivery' ? 'Domicilio manual' : 'Producto'}</Badge></div>
             <div><span className="text-sm text-muted-foreground">Estado actual:</span> <Badge variant={statusConfig[selected.status]}>{selected.status}</Badge></div>
             <div><span className="text-sm text-muted-foreground">Total:</span> <span className="font-medium">{formatCurrency(selected.total_amount)}</span></div>
             <div><span className="text-sm text-muted-foreground">Repartidor:</span> <span className="font-medium">{selected.courier_name || 'Sin asignar'}</span></div>
+            {selected.courier_earnings != null && <div><span className="text-sm text-muted-foreground">Ganancia repartidor:</span> <span className="font-medium">{formatCurrency(selected.courier_earnings)}</span></div>}
+            {selected.platform_earnings != null && <div><span className="text-sm text-muted-foreground">Ganancia DomiU:</span> <span className="font-medium">{formatCurrency(selected.platform_earnings)}</span></div>}
             <div>
               <p className="mb-1 text-sm text-muted-foreground">Cambiar estado manualmente:</p>
               <Select value={newStatus} onChange={e => setNewStatus(e.target.value)} options={ORDER_STATUSES.map(s => ({ value: s, label: s.replace('_', ' ') }))} />

@@ -6,7 +6,7 @@ import {
   ArrowLeft, Truck, User, Ban, CheckCircle, XCircle,
   AlertTriangle, DollarSign, Calendar, Clock, Package, Star,
   Phone, Mail, Car, Bike, Loader2,
-  Award, CreditCard, TrendingUp, Percent,
+  Award, CreditCard, TrendingUp, Percent, FileText, Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
@@ -371,6 +371,37 @@ export default function CourierDetailPage() {
               <InfoRow label="Rating" value={`${driver.avg_rating?.toFixed(1) || '—'} ⭐ (${driver.total_ratings || 0} reseñas)`} icon={<Star className="h-3.5 w-3.5" />} />
             </div>
           </Card>
+
+          {/* Documentos */}
+          {driver.metadata?.documents && (
+            <Card variant="glass" className="overflow-hidden col-span-full">
+              <div className="border-b border-white/[0.06] bg-gradient-to-r from-transparent via-amber-500/[0.03] to-transparent px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-amber-400" />
+                  <h3 className="text-sm font-semibold text-white">Documentos</h3>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {Object.entries(driver.metadata.documents as Record<string, string>).map(([docKey, docUrl]) => (
+                    <a
+                      key={docKey}
+                      href={docUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] p-4 transition-all hover:bg-white/[0.06] hover:border-amber-500/30 group"
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500/10 group-hover:bg-amber-500/20 transition-colors">
+                        <Eye className="h-5 w-5 text-amber-400" />
+                      </div>
+                      <span className="text-xs font-medium text-white/70 capitalize">{docKey.replace('_', ' ')}</span>
+                      <span className="text-[10px] text-white/40">Ver documento</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       )}
 

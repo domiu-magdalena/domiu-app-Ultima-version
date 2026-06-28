@@ -9,7 +9,7 @@
 
 export type UserRole = 'super_admin' | 'admin_general' | 'admin_financiero' | 'admin_operativo' | 'admin_comercial' | 'admin_soporte' | 'business' | 'merchant' | 'customer' | 'courier' | 'guest';
 export type UserStatus = 'active' | 'inactive' | 'suspended' | 'banned';
-export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'assigned' | 'picked_up' | 'in_transit' | 'delivered' | 'cancelled' | 'refunded';
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'assigned' | 'accepted' | 'picked_up' | 'in_transit' | 'delivered' | 'cancelled' | 'refunded';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 export type PaymentMethod = 'credit_card' | 'debit_card' | 'wallet' | 'cash' | 'transfer';
 export type RatingType = 'order' | 'merchant' | 'courier';
@@ -266,6 +266,14 @@ export interface Order extends Timestamp, SoftDelete {
   courier_rating_by_customer: number | null;
   customer_feedback: string | null;
   metadata: Record<string, any>;
+  order_type: string | null;
+  courier_earnings: number | null;
+  platform_earnings: number | null;
+  pickup_address: string | null;
+  pickup_lat: number | null;
+  pickup_lng: number | null;
+  customer_phone: string | null;
+  delivery_distance_km: number | null;
 }
 
 export interface OrderItem extends Timestamp {

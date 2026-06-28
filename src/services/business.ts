@@ -23,7 +23,7 @@ export interface BusinessDashboardStats {
 export interface BusinessProduct {
   id: string;
   business_id: string;
-  category_id: string;
+  category_id: string | null;
   name: string;
   slug: string;
   description: string | null;
@@ -167,10 +167,12 @@ export const businessService = {
 
   async createProduct(businessId: string, product: Partial<BusinessProduct>): Promise<void> {
     const supabase = await getBrowserClient();
+    const sku = `SKU-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     await supabase.from('products').insert({
       business_id: businessId,
+      sku,
       name: product.name,
-      slug: (product.name || '').toLowerCase().replace(/\s+/g, '-'),
+      slug: (product.name || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now().toString(36),
       description: product.description || null,
       price: product.price || 0,
       category_id: product.category_id || null,

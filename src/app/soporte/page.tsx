@@ -23,17 +23,15 @@ export default function SoportePage() {
     setSending(true);
     setError('');
     try {
-      if (isCourier) {
-        const { reportCourierIncidentAction } = await import('@/app/actions/courier-profile');
-        const result = await reportCourierIncidentAction({
-          incident_type: form.type as 'accident' | 'traffic_violation' | 'customer_complaint' | 'order_issue' | 'vehicle_issue' | 'other',
-          description: form.description,
-          severity: 'minor',
-        });
-        if (result.error) { setError(result.error); setSending(false); return; }
-      } else {
-        await new Promise(r => setTimeout(r, 500));
-      }
+      const { createSupportTicketAction } = await import('@/app/actions/support');
+      const result = await createSupportTicketAction({
+        ticket_type: form.type,
+        subject: isCourier ? 'Soporte repartidor' : 'Soporte usuario',
+        description: form.description,
+        priority: form.type === 'order_issue' ? 'high' : 'normal',
+        attachments: [],
+      });
+      if (!result.success) { setError(result.error || 'Error al enviar soporte'); setSending(false); return; }
       setSent(true);
     } catch {
       setError('Error al enviar. Intenta de nuevo.');
@@ -97,8 +95,9 @@ export default function SoportePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}
-                className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground"
+              <label htmlFor="soporte-type" className="text-xs font-medium text-foreground">Tipo de problema</label>
+              <select id="soporte-type" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}
+                className="w-full rounded-xl border border-border bg-background px-4 h-11 text-sm text-foreground"
               >
                 <option value="">Selecciona un tipo</option>
                 <option value="order_issue">Problema con pedido</option>
@@ -106,9 +105,10 @@ export default function SoportePage() {
                 <option value="customer_complaint">Problema con cliente</option>
                 <option value="other">Otro</option>
               </select>
-              <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
+              <label htmlFor="soporte-desc" className="text-xs font-medium text-foreground">Descripción</label>
+              <textarea id="soporte-desc" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
                 placeholder="Describe tu problema..."
-                className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground min-h-[100px] resize-y"
+                className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground min-h-[120px] resize-y"
               />
               {error && <p className="text-xs text-destructive">{error}</p>}
               <button onClick={handleSubmit} disabled={sending}

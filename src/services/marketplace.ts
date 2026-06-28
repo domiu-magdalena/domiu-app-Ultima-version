@@ -84,7 +84,7 @@ function mapProductToUI(prod: any): MarketplaceProduct {
     name: prod.name,
     description: prod.description ?? '',
     price: prod.discount_price ?? prod.price,
-    image_url: null,
+    image_url: prod.image_url ?? null,
     is_available: prod.status === 'available' || prod.status === ('discontinued' as any),
     category_name: undefined,
   };

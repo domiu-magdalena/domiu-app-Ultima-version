@@ -125,7 +125,10 @@ export function CourierProvider({
       });
 
       setAvailableOrders((prev) => {
-        if (['confirmed', 'ready'].includes(order.status) && !order.courier_id) {
+        const isAvailable =
+          (['confirmed', 'ready'].includes(order.status) && !order.courier_id) ||
+          (order.status === 'pending' && order.order_type === 'manual_delivery' && !order.courier_id);
+        if (isAvailable) {
           const exists = prev.findIndex((o) => o.id === order.id);
           if (exists >= 0) {
             const next = [...prev];

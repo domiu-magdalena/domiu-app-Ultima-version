@@ -1,4 +1,5 @@
 const STATUS_PROGRESS: Record<string, number> = {
+  pending: 0,
   assigned: 10,
   accepted: 30,
   picked_up: 55,
@@ -7,6 +8,7 @@ const STATUS_PROGRESS: Record<string, number> = {
 };
 
 const STATUS_ACTIONS: Record<string, { label: string; nextStatus: string } | null> = {
+  pending: { label: 'Aceptar Pedido', nextStatus: 'accepted' },
   assigned: { label: 'Marcar como Recogido', nextStatus: 'picked_up' },
   accepted: { label: 'Marcar como Recogido', nextStatus: 'picked_up' },
   picked_up: { label: 'En Camino', nextStatus: 'in_transit' },
@@ -15,6 +17,7 @@ const STATUS_ACTIONS: Record<string, { label: string; nextStatus: string } | nul
 };
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
+  pending: ['accepted'],
   assigned: ['picked_up'],
   accepted: ['picked_up'],
   picked_up: ['in_transit'],
@@ -44,7 +47,8 @@ export function canCourierTransition(order: { status: string; delivery_status?: 
 
 export function getMissionSteps() {
   return [
-    { key: 'assigned', label: 'Asignado', progress: 10 },
+    { key: 'pending', label: 'Pendiente', progress: 0 },
+    { key: 'accepted', label: 'Aceptado', progress: 30 },
     { key: 'picked_up', label: 'Recogido', progress: 55 },
     { key: 'in_transit', label: 'En camino', progress: 80 },
     { key: 'delivered', label: 'Entregado', progress: 100 },

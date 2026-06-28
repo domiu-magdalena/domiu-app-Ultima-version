@@ -3,6 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Store, ArrowLeft, Package, Clock, MapPin, Star, ShoppingCart, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { getBusinessFullDetail, updateBusinessAction } from '@/app/actions/admin-business';
@@ -126,6 +127,26 @@ export default function BusinessDetailPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase">Datos del Negocio</h3>
+            {(b.logo_url || b.banner_url) && (
+              <div className="flex gap-3 mb-4">
+                {b.logo_url && (
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="relative h-16 w-16">
+                      <Image src={b.logo_url} alt="Logo" fill className="rounded-xl object-cover border border-border" sizes="64px" />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">Logo</span>
+                  </div>
+                )}
+                {b.banner_url && (
+                  <div className="flex flex-col items-center gap-1 flex-1">
+                    <div className="relative h-16 w-full">
+                      <Image src={b.banner_url} alt="Banner" fill className="rounded-xl object-cover border border-border" sizes="(max-width: 768px) 100vw, 400px" />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">Banner</span>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-2 text-sm">
               {[
                 ['Nombre', b.name],

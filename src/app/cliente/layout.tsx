@@ -63,7 +63,7 @@ export default function ClienteLayout({ children }: { children: React.ReactNode 
           </div>
         </div>
       </header>
-      <main>{children}</main>
+      <main className="px-4 sm:px-6">{children}</main>
       <Footer />
       <BottomNavigation items={navItems} />
     </div>

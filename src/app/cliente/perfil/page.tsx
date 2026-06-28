@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { logger } from '@/lib/logger';
 import {
   User, Mail, Phone, MapPin, Heart, CreditCard, Ticket, Settings,
-  Gift, Wallet, Users, HelpCircle, Bell,
+  Gift, Wallet, Users, HelpCircle, Bell, FileText,
   Edit2, Save, Package, DollarSign, PiggyBank, Star, Award
 } from 'lucide-react';
 
@@ -19,6 +19,7 @@ const QUICK_LINKS = [
   { label: 'Cupones', href: '/cliente/cupones', icon: Ticket, color: 'text-purple-500' },
   { label: 'Fidelización', href: '/cliente/fidelizacion', icon: Gift, color: 'text-amber-500' },
   { label: 'Wallet', href: '/cliente/wallet', icon: Wallet, color: 'text-cyan-500' },
+  { label: 'Solicitudes', href: '/cliente/solicitudes', icon: FileText, color: 'text-orange-500' },
   { label: 'Referidos', href: '/cliente/referidos', icon: Users, color: 'text-pink-500' },
   { label: 'Soporte', href: '/cliente/soporte', icon: HelpCircle, color: 'text-indigo-500' },
   { label: 'Notificaciones', href: '/cliente/notificaciones', icon: Bell, color: 'text-yellow-500' },

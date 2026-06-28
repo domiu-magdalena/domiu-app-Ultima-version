@@ -146,7 +146,9 @@ export async function createManualOrderAction(input: CreateManualOrderInput): Pr
     const paymentMethod = mapPaymentMethod(data.paymentMethod);
 
     const metadata = {
-      source: 'admin_manual_form',
+      source: 'admin_manual',
+      has_products: false,
+      delivery_only: true,
       manual_price_used: data.manualPriceUsed,
       price_calculation_source: data.priceCalculationSource,
       distance_km: data.distanceKm,
@@ -172,6 +174,7 @@ export async function createManualOrderAction(input: CreateManualOrderInput): Pr
       .insert({
         order_code: orderNumber,
         order_number: orderNumber,
+        order_type: 'manual_delivery',
         customer_id: customerId,
         business_id: data.businessId,
         courier_id: data.courierId || null,
@@ -181,6 +184,8 @@ export async function createManualOrderAction(input: CreateManualOrderInput): Pr
         payment_method: paymentMethod as 'cash' | 'transfer' | 'credit_card' | 'debit_card' | 'wallet',
         subtotal: data.deliveryFee,
         delivery_fee: data.deliveryFee,
+        courier_earnings: earnings.courierEarnings,
+        platform_earnings: earnings.platformEarnings,
         discount_amount: 0,
         tax_amount: 0,
         total_amount: data.deliveryFee,

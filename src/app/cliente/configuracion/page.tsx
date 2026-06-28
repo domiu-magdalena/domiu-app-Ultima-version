@@ -122,13 +122,13 @@ export default function ConfiguracionPage() {
                       <div>
                         <label className="mb-1 block text-xs text-muted-foreground">Nueva contraseña</label>
                         <div className="relative">
-                          <input type={pwVisible ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 8 caracteres" className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 pr-10 text-sm text-foreground" />
+                          <input type={pwVisible ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 8 caracteres" className="h-11 w-full rounded-xl border border-border bg-background/50 px-3 pr-10 text-sm text-foreground" />
                           <button type="button" onClick={() => setPwVisible(!pwVisible)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">{pwVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
                         </div>
                       </div>
                       <div>
                         <label className="mb-1 block text-xs text-muted-foreground">Confirmar contraseña</label>
-                        <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repite la contraseña" className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 text-sm text-foreground" />
+                        <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repite la contraseña" className="h-11 w-full rounded-xl border border-border bg-background/50 px-3 text-sm text-foreground" />
                       </div>
                       <button
                         onClick={async () => {
@@ -189,7 +189,7 @@ export default function ConfiguracionPage() {
                   <p className="text-xs text-red-600 mb-4">Tu perfil será desactivado y los administradores revisarán la solicitud. Tus pedidos históricos se conservarán.</p>
                   <div className="mb-3">
                     <label className="mb-1 block text-xs text-red-600 font-medium">Escribe &quot;ELIMINAR&quot; para confirmar</label>
-                    <input value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="ELIMINAR" className="h-10 w-full rounded-xl border border-red-300 bg-white/50 px-3 text-sm text-center font-bold text-foreground" />
+                    <input value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="ELIMINAR" className="h-11 w-full rounded-xl border border-red-300 bg-white/50 px-3 text-sm text-center font-bold text-foreground" />
                   </div>
                   <div className="flex gap-2 justify-center">
                     <button onClick={() => setShowDeleteConfirm(false)} className="rounded-xl bg-card px-5 py-2 text-xs font-semibold text-foreground">Cancelar</button>

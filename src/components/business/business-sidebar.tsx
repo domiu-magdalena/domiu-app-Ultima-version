@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Package, ClipboardList, Users, BarChart3, Settings,
-  Star, LogOut, ChevronLeft, Store, Globe,
+  Star, LogOut, ChevronLeft, Store, Globe, Menu, X,
 } from 'lucide-react';
 
 const sidebarItems = [
@@ -25,19 +25,20 @@ export function BusinessSidebar() {
   const pathname = usePathname();
   const { profile, logout } = useAuth();
   const [collapsed, setCollapsed] = React.useState(false);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
   const name = profile ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Mi Negocio' : 'Mi Negocio';
 
-  return (
+  const sidebar = (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 z-40 flex flex-col border-r border-border bg-gradient-to-b from-card via-card to-background transition-all duration-300',
+        'flex h-full flex-col border-r border-border bg-gradient-to-b from-card via-card to-background transition-all duration-300',
         collapsed ? 'w-20' : 'w-64',
       )}
     >
       <div className={cn('flex h-16 items-center border-b border-border/50', collapsed ? 'justify-center px-0' : 'justify-between px-5')}>
         {!collapsed && (
-          <Link href="/negocio" className="flex items-center gap-2.5">
+          <Link href="/negocio" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-warning to-warning/70 shadow-md text-warning-foreground text-sm font-bold">
               <Store className="h-4 w-4" />
             </div>
@@ -48,15 +49,22 @@ export function BusinessSidebar() {
           </Link>
         )}
         {collapsed && (
-          <Link href="/negocio" className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-warning to-warning/70 shadow-md text-warning-foreground">
+          <Link href="/negocio" className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-warning to-warning/70 shadow-md text-warning-foreground" onClick={() => setMobileOpen(false)}>
             <Store className="h-4 w-4" />
           </Link>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="hidden lg:flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <ChevronLeft className={cn('h-4 w-4 transition-transform duration-200', collapsed && 'rotate-180')} />
+        </button>
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="flex lg:hidden h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Cerrar menú"
+        >
+          <X className="h-4 w-4" />
         </button>
       </div>
 
@@ -69,6 +77,7 @@ export function BusinessSidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={() => setMobileOpen(false)}
                   className={cn(
                     'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
                     collapsed && 'justify-center px-2',
@@ -107,5 +116,37 @@ export function BusinessSidebar() {
         </button>
       </div>
     </aside>
+  );
+
+  return (
+    <>
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed left-3 top-3 z-30 flex lg:hidden h-9 w-9 items-center justify-center rounded-xl bg-background/80 border border-border shadow-sm backdrop-blur-sm text-muted-foreground hover:text-foreground transition-colors"
+        aria-label="Abrir menú"
+      >
+        <Menu className="h-4.5 w-4.5" />
+      </button>
+
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      <div
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out lg:hidden',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        {sidebar}
+      </div>
+
+      <div className="hidden lg:block fixed inset-y-0 left-0 z-40">
+        {sidebar}
+      </div>
+    </>
   );
 }

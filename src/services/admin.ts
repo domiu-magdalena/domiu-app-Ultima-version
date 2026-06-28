@@ -68,6 +68,9 @@ export interface AdminOrder {
   total_amount: number;
   courier_name: string | null;
   created_at: string;
+  order_type: string | null;
+  courier_earnings: number | null;
+  platform_earnings: number | null;
 }
 
 export interface SalesReport {
@@ -327,7 +330,7 @@ export const adminService = {
     const supabase = await getClient();
     let query = supabase
       .from('orders')
-      .select('id, order_number, customer_id, business_id, status, payment_status, total_amount, courier_id, created_at')
+      .select('id, order_number, customer_id, business_id, status, payment_status, total_amount, courier_id, created_at, order_type, courier_earnings, platform_earnings')
       .order('created_at', { ascending: false })
       .limit(100);
 
@@ -364,6 +367,9 @@ export const adminService = {
       total_amount: Number(o.total_amount),
       courier_name: o.courier_id ? courMap.get(o.courier_id) ?? null : null,
       created_at: o.created_at,
+      order_type: (o.order_type as string) || null,
+      courier_earnings: (o.courier_earnings as number) ?? null,
+      platform_earnings: (o.platform_earnings as number) ?? null,
     }));
 
     if (search) {

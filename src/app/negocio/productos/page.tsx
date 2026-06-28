@@ -5,6 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { businessService, type BusinessProduct } from '@/services/business';
 import type { Category } from '@/types/database';
 import { SkeletonCard } from '@/components/ui/skeleton';
+import { StorageManager } from '@/components/storage/storage-manager';
+import { STORAGE_BUCKETS } from '@/lib/storage';
 import NextImage from 'next/image';
 import { Package, Plus, Search, Edit3, Copy, Trash2, ToggleLeft, ToggleRight, Image as ImageIcon, Clock, Tag } from 'lucide-react';
 
@@ -19,6 +21,7 @@ export default function NegocioProductos() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<BusinessProduct | null>(null);
   const [form, setForm] = useState({ name: '', description: '', price: '', category_id: '', quantity_available: '', preparation_time_minutes: '', image_url: '' });
+  const toForm = (p: BusinessProduct) => ({ name: p.name, description: p.description || '', price: String(p.price), category_id: p.category_id || '', quantity_available: String(p.quantity_available), preparation_time_minutes: String(p.preparation_time_minutes), image_url: p.image_url || '' });
 
   const loadProducts = async () => {
     if (!profile?.id) return;
@@ -49,13 +52,13 @@ export default function NegocioProductos() {
     } else {
       await businessService.createProduct(bizId, productData);
     }
-    setShowForm(false); setEditing(null); setForm({ name: '', description: '', price: '', category_id: '', quantity_available: '', preparation_time_minutes: '', image_url: '' });
+      setShowForm(false); setEditing(null); setForm(toForm({} as BusinessProduct));
     await loadProducts();
   };
 
   const handleEdit = (p: BusinessProduct) => {
     setEditing(p);
-    setForm({ name: p.name, description: p.description || '', price: String(p.price), category_id: p.category_id, quantity_available: String(p.quantity_available), preparation_time_minutes: String(p.preparation_time_minutes), image_url: p.image_url || '' });
+    setForm(toForm(p));
     setShowForm(true);
   };
 
@@ -79,7 +82,7 @@ export default function NegocioProductos() {
             <p className="mt-1 text-sm text-muted-foreground">{products.length} productos en tu catálogo</p>
           </div>
         </div>
-        <button onClick={() => { setEditing(null); setForm({ name: '', description: '', price: '', category_id: '', quantity_available: '', preparation_time_minutes: '', image_url: '' }); setShowForm(true); }} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-warning to-orange-500 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-warning/20 transition-all hover:shadow-xl hover:shadow-warning/30 hover:-translate-y-0.5">
+        <button onClick={() => { setEditing(null); setForm(toForm({} as BusinessProduct)); setShowForm(true); }} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-warning to-orange-500 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-warning/20 transition-all hover:shadow-xl hover:shadow-warning/30 hover:-translate-y-0.5">
           <Plus className="h-4 w-4" /> Nuevo Producto
         </button>
       </div>
@@ -123,8 +126,15 @@ export default function NegocioProductos() {
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs text-muted-foreground">URL de Imagen (Supabase Storage)</label>
-              <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." className="h-10 w-full rounded-xl border border-border bg-background/50 px-3 text-sm text-foreground" />
+              <label className="mb-1 block text-xs text-muted-foreground">Imagen del Producto</label>
+              <StorageManager
+                bucket={STORAGE_BUCKETS.PRODUCT_IMAGES}
+                previewType="product"
+                currentUrl={form.image_url || null}
+                folder={`products`}
+                onUploaded={(url) => setForm({ ...form, image_url: url })}
+                onDeleted={() => setForm({ ...form, image_url: '' })}
+              />
             </div>
           </div>
           <div className="mt-4 flex gap-2">

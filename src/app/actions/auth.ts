@@ -208,3 +208,56 @@ export async function updateProfilePhotoAction(userId: string, avatarUrl: string
 
   if (error) throw new Error(error.message);
 }
+
+export async function selfRegisterAction(data: {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+}) {
+  const supabase = getServiceClient();
+
+  const { data: existingUsers, error: searchError } = await supabase
+    .from('profiles')
+    .select('id, email')
+    .eq('email', data.email)
+    .maybeSingle();
+
+  if (searchError) throw new Error('Error al verificar usuario');
+  if (existingUsers) throw new Error('Este correo ya está registrado. Inicia sesión o recupera tu contraseña.');
+
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email: data.email,
+    password: data.password,
+    email_confirm: true,
+    user_metadata: { firstName: data.firstName, lastName: data.lastName },
+  });
+
+  if (authError) {
+    if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
+      throw new Error('Este correo ya está registrado. Inicia sesión o recupera tu contraseña.');
+    }
+    throw new Error(authError.message);
+  }
+
+  if (!authData.user) throw new Error('No se pudo crear el usuario');
+
+  const { error: profileError } = await supabase.from('profiles').insert({
+    id: authData.user.id,
+    email: data.email,
+    role: 'customer',
+    first_name: data.firstName,
+    last_name: data.lastName,
+    status: 'active',
+  });
+
+  if (profileError) {
+    await supabase.auth.admin.deleteUser(authData.user.id);
+    if (profileError.message.includes('duplicate') || profileError.message.includes('already exists')) {
+      throw new Error('Este correo ya está registrado. Inicia sesión o recupera tu contraseña.');
+    }
+    throw new Error(profileError.message);
+  }
+
+  return { userId: authData.user.id };
+}

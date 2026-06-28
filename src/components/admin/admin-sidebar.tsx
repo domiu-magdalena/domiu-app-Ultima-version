@@ -10,7 +10,7 @@ import type { Permission } from '@/types/admin';
 import {
   LayoutDashboard, Users, Store, Truck, ClipboardList, BarChart3, Settings,
   MessageSquare, DollarSign, Gift, MapPin, LogOut, ChevronLeft, Search,
-  Sparkles, Shield, Activity, Globe, Menu, X, Package, PlusCircle,
+  Sparkles, Shield, Activity, Globe, Menu, X, Package, PlusCircle, FileText, LifeBuoy,
 } from 'lucide-react';
 
 const sidebarItems = [
@@ -19,6 +19,8 @@ const sidebarItems = [
   { label: 'Locales', href: '/admin/locales', icon: Store },
   { label: 'Crear Local', href: '/admin/locales/nuevo', icon: PlusCircle },
   { label: 'Repartidores', href: '/admin/repartidores', icon: Truck },
+  { label: 'Solicitudes', href: '/admin/solicitudes', icon: FileText },
+  { label: 'Soporte', href: '/admin/soporte', icon: LifeBuoy },
   { label: 'Pedidos', href: '/admin/pedidos', icon: ClipboardList },
   { label: 'Crear Pedido', href: '/admin/pedidos/crear', icon: Package },
   { label: 'Mapa', href: '/admin/mapa', icon: Globe },

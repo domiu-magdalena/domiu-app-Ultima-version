@@ -24,6 +24,7 @@ export interface OrderData {
   courier_id: string | null;
   courier_name: string | null;
   status: OrderStatus;
+  order_type: string | null;
   subtotal: number;
   delivery_fee: number;
   tax_amount: number;
@@ -61,6 +62,7 @@ function mapOrderToData(order: Order, items: OrderItemData[], customerName: stri
     courier_id: order.courier_id,
     courier_name: courierName,
     status: order.status,
+    order_type: order.order_type ?? null,
     subtotal: order.subtotal,
     delivery_fee: order.delivery_fee,
     tax_amount: order.tax_amount,
@@ -247,8 +249,8 @@ export const orderService = {
     const { data: orders } = await supabase
       .from('orders')
       .select('*')
-      .in('status', ['confirmed', 'ready'])
       .is('courier_id', null)
+      .or(`and(status.in.(confirmed,ready)),and(status.eq.pending,order_type.eq.manual_delivery)`)
       .order('created_at', { ascending: false });
     if (!orders) return [];
     return Promise.all(orders.map(buildOrderData));

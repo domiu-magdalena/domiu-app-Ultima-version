@@ -63,7 +63,7 @@ export class SupabaseAuthService {
         },
         body: JSON.stringify({
           email: credentials.email,
-          role: credentials.role,
+          role: 'customer',
           first_name: credentials.firstName,
           last_name: credentials.lastName,
           status: 'active',

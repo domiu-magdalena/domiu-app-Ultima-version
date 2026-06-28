@@ -6,7 +6,8 @@ import { serverAudit } from '@/lib/audit/server-audit';
 import type { OrderStatus } from '@/types/database';
 
 const VALID_TRANSITIONS: Record<string, OrderStatus[]> = {
-  assigned: ['picked_up'],
+  pending: ['accepted'],
+  assigned: ['accepted'],
   accepted: ['picked_up'],
   picked_up: ['in_transit'],
   in_transit: ['delivered'],
@@ -44,34 +45,58 @@ export async function acceptOrderByCourierAction(orderId: string) {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('id, status, courier_id')
+    .select('id, status, courier_id, order_type, metadata')
     .eq('id', orderId)
     .single();
 
   if (!order) return { success: false, error: 'Pedido no encontrado' };
-  if (order.courier_id) return { success: false, error: 'El pedido ya tiene un repartidor asignado' };
-  if (order.status !== 'confirmed' && order.status !== 'ready') {
-    return { success: false, error: 'El pedido no está disponible para asignación' };
+  if (order.courier_id && order.courier_id !== userId) {
+    return { success: false, error: 'El pedido ya tiene otro repartidor asignado' };
   }
 
+  const isManual = order.order_type === 'manual_delivery';
+  const acceptFrom = isManual
+    ? (order.courier_id === userId ? ['assigned'] : ['pending'])
+    : (order.courier_id === userId ? ['assigned'] : ['confirmed', 'ready']);
+
+  if (!acceptFrom.includes(order.status)) {
+    return { success: false, error: 'El pedido no está disponible para aceptación' };
+  }
+
+  const now = new Date().toISOString();
   const profile = result.session.profile;
   const courierName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Repartidor';
+
+  const metadata = {
+    ...(order.metadata || {}),
+    accepted_at: now,
+  };
 
   const { error: assignError } = await supabase
     .from('orders')
     .update({
       courier_id: userId,
-      status: 'assigned',
-      updated_at: new Date().toISOString(),
+      status: 'accepted',
+      updated_at: now,
+      metadata,
     })
     .eq('id', orderId);
 
-  if (assignError) return { success: false, error: 'Error al asignar pedido: ' + assignError.message };
+  if (assignError) return { success: false, error: 'Error al aceptar pedido: ' + assignError.message };
 
   await supabase.from('order_tracking').insert({
     order_id: orderId,
-    status: 'assigned',
-    notes: `Asignado a ${courierName}`,
+    status: 'accepted',
+    notes: `Aceptado por ${courierName}`,
+  });
+
+  await supabase.from('notifications').insert({
+    recipient_id: order.courier_id || userId,
+    sender_id: userId,
+    notification_type: 'order_update',
+    title: 'Pedido aceptado',
+    message: `Has aceptado el pedido #${order.id?.slice(0, 8)}`,
+    channels: ['in_app'],
   });
 
   await serverAudit.logAction(userId, result.session.user.email, 'courier', 'accept_order', 'orders', orderId);
@@ -89,7 +114,7 @@ export async function markOrderPickedUpAction(orderId: string) {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('id, status, courier_id')
+    .select('id, status, courier_id, metadata')
     .eq('id', orderId)
     .single();
 
@@ -99,11 +124,18 @@ export async function markOrderPickedUpAction(orderId: string) {
     return { success: false, error: `No se puede marcar como recogido desde el estado ${order.status}` };
   }
 
+  const now = new Date().toISOString();
+  const metadata = {
+    ...(order.metadata || {}),
+    picked_up_at: now,
+  };
+
   const { error } = await supabase
     .from('orders')
     .update({
       status: 'picked_up',
-      updated_at: new Date().toISOString(),
+      updated_at: now,
+      metadata,
     })
     .eq('id', orderId);
 
@@ -130,7 +162,7 @@ export async function markOrderInTransitAction(orderId: string) {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('id, status, courier_id')
+    .select('id, status, courier_id, metadata')
     .eq('id', orderId)
     .single();
 
@@ -140,11 +172,18 @@ export async function markOrderInTransitAction(orderId: string) {
     return { success: false, error: `No se puede marcar en camino desde el estado ${order.status}` };
   }
 
+  const now = new Date().toISOString();
+  const metadata = {
+    ...(order.metadata || {}),
+    in_transit_at: now,
+  };
+
   const { error } = await supabase
     .from('orders')
     .update({
       status: 'in_transit',
-      updated_at: new Date().toISOString(),
+      updated_at: now,
+      metadata,
     })
     .eq('id', orderId);
 
@@ -171,7 +210,7 @@ export async function markOrderDeliveredAction(orderId: string, proofPayload?: {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('id, status, courier_id, metadata')
+    .select('id, status, courier_id, metadata, order_type, courier_earnings, platform_earnings, business_id, total_amount')
     .eq('id', orderId)
     .single();
 
@@ -181,9 +220,10 @@ export async function markOrderDeliveredAction(orderId: string, proofPayload?: {
     return { success: false, error: `No se puede marcar entregado desde el estado ${order.status}` };
   }
 
-  const updatedMetadata = {
+  const now = new Date().toISOString();
+  const metadata = {
     ...(order.metadata || {}),
-    delivered_at: new Date().toISOString(),
+    delivered_at: now,
     delivery_proof: proofPayload || null,
   };
 
@@ -191,9 +231,9 @@ export async function markOrderDeliveredAction(orderId: string, proofPayload?: {
     .from('orders')
     .update({
       status: 'delivered',
-      actual_delivery_time: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      metadata: updatedMetadata,
+      actual_delivery_time: now,
+      updated_at: now,
+      metadata,
     })
     .eq('id', orderId);
 
@@ -205,10 +245,48 @@ export async function markOrderDeliveredAction(orderId: string, proofPayload?: {
     notes: 'Pedido entregado al cliente',
   });
 
-  await supabase.from('drivers').update({
-    total_deliveries: supabase.rpc('increment', { x: 1 }) as unknown as number,
-    completed_deliveries: supabase.rpc('increment', { x: 1 }) as unknown as number,
-  }).eq('id', userId);
+  if (order.order_type === 'manual_delivery' && Number(order.courier_earnings || 0) > 0) {
+    const courierAmount = Number(order.courier_earnings || 0);
+
+    const { data: driver } = await supabase
+      .from('drivers')
+      .select('total_deliveries, completed_deliveries')
+      .eq('id', userId)
+      .single();
+
+    await supabase.from('drivers').update({
+      total_deliveries: Number(driver?.total_deliveries || 0) + 1,
+      completed_deliveries: Number(driver?.completed_deliveries || 0) + 1,
+      status: 'available',
+      is_available: true,
+      updated_at: now,
+    }).eq('id', userId);
+
+    await supabase.from('driver_earnings').insert({
+      driver_id: userId,
+      order_id: orderId,
+      base_amount: courierAmount,
+      bonus_amount: 0,
+      penalty_amount: 0,
+      total_earned: courierAmount,
+      status: 'completed',
+      metadata: {
+        order_type: order.order_type,
+        platform_earnings: order.platform_earnings || 0,
+        released_at: now,
+        source: 'manual_delivery_completed',
+      },
+    });
+  }
+
+  await supabase.from('notifications').insert({
+    recipient_id: order.courier_id || userId,
+    sender_id: userId,
+    notification_type: 'order_update',
+    title: 'Pedido entregado',
+    message: `Has entregado el pedido #${order.id?.slice(0, 8)}`,
+    channels: ['in_app'],
+  });
 
   await serverAudit.logAction(userId, result.session.user.email, 'courier', 'order_delivered', 'orders', orderId);
 
@@ -228,20 +306,21 @@ export async function reportOrderProblemAction(
 
   const { data: order } = await supabase
     .from('orders')
-    .select('id, status, courier_id, metadata')
+    .select('id, status, courier_id, metadata, order_type, business_id')
     .eq('id', orderId)
     .single();
 
   if (!order) return { success: false, error: 'Pedido no encontrado' };
   if (order.courier_id !== userId) return { success: false, error: 'Este pedido no te pertenece' };
 
+  const now = new Date().toISOString();
   const currentMetadata = order.metadata || {};
   const updatedMetadata = {
     ...currentMetadata,
     problem_reported: true,
     problem_type: payload.problem_type,
     problem_description: payload.description,
-    problem_reported_at: new Date().toISOString(),
+    problem_reported_at: now,
   };
 
   const { error: metaError } = await supabase
@@ -264,6 +343,34 @@ export async function reportOrderProblemAction(
     status: order.status,
     notes: `Problema reportado: ${payload.description}`,
   });
+
+  const { data: admins } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('role', 'admin')
+    .eq('status', 'active');
+
+  if (admins && admins.length > 0) {
+    await supabase.from('notifications').insert(
+      admins.map((admin) => ({
+        recipient_id: admin.id,
+        sender_id: userId,
+        notification_type: 'incident',
+        title: 'Problema en domicilio',
+        message: payload.description,
+        order_id: orderId,
+        reference_id: orderId,
+        reference_type: 'order_problem',
+        channels: ['in_app'],
+        metadata: {
+          order_id: orderId,
+          business_id: order.business_id,
+          problem_type: payload.problem_type,
+          severity: payload.severity || 'minor',
+        },
+      }))
+    );
+  }
 
   return { success: true };
 }
