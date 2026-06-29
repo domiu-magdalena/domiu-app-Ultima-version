@@ -206,10 +206,10 @@ export const courierProService = {
       tip: 0,
       items: [],
       status: o.status as string,
-      businessLat: biz.latitude || 19.4326,
-      businessLng: biz.longitude || -99.1332,
-      customerLat: 19.42,
-      customerLng: -99.14,
+      businessLat: biz.latitude || 11.2408,
+      businessLng: biz.longitude || -74.1990,
+      customerLat: 11.2408,
+      customerLng: -74.1990,
     };
   },
 

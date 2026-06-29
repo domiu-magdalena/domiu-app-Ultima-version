@@ -248,7 +248,11 @@ export async function approveCourierApplication(applicationId: string, adminNote
     .eq('id', applicationId)
     .single();
 
-  if (fetchError || !app) return { error: 'Solicitud no encontrada' };
+  if (fetchError || !app) {
+    console.error('[approveCourierApplication] fetch error:', fetchError);
+    return { error: 'Solicitud no encontrada' };
+  }
+
   if (app.status !== 'pending') return { error: 'La solicitud ya fue procesada' };
 
   const now = new Date().toISOString();
@@ -264,64 +268,48 @@ export async function approveCourierApplication(applicationId: string, adminNote
     })
     .eq('id', applicationId);
 
-  if (updateError) return { error: 'Error al actualizar solicitud: ' + updateError.message };
+  if (updateError) {
+    console.error('[approveCourierApplication] application update error:', updateError);
+    return { error: 'Error al actualizar solicitud: ' + updateError.message };
+  }
+
+  const profileUpdate: Record<string, unknown> = {
+    role: 'courier',
+    updated_at: now,
+    metadata: {
+      courier_application_id: applicationId,
+      approved_as_courier_at: now,
+    },
+  };
+
+  if (app.profile_photo_url) {
+    profileUpdate.avatar_url = app.profile_photo_url;
+  }
 
   const { error: profileError } = await supabase
     .from('profiles')
-    .update({
-      role: 'courier',
-      avatar_url: app.profile_photo_url || undefined,
-      updated_at: now,
-      metadata: {
-        courier_application_id: applicationId,
-        approved_as_courier_at: now,
-      },
-    })
+    .update(profileUpdate)
     .eq('id', app.user_id);
 
   if (profileError) {
-    await supabase.from('courier_applications').update({ status: 'pending', admin_notes: null, reviewed_by: null, reviewed_at: null }).eq('id', applicationId);
+    console.error('[approveCourierApplication] profile update error:', profileError);
+    await supabase
+      .from('courier_applications')
+      .update({ status: 'pending', admin_notes: null, reviewed_by: null, reviewed_at: null })
+      .eq('id', applicationId);
+
     return { error: 'Error al actualizar perfil: ' + profileError.message };
   }
 
   const driverData = {
     id: app.user_id,
-    license_number: app.document_id || `DOC-${app.user_id.slice(0, 8)}`,
+    license_number: `${app.document_id || 'DOC'}-${app.user_id.slice(0, 8)}`,
     vehicle_type: app.vehicle_type || 'motorcycle',
     vehicle_plate: app.vehicle_plate || null,
-    vehicle_model: app.vehicle_model || null,
+    vehicle_model: [app.vehicle_brand, app.vehicle_model, app.vehicle_color].filter(Boolean).join(' ') || null,
     status: 'offline',
     is_available: false,
-    is_verified: true,
-    is_active: true,
-    total_deliveries: 0,
-    completed_deliveries: 0,
-    rating: 0,
-    total_ratings: 0,
-    avg_rating: 0,
-    bank_account: {
-      bank_name: app.payment_method || null,
-      account_number: app.payment_account_number || null,
-      account_holder: app.full_name || null,
-    },
-    metadata: {
-      application_id: applicationId,
-      full_name: app.full_name,
-      document_id: app.document_id,
-      vehicle_brand: app.vehicle_brand,
-      vehicle_color: app.vehicle_color,
-      payment_method: app.payment_method,
-      emergency_contact: app.emergency_contact,
-      emergency_phone: app.emergency_phone,
-      documents: {
-        document_photo_url: app.document_photo_url || null,
-        license_url: app.license_url || null,
-        soat_url: app.soat_url || null,
-        techno_review_url: app.techno_review_url || null,
-        vehicle_photo_url: app.vehicle_photo_url || null,
-        profile_photo_url: app.profile_photo_url || null,
-      },
-    },
+    created_at: now,
     updated_at: now,
   };
 
@@ -330,12 +318,18 @@ export async function approveCourierApplication(applicationId: string, adminNote
     .upsert(driverData, { onConflict: 'id' });
 
   if (driverError) {
+    console.error('[approveCourierApplication] driver upsert error:', driverError);
+
     await supabase.from('profiles').update({ role: 'customer' }).eq('id', app.user_id);
-    await supabase.from('courier_applications').update({ status: 'pending', admin_notes: null, reviewed_by: null, reviewed_at: null }).eq('id', applicationId);
+    await supabase
+      .from('courier_applications')
+      .update({ status: 'pending', admin_notes: null, reviewed_by: null, reviewed_at: null })
+      .eq('id', applicationId);
+
     return { error: 'Error al crear registro de repartidor: ' + driverError.message };
   }
 
-  await supabase.from('notifications').insert({
+  const { error: notificationError } = await supabase.from('notifications').insert({
     recipient_id: app.user_id,
     sender_id: result.session.user.id,
     notification_type: 'system_alert',
@@ -346,11 +340,23 @@ export async function approveCourierApplication(applicationId: string, adminNote
     channels: ['in_app'],
   });
 
-  await serverAudit.logAction(
-    result.session.user.id, result.session.user.email, result.session.profile.role,
-    'approve_courier_application', 'courier_applications', applicationId,
-    { userId: app.user_id, note: adminNote },
-  );
+  if (notificationError) {
+    console.error('[approveCourierApplication] notification error:', notificationError);
+  }
+
+  try {
+    await serverAudit.logAction(
+      result.session.user.id,
+      result.session.user.email,
+      result.session.profile.role,
+      'approve_courier_application',
+      'courier_applications',
+      applicationId,
+      { userId: app.user_id, note: adminNote },
+    );
+  } catch (auditError) {
+    console.error('[approveCourierApplication] audit error:', auditError);
+  }
 
   return { success: true };
 }

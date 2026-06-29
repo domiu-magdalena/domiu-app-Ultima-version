@@ -1,10 +1,9 @@
-export interface GeocodeResult {
-  lat: number;
-  lng: number;
-  formattedAddress: string;
-  city?: string;
-  confidence: 'high' | 'medium' | 'low';
-}
+﻿import {
+  isInColombia,
+  isValidLatLng,
+  normalizeSantaMartaRouteAddress,
+  type DomiuLatLng,
+} from '@/lib/domiu-location';
 
 export interface RouteDistanceResult {
   originAddress: string;
@@ -20,82 +19,174 @@ export interface RouteDistanceResult {
   warnings: string[];
 }
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+type GeocodeResult = {
+  point: DomiuLatLng;
+  formattedAddress: string;
+  partialMatch: boolean;
+};
+
+const GOOGLE_MAPS_SCRIPT_ID = 'domiu-google-maps-js';
+const SANTA_MARTA_BOUNDS = {
+  north: 11.35,
+  south: 11.05,
+  east: -74.05,
+  west: -74.32,
+};
+
+function hasWindowGoogleMaps() {
+  return typeof window !== 'undefined' && !!window.google?.maps;
 }
 
-export async function geocodeAddressServer(address: string, city = 'Santa Marta'): Promise<GeocodeResult | null> {
-  if (!address || address.length < 5) return null;
 
-  const fullQuery = `${address}, ${city}, Colombia`;
+function isSantaMartaPoint(point: DomiuLatLng) {
+  return (
+    isValidLatLng(point) &&
+    isInColombia(point) &&
+    point.lat >= SANTA_MARTA_BOUNDS.south &&
+    point.lat <= SANTA_MARTA_BOUNDS.north &&
+    point.lng >= SANTA_MARTA_BOUNDS.west &&
+    point.lng <= SANTA_MARTA_BOUNDS.east
+  );
+}
 
-  // Try Google Maps first if key is available
-  const hasMapsKey = !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  if (hasMapsKey) {
-    try {
-      const params = new URLSearchParams({
-        address: fullQuery,
-        key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
-      });
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?${params}`,
-        { signal: AbortSignal.timeout(5000) },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'OK' && data.results?.[0]) {
-          const loc = data.results[0].geometry.location;
-          const cityComp = data.results[0].address_components?.find(
-            (c: { types: string[]; long_name: string }) => c.types.includes('locality') || c.types.includes('sublocality'),
-          );
-          return {
-            lat: loc.lat,
-            lng: loc.lng,
-            formattedAddress: data.results[0].formatted_address,
-            city: cityComp?.long_name || city,
-            confidence: data.results[0].geometry.location_type === 'ROOFTOP' ? 'high' : 'medium',
-          };
-        }
-      }
-    } catch {
-      // fall through to Nominatim
-    }
+function loadGoogleMapsScript(): Promise<void> {
+  if (hasWindowGoogleMaps()) return Promise.resolve();
+
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey) {
+    return Promise.reject(new Error('Falta NEXT_PUBLIC_GOOGLE_MAPS_API_KEY'));
   }
 
-  // Fallback: Nominatim (OpenStreetMap) — free, no API key needed
-  try {
-    const nomRes = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(fullQuery)}&format=json&limit=1&addressdetails=1`,
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as HTMLScriptElement | null;
+
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('No se pudo cargar Google Maps')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = GOOGLE_MAPS_SCRIPT_ID;
+    script.async = true;
+    script.defer = true;
+    script.src =
+      'https://maps.googleapis.com/maps/api/js?' +
+      new URLSearchParams({
+        key: apiKey,
+        language: 'es',
+        region: 'CO',
+        libraries: 'places',
+      }).toString();
+
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('No se pudo cargar Google Maps'));
+
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureGoogleMapsReady() {
+  if (typeof window === 'undefined') {
+    throw new Error('Google Maps solo está disponible en el navegador');
+  }
+
+  await loadGoogleMapsScript();
+
+  if (!window.google?.maps) {
+    throw new Error('Google Maps no quedó disponible');
+  }
+}
+
+function geocodeAddress(address: string): Promise<GeocodeResult> {
+  return new Promise((resolve, reject) => {
+    const normalized = normalizeSantaMartaRouteAddress(address);
+
+    if (!normalized) {
+      reject(new Error('Dirección vacía'));
+      return;
+    }
+
+    const geocoder = new google.maps.Geocoder();
+
+    geocoder.geocode(
       {
-        headers: { 'User-Agent': 'DomiU-App/1.0' },
-        signal: AbortSignal.timeout(5000),
+        address: normalized,
+        componentRestrictions: {
+          country: 'CO',
+          administrativeArea: 'Magdalena',
+          locality: 'Santa Marta',
+        },
+        bounds: new google.maps.LatLngBounds(
+          new google.maps.LatLng(SANTA_MARTA_BOUNDS.south, SANTA_MARTA_BOUNDS.west),
+          new google.maps.LatLng(SANTA_MARTA_BOUNDS.north, SANTA_MARTA_BOUNDS.east),
+        ),
+      },
+      (results, status) => {
+        if (status !== 'OK' || !results?.[0]) {
+          reject(new Error(`Google no encontró la dirección: ${normalized}`));
+          return;
+        }
+
+        const best = results[0];
+        const point = {
+          lat: best.geometry.location.lat(),
+          lng: best.geometry.location.lng(),
+        };
+
+        if (!isSantaMartaPoint(point)) {
+          reject(new Error(`La dirección encontrada está fuera de Santa Marta: ${best.formatted_address}`));
+          return;
+        }
+
+        resolve({
+          point,
+          formattedAddress: best.formatted_address,
+          partialMatch: !!best.partial_match,
+        });
       },
     );
-    if (nomRes.ok) {
-      const nomData = await nomRes.json();
-      if (nomData?.length > 0) {
-        const place = nomData[0];
-        const addrDetails = place.address || {};
-        return {
-          lat: parseFloat(place.lat),
-          lng: parseFloat(place.lon),
-          formattedAddress: place.display_name || fullQuery,
-          city: addrDetails.city || addrDetails.town || addrDetails.municipality || city,
-          confidence: 'medium',
-        };
-      }
-    }
-  } catch {
-    // return null below
-  }
+  });
+}
 
-  return null;
+function calculateDrivingDistance(origin: DomiuLatLng, destination: DomiuLatLng): Promise<{
+  distanceKm: number;
+  durationMinutes: number;
+}> {
+  return new Promise((resolve, reject) => {
+    const service = new google.maps.DistanceMatrixService();
+
+    service.getDistanceMatrix(
+      {
+        origins: [origin],
+        destinations: [destination],
+        travelMode: google.maps.TravelMode.DRIVING,
+        unitSystem: google.maps.UnitSystem.METRIC,
+        drivingOptions: {
+          departureTime: new Date(),
+        },
+      },
+      (response, status) => {
+        if (status !== 'OK') {
+          reject(new Error(`Google no pudo calcular distancia: ${status}`));
+          return;
+        }
+
+        const element = response?.rows?.[0]?.elements?.[0];
+
+        if (!element || element.status !== 'OK' || !element.distance?.value || !element.duration?.value) {
+          reject(new Error(`Google no devolvió una ruta válida: ${element?.status || 'sin resultado'}`));
+          return;
+        }
+
+        resolve({
+          distanceKm: Math.round((element.distance.value / 1000) * 100) / 100,
+          durationMinutes: Math.ceil(element.duration.value / 60),
+        });
+      },
+    );
+  });
 }
 
 export async function calculateRouteDistance(
@@ -107,109 +198,85 @@ export async function calculateRouteDistance(
   destinationLng?: number,
 ): Promise<RouteDistanceResult> {
   const warnings: string[] = [];
-  const hasMapsKey = !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-  // Try to geocode missing coordinates
-  if (!originLat || !originLng) {
-    const geoOrigin = await geocodeAddressServer(originAddress);
-    if (geoOrigin) {
-      originLat = geoOrigin.lat;
-      originLng = geoOrigin.lng;
-    }
-  }
-  if (!destinationLat || !destinationLng) {
-    const geoDest = await geocodeAddressServer(destinationAddress);
-    if (geoDest) {
-      destinationLat = geoDest.lat;
-      destinationLng = geoDest.lng;
-    }
-  }
+  const safeOriginAddress = normalizeSantaMartaRouteAddress(originAddress);
+  const safeDestinationAddress = normalizeSantaMartaRouteAddress(destinationAddress);
 
-  // Google Maps Distance Matrix (requires API key + all coordinates)
-  if (hasMapsKey && originLat && originLng && destinationLat && destinationLng) {
-    try {
-      const params = new URLSearchParams({
-        origins: `${originLat},${originLng}`,
-        destinations: `${destinationLat},${destinationLng}`,
-        key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
-      });
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/distancematrix/json?${params}`,
-        { signal: AbortSignal.timeout(5000) },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'OK' && data.rows?.[0]?.elements?.[0]?.status === 'OK') {
-          const element = data.rows[0].elements[0];
-          return {
-            originAddress,
-            destinationAddress,
-            originLat,
-            originLng,
-            destinationLat,
-            destinationLng,
-            distanceKm: Math.round((element.distance.value / 1000) * 100) / 100,
-            durationMinutes: Math.ceil(element.duration.value / 60),
-            calculationSource: 'google_maps',
-            confidence: 'high',
-            warnings: [],
-          };
-        }
+  try {
+    await ensureGoogleMapsReady();
+
+    let originPoint: DomiuLatLng | null = null;
+    let destinationPoint: DomiuLatLng | null = null;
+
+    if (isSantaMartaPoint({ lat: Number(originLat), lng: Number(originLng) })) {
+      originPoint = { lat: Number(originLat), lng: Number(originLng) };
+    } else {
+      const originGeocode = await geocodeAddress(safeOriginAddress);
+      originPoint = originGeocode.point;
+
+      if (originGeocode.partialMatch) {
+        warnings.push('Google encontró el local parcialmente. Verifica la dirección guardada del local.');
       }
-    } catch {
-      warnings.push('Error al calcular ruta con Google Maps');
     }
-  }
 
-  // Haversine fallback (linea recta) — works with any coordinates
-  if (originLat && originLng && destinationLat && destinationLng) {
-    const distanceKm = haversineKm(originLat, originLng, destinationLat, destinationLng);
-    warnings.push('Distancia calculada en línea recta (no ruta real). Verifica manualmente.');
+    if (isSantaMartaPoint({ lat: Number(destinationLat), lng: Number(destinationLng) })) {
+      destinationPoint = { lat: Number(destinationLat), lng: Number(destinationLng) };
+    } else {
+      const destinationGeocode = await geocodeAddress(safeDestinationAddress);
+      destinationPoint = destinationGeocode.point;
+
+      if (destinationGeocode.partialMatch) {
+        warnings.push('Google encontró la dirección del cliente parcialmente. Verifica antes de crear el pedido.');
+      }
+    }
+
+    if (!originPoint || !destinationPoint) {
+      throw new Error('No hay origen o destino válido');
+    }
+
+    const route = await calculateDrivingDistance(originPoint, destinationPoint);
+
+    if (!Number.isFinite(route.distanceKm) || route.distanceKm <= 0) {
+      throw new Error('Distancia inválida devuelta por Google');
+    }
+
+    if (route.distanceKm > 35) {
+      throw new Error(`La distancia calculada es demasiado alta: ${route.distanceKm} km`);
+    }
+
     return {
-      originAddress,
-      destinationAddress,
-      originLat,
-      originLng,
-      destinationLat,
-      destinationLng,
-      distanceKm: Math.round(distanceKm * 100) / 100,
-      durationMinutes: Math.round((distanceKm / 25) * 60),
-      calculationSource: 'fallback',
-      confidence: 'medium',
+      originAddress: safeOriginAddress,
+      destinationAddress: safeDestinationAddress,
+      originLat: originPoint.lat,
+      originLng: originPoint.lng,
+      destinationLat: destinationPoint.lat,
+      destinationLng: destinationPoint.lng,
+      distanceKm: route.distanceKm,
+      durationMinutes: route.durationMinutes,
+      calculationSource: 'google_maps',
+      confidence: warnings.length > 0 ? 'medium' : 'high',
       warnings,
     };
-  }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'No se pudo calcular la ruta automática';
 
-  // Last resort: estimate based on origin only (use a generous radius)
-  if (originLat && originLng) {
-    const estimatedKm = 3;
-    warnings.push('No se pudo geocodificar la dirección de entrega. Distancia estimada a 3 km.');
     return {
-      originAddress,
-      destinationAddress,
-      originLat,
-      originLng,
-      distanceKm: estimatedKm,
-      durationMinutes: Math.round((estimatedKm / 25) * 60),
+      originAddress: safeOriginAddress,
+      destinationAddress: safeDestinationAddress,
+      distanceKm: 0,
+      durationMinutes: 0,
       calculationSource: 'manual',
       confidence: 'low',
-      warnings,
+      warnings: [
+        message,
+        'No se generó precio automático porque no hay ruta real validada por Google.',
+      ],
     };
   }
-
-  warnings.push('No hay coordenadas disponibles para el origen ni el destino. Ingresa los kilómetros manualmente.');
-  return {
-    originAddress,
-    destinationAddress,
-    distanceKm: 0,
-    durationMinutes: 0,
-    calculationSource: 'manual',
-    confidence: 'low',
-    warnings,
-  };
 }
 
 export function formatDistance(km: number): string {
+  if (!Number.isFinite(km) || km <= 0) return 'Sin distancia';
   if (km < 1) return `${Math.round(km * 1000)} m`;
   return `${km.toFixed(1)} km`;
 }

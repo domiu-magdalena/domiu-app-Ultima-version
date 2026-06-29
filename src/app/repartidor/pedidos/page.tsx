@@ -67,10 +67,48 @@ function PedidosContent() {
 
   const getNextAction = () => {
     if (!activeOrder) return null;
-    if (activeOrder.status === 'pending') return { label: 'Aceptar Pedido', nextStatus: 'accepted' as const, color: 'from-warning to-orange-500', action: 'acceptOrderByCourierAction' as const };
-    if (activeOrder.status === 'assigned' || activeOrder.status === 'accepted') return { label: 'Marcar como Recogido', nextStatus: 'picked_up' as const, color: 'from-info to-blue-500', action: 'markOrderPickedUpAction' as const };
-    if (activeOrder.status === 'picked_up') return { label: 'En Camino', nextStatus: 'in_transit' as const, color: 'from-warning to-orange-500', action: 'markOrderInTransitAction' as const };
-    if (activeOrder.status === 'in_transit') return { label: 'Marcar como Entregado', nextStatus: 'delivered' as const, color: 'from-success to-emerald-500', action: 'markOrderDeliveredAction' as const };
+
+    if (
+      activeOrder.status === 'pending' ||
+      activeOrder.status === 'assigned' ||
+      activeOrder.status === 'confirmed' ||
+      activeOrder.status === 'ready'
+    ) {
+      return {
+        label: 'Aceptar Pedido',
+        nextStatus: 'accepted' as const,
+        color: 'from-warning to-orange-500',
+        action: 'acceptOrderByCourierAction' as const,
+      };
+    }
+
+    if (activeOrder.status === 'accepted') {
+      return {
+        label: 'Marcar como Recogido',
+        nextStatus: 'picked_up' as const,
+        color: 'from-info to-blue-500',
+        action: 'markOrderPickedUpAction' as const,
+      };
+    }
+
+    if (activeOrder.status === 'picked_up') {
+      return {
+        label: 'En Camino',
+        nextStatus: 'in_transit' as const,
+        color: 'from-warning to-orange-500',
+        action: 'markOrderInTransitAction' as const,
+      };
+    }
+
+    if (activeOrder.status === 'in_transit') {
+      return {
+        label: 'Marcar como Entregado',
+        nextStatus: 'delivered' as const,
+        color: 'from-success to-emerald-500',
+        action: 'markOrderDeliveredAction' as const,
+      };
+    }
+
     return null;
   };
 

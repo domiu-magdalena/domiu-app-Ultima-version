@@ -67,7 +67,10 @@ export async function submitCourierApplicationAction(data: CourierApplicationInp
   }
 
   const result = await requireAuth();
-  if (result.error) return { error: result.error.message };
+  if (result.error) {
+    console.error('[submitCourierApplicationAction] auth error:', result.error.message);
+    return { error: result.error.message };
+  }
 
   const supabase = getServiceClient();
   const userId = result.session.user.id;
@@ -120,7 +123,10 @@ export async function submitCourierApplicationAction(data: CourierApplicationInp
     .from('courier_applications')
     .insert(insertData);
 
-  if (insertError) return { error: 'Error al enviar solicitud: ' + insertError.message };
+  if (insertError) {
+    console.error('[submitCourierApplicationAction] insert error:', insertError);
+    return { error: 'Error al enviar solicitud: ' + insertError.message };
+  }
 
   return { success: true };
 }
@@ -182,7 +188,10 @@ export async function submitBusinessApplicationAction(data: BusinessApplicationI
     .from('business_applications')
     .insert(insertData);
 
-  if (insertError) return { error: 'Error al enviar solicitud: ' + insertError.message };
+  if (insertError) {
+    console.error('[submitBusinessApplicationAction] insert error:', insertError);
+    return { error: 'Error al enviar solicitud: ' + insertError.message };
+  }
 
   return { success: true };
 }

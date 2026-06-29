@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, RefreshCw, CheckCircle, XCircle, Clock, UserCheck, Store, Truck, MapPin, Calendar, Info, Car, Hash } from 'lucide-react';
+import { Search, RefreshCw, CheckCircle, XCircle, Clock, UserCheck, Store, Truck, MapPin, Calendar, Info, Car, Hash, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -56,6 +56,8 @@ export default function AdminSolicitudesPage() {
   const [detailApp, setDetailApp] = useState<CourierApplication | BusinessApplication | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ type: 'approve' | 'reject'; app: CourierApplication | BusinessApplication } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [reviewNote, setReviewNote] = useState('');
   const [processing, setProcessing] = useState(false);
 
   const load = useCallback(async () => {
@@ -88,14 +90,17 @@ export default function AdminSolicitudesPage() {
     try {
       let res;
       if (activeTab === 'couriers') {
-        res = await approveCourierApplication(app.id);
+        res = await approveCourierApplication(app.id, reviewNote.trim() || undefined);
       } else {
-        res = await approveBusinessApplication(app.id);
+        res = await approveBusinessApplication(app.id, reviewNote.trim() || undefined);
       }
       if (res.error) { toast.error(res.error); return; }
       toast.success('Solicitud aprobada correctamente');
       setConfirmAction(null);
       setSelectedApp(null);
+      setDetailApp(null);
+      setReviewConfirmed(false);
+      setReviewNote('');
       load();
     } catch { toast.error('Error al aprobar solicitud'); }
     finally { setProcessing(false); }
@@ -116,6 +121,9 @@ export default function AdminSolicitudesPage() {
       setConfirmAction(null);
       setRejectReason('');
       setSelectedApp(null);
+      setDetailApp(null);
+      setReviewConfirmed(false);
+      setReviewNote('');
       load();
     } catch { toast.error('Error al rechazar solicitud'); }
     finally { setProcessing(false); }
@@ -124,6 +132,10 @@ export default function AdminSolicitudesPage() {
   const openDetail = (app: CourierApplication | BusinessApplication) => {
     setSelectedApp(app);
     setDetailApp(app);
+    setConfirmAction(null);
+    setRejectReason('');
+    setReviewConfirmed(false);
+    setReviewNote('');
   };
 
   const applications = activeTab === 'couriers' ? courierApps : businessApps;
@@ -302,22 +314,14 @@ export default function AdminSolicitudesPage() {
                 </div>
 
                 {app.status === 'pending' && (
-                  <div className="mt-4 flex gap-2" onClick={e => e.stopPropagation()}>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="flex-1 bg-success text-white hover:bg-success/90"
-                      onClick={() => setConfirmAction({ type: 'approve', app })}
-                    >
-                      <CheckCircle className="mr-1 h-3.5 w-3.5" /> Aprobar
-                    </Button>
+                  <div className="mt-4" onClick={e => e.stopPropagation()}>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/10"
-                      onClick={() => setConfirmAction({ type: 'reject', app })}
+                      className="w-full"
+                      onClick={() => openDetail(app)}
                     >
-                      <XCircle className="mr-1 h-3.5 w-3.5" /> Rechazar
+                      <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" /> Revisar datos
                     </Button>
                   </div>
                 )}
@@ -488,10 +492,50 @@ export default function AdminSolicitudesPage() {
             )}
 
             {detailApp.status === 'pending' && (
+              <div className="rounded-xl border border-warning/30 bg-warning/10 p-4">
+                <div className="flex items-start gap-3">
+                  <ClipboardCheck className="mt-0.5 h-5 w-5 text-warning" />
+                  <div className="space-y-3 flex-1">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Revisión obligatoria antes de decidir</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Revisa los datos enviados, valida que coincidan y solo después aprueba o rechaza la solicitud.
+                      </p>
+                    </div>
+
+                    <label className="flex items-start gap-2 rounded-lg border border-border bg-card p-3 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={reviewConfirmed}
+                        onChange={e => setReviewConfirmed(e.target.checked)}
+                        className="mt-1"
+                      />
+                      <span>
+                        Confirmo que revisé los datos de esta solicitud y que puedo tomar una decisión.
+                      </span>
+                    </label>
+
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Nota interna opcional</label>
+                      <Textarea
+                        value={reviewNote}
+                        onChange={e => setReviewNote(e.target.value)}
+                        placeholder="Ejemplo: documentos revisados, placa verificada, datos correctos..."
+                        rows={2}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {detailApp.status === 'pending' && (
               <div className="flex gap-3 pt-2">
                 <Button
                   className="flex-1 bg-success text-white hover:bg-success/90"
                   onClick={() => setConfirmAction({ type: 'approve', app: detailApp })}
+                  disabled={!reviewConfirmed || processing}
                 >
                   <CheckCircle className="mr-1.5 h-4 w-4" /> Aprobar
                 </Button>
@@ -499,6 +543,7 @@ export default function AdminSolicitudesPage() {
                   variant="outline"
                   className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/10"
                   onClick={() => setConfirmAction({ type: 'reject', app: detailApp })}
+                  disabled={!reviewConfirmed || processing}
                 >
                   <XCircle className="mr-1.5 h-4 w-4" /> Rechazar
                 </Button>

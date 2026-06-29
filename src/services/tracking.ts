@@ -84,7 +84,7 @@ export const trackingService = {
       setCache(cacheKey, result, 60_000);
       return result;
     }
-    return { lat: 19.4326, lng: -99.1332 };
+    return { lat: Number.NaN, lng: Number.NaN };
   },
 
   getCustomerLocation: async (customerId: string): Promise<RoutePoint> => {
@@ -98,7 +98,7 @@ export const trackingService = {
     if (data?.latitude && data?.longitude) {
       return { lat: data.latitude, lng: data.longitude };
     }
-    return { lat: 19.42, lng: -99.14 };
+    return { lat: Number.NaN, lng: Number.NaN };
   },
 
   calculateDistance: (from: RoutePoint, to: RoutePoint): number => {
@@ -121,8 +121,8 @@ export const trackingService = {
     const key = `${courierId}-${orderId}`;
 
     // Get locations from real data, fallback to defaults
-    const bizLoc = { lat: 19.4326, lng: -99.1332 };
-    const custLoc = { lat: 19.42, lng: -99.14 };
+    const bizLoc = { lat: 11.2408, lng: -74.1990 };
+    const custLoc = { lat: 11.2408, lng: -74.1990 };
 
     // Use stored locations from prior calls if available
     const route = generateRoute(bizLoc, custLoc, 25);

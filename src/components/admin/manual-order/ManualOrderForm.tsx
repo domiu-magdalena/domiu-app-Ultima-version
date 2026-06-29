@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import { useForm } from 'react-hook-form';
@@ -10,19 +10,24 @@ import { createManualOrderAction, getBusinessDetailsForOrder } from '@/app/actio
 import { calculateRouteDistance } from '@/lib/maps/distance';
 import { Loader2, MapPin, Phone, User, Navigation, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  getRouteSafetyWarnings,
+  parseWhatsAppOrderStrict,
+  validateManualDeliveryAddress,
+} from '@/lib/manual-order-safety';
 import { useRouter } from 'next/navigation';
 
 const formSchema = z.object({
-  customerName: z.string().min(3, 'Mínimo 3 caracteres'),
-  customerPhone: z.string().regex(/^3\d{9}$/, 'Debe ser 10 dígitos empezando por 3'),
-  deliveryAddress: z.string().min(5, 'Mínimo 5 caracteres'),
+  customerName: z.string().min(3, 'MÃ­nimo 3 caracteres'),
+  customerPhone: z.string().regex(/^3\d{9}$/, 'Debe ser 10 dÃ­gitos empezando por 3'),
+  deliveryAddress: z.string().min(5, 'MÃ­nimo 5 caracteres'),
   neighborhood: z.string().optional(),
   addressNotes: z.string().optional(),
   businessId: z.string().min(1, 'Selecciona un local'),
   distanceKm: z.number().positive('Debe ser mayor a 0'),
   durationMinutes: z.number().min(0),
   deliveryFee: z.number().positive('Debe ser mayor a 0'),
-  paymentMethod: z.string().min(1, 'Selecciona un método'),
+  paymentMethod: z.string().min(1, 'Selecciona un mÃ©todo'),
   assignmentMode: z.enum(['manual', 'public']),
   courierId: z.string().optional(),
   manualPrice: z.number().optional(),
@@ -164,7 +169,13 @@ export function ManualOrderForm() {
       return;
     }
     setParsing(true);
-    const result = parseManualOrderText(whatsAppText);
+    const legacyResult = parseManualOrderText(whatsAppText);
+    const strictResult = parseWhatsAppOrderStrict(whatsAppText);
+    const result = {
+      ...legacyResult,
+      ...strictResult,
+      warnings: [...new Set([...(legacyResult.warnings || []), ...(strictResult.warnings || [])])],
+    };
     setParsedData(result);
 
     form.setValue('customerName', result.customerName);
@@ -172,6 +183,11 @@ export function ManualOrderForm() {
     form.setValue('deliveryAddress', result.address);
     form.setValue('neighborhood', result.neighborhood);
     form.setValue('addressNotes', result.addressNotes);
+    form.setValue('specialInstructions', result.orderNotes || '');
+    form.setValue('distanceKm', 0);
+    form.setValue('durationMinutes', 0);
+    form.setValue('deliveryFee', 0);
+    setPriceResult(null);
 
     setParsing(false);
 
@@ -190,12 +206,12 @@ export function ManualOrderForm() {
     if (distanceMode === 'manual') {
       const km = form.getValues('distanceKm');
       if (!km || km <= 0) {
-        toast.error('Ingresa los kilómetros manualmente');
+        toast.error('Ingresa los kilÃ³metros manualmente');
         return;
       }
       const pricing = calculateDeliveryPrice(km);
       form.setValue('durationMinutes', pricing.durationMinutes);
-      form.setValue('deliveryFee', pricing.finalPrice);
+      form.setValue('deliveryFee', pricing.finalPrice, { shouldValidate: true, shouldDirty: true });
       setPriceResult({
         distanceKm: km,
         durationMinutes: pricing.durationMinutes,
@@ -215,12 +231,29 @@ export function ManualOrderForm() {
 
     const deliveryAddress = form.getValues('deliveryAddress');
     if (!deliveryAddress || deliveryAddress.length < 5) {
-      toast.error('Ingresa la dirección de entrega');
+      toast.error('Ingresa la direcciÃ³n de entrega');
       return;
     }
 
+    const addressValidation = validateManualDeliveryAddress(
+      deliveryAddress,
+      form.getValues('neighborhood'),
+    );
+
+    if (!addressValidation.ok) {
+      addressValidation.warnings.forEach(w => toast.error(w));
+      toast.error('No se permite calcular con una direcciÃ³n dudosa. Corrige o completa la direcciÃ³n del cliente.');
+      form.setValue('distanceKm', 0);
+      form.setValue('durationMinutes', 0);
+      form.setValue('deliveryFee', 0);
+      setPriceResult(null);
+      return;
+    }
+
+    const safeDeliveryAddress = addressValidation.normalizedAddress;
+
     if (!business.hasAddress) {
-      toast.error(`El local "${business.name}" no tiene dirección registrada. Cambia a modo manual e ingresa los km.`);
+      toast.error(`El local "${business.name}" no tiene direcciÃ³n registrada. Cambia a modo manual e ingresa los km.`);
       return;
     }
 
@@ -228,18 +261,37 @@ export function ManualOrderForm() {
     setPriceResult(null);
 
     try {
+      console.log('[DomiU] Iniciando cálculo de ruta...', { business, safeDeliveryAddress });
       const route = await calculateRouteDistance(
         business.address,
-        deliveryAddress,
+        safeDeliveryAddress,
         business.latitude ?? undefined,
         business.longitude ?? undefined,
       );
 
-      form.setValue('distanceKm', route.distanceKm);
-      form.setValue('durationMinutes', route.durationMinutes);
+      console.log('[DomiU] Ruta calculada:', route);
+      const routeSafetyWarnings = route.distanceKm <= 0 ? getRouteSafetyWarnings(route.distanceKm, route.warnings || []) : [];
+      console.log('[DomiU] Advertencias de ruta:', routeSafetyWarnings);
+
+      if (routeSafetyWarnings.length > 0) {
+        routeSafetyWarnings.forEach(w => toast.error(w));
+        toast.error('CÃ¡lculo automÃ¡tico bloqueado. Corrige la direcciÃ³n o revisa la configuraciÃ³n de Google Maps.');
+        form.setValue('distanceKm', 0);
+        form.setValue('durationMinutes', 0);
+        form.setValue('deliveryFee', 0);
+        setPriceResult(null);
+        return;
+      }
+
+      form.setValue('distanceKm', route.distanceKm, { shouldValidate: true, shouldDirty: true });
+      form.setValue('durationMinutes', route.durationMinutes, { shouldValidate: true, shouldDirty: true });
 
       const pricing = calculateDeliveryPrice(route.distanceKm);
-      form.setValue('deliveryFee', pricing.finalPrice);
+      console.log('[DomiU] Precio calculado:', pricing);
+      form.setValue('deliveryFee', pricing.finalPrice, { shouldValidate: true, shouldDirty: true });
+
+      console.log('[DomiU] MOSTRANDO PRECIO FINAL', { distanceKm: route.distanceKm, durationMinutes: route.durationMinutes, finalPrice: pricing.finalPrice });
+      await form.trigger(['distanceKm', 'durationMinutes', 'deliveryFee']);
 
       setPriceResult({
         distanceKm: route.distanceKm,
@@ -252,7 +304,7 @@ export function ManualOrderForm() {
       });
 
       if (route.distanceKm <= 0 && !deliveryAddress) {
-        toast.error('No se pudo calcular la distancia. Cambia a modo manual.');
+        toast.error('No se pudo calcular la distancia. Revisa la dirección del cliente.');
       } else if (route.warnings.length > 0 || pricing.warnings.length > 0) {
         [...route.warnings, ...pricing.warnings].forEach(w => toast.warning(w));
         if (route.distanceKm > 0) {
@@ -261,9 +313,10 @@ export function ManualOrderForm() {
       } else {
         toast.success(`Distancia: ${route.distanceKm} km | Precio sugerido: $${pricing.finalPrice.toLocaleString('es-CO')}`);
       }
-    } catch {
-      toast.error('Error al calcular. Cambia a modo manual e ingresa los km.');
-      setDistanceMode('manual');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error desconocido calculando domicilio.';
+      console.error('[DomiU] Error real calculando domicilio:', err);
+      toast.error(message);
     } finally {
       setCalculating(false);
     }
@@ -275,15 +328,37 @@ export function ManualOrderForm() {
       return;
     }
 
+    const finalAddressValidation = validateManualDeliveryAddress(values.deliveryAddress, values.neighborhood);
+
+    if (!finalAddressValidation.ok) {
+      finalAddressValidation.warnings.forEach(w => toast.error(w));
+      toast.error('No se puede crear el pedido hasta corregir la direcciÃ³n y calcular la ruta automÃ¡tica.');
+      return;
+    }
+
+    if (distanceMode === 'auto' && (!priceResult || values.distanceKm <= 0 || values.deliveryFee <= 0)) {
+      toast.error('Calcula el valor del domicilio antes de crear el pedido.');
+      return;
+    }
+
     setCreating(true);
     setCreateTimedOut(false);
 
     const manualPriceUsed = !!values.manualPrice && values.manualPrice! > 0;
     const finalFee: number = manualPriceUsed ? values.manualPrice! : values.deliveryFee;
 
+    const normalizedPriceCalculationSource: 'google_maps' | 'manual' | 'fallback' =
+      manualPriceUsed
+        ? 'manual'
+        : priceResult?.calculationSource?.includes('google')
+          ? 'google_maps'
+          : priceResult?.calculationSource === 'manual'
+            ? 'manual'
+            : 'fallback';
+
     createTimeoutRef.current = setTimeout(() => {
       setCreateTimedOut(true);
-      toast.warning('El servidor está tardando más de lo normal. No cierres esta página.');
+      toast.warning('El servidor estÃ¡ tardando mÃ¡s de lo normal. No cierres esta pÃ¡gina.');
     }, CREATE_TIMEOUT_MS - 5000);
 
     try {
@@ -304,7 +379,7 @@ export function ManualOrderForm() {
         durationMinutes: values.durationMinutes,
         deliveryFee: finalFee,
         manualPriceUsed,
-        priceCalculationSource: (priceResult?.calculationSource || 'manual') as 'google_maps' | 'manual' | 'fallback',
+        priceCalculationSource: normalizedPriceCalculationSource,
         paymentMethod: values.paymentMethod,
         assignmentMode: values.assignmentMode as 'manual' | 'public',
         courierId: values.assignmentMode === 'manual' && values.courierId ? values.courierId : undefined,
@@ -354,23 +429,23 @@ export function ManualOrderForm() {
 
   const checks = [
     { label: 'Cliente', ok: formValues.customerName?.length >= 3 },
-    { label: 'Teléfono', ok: /^3\d{9}$/.test(formValues.customerPhone || '') },
-    { label: 'Dirección entrega', ok: (formValues.deliveryAddress?.length || 0) >= 5 },
+    { label: 'TelÃ©fono', ok: /^3\d{9}$/.test(formValues.customerPhone || '') },
+    { label: 'DirecciÃ³n entrega', ok: (formValues.deliveryAddress?.length || 0) >= 5 },
     { label: 'Local seleccionado', ok: !!selectedBusiness },
-    { label: 'Local con dirección', ok: selectedBusiness?.hasAddress ?? false },
+    { label: 'Local con direcciÃ³n', ok: selectedBusiness?.hasAddress ?? false },
     { label: 'Distancia calculada', ok: (formValues.distanceKm || 0) > 0 },
     { label: 'Precio calculado', ok: (formValues.deliveryFee || 0) > 0 },
-    { label: 'Método de pago', ok: !!formValues.paymentMethod },
+    { label: 'MÃ©todo de pago', ok: !!formValues.paymentMethod },
   ];
 
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-6">
-        <h2 className="mb-4 text-lg font-semibold text-white">Pegar información del local</h2>
+        <h2 className="mb-4 text-lg font-semibold text-white">Pegar informaciÃ³n del local</h2>
         <textarea
           value={whatsAppText}
           onChange={(e) => setWhatsAppText(e.target.value)}
-          placeholder="Pega aquí el texto recibido por WhatsApp del local..."
+          placeholder="Pega aquÃ­ el texto recibido por WhatsApp del local..."
           rows={4}
           className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
         />
@@ -424,7 +499,7 @@ export function ManualOrderForm() {
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-slate-300">
                 <Phone className="mr-1.5 inline h-4 w-4" />
-                Teléfono
+                TelÃ©fono
               </label>
               <input
                 {...form.register('customerPhone')}
@@ -440,11 +515,11 @@ export function ManualOrderForm() {
             <div className="sm:col-span-2">
               <label className="mb-1.5 block text-sm font-semibold text-slate-300">
                 <MapPin className="mr-1.5 inline h-4 w-4" />
-                Dirección
+                DirecciÃ³n
               </label>
               <input
                 {...form.register('deliveryAddress')}
-                placeholder="Dirección exacta del cliente"
+                placeholder="DirecciÃ³n exacta del cliente"
                 className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
               {form.formState.errors.deliveryAddress && (
@@ -462,7 +537,7 @@ export function ManualOrderForm() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-300">Notas de dirección</label>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-300">Notas de direcciÃ³n</label>
               <input
                 {...form.register('addressNotes')}
                 placeholder="Referencias, piso, etc."
@@ -484,7 +559,7 @@ export function ManualOrderForm() {
                   <option key={b.id} value={b.id} disabled={!b.is_active || !b.hasAddress}>
                     {b.name}
                     {!b.is_active ? ' (inactivo)' : ''}
-                    {!b.hasAddress && b.is_active ? ' (sin dirección)' : ''}
+                    {!b.hasAddress && b.is_active ? ' (sin direcciÃ³n)' : ''}
                   </option>
                 ))}
               </select>
@@ -494,7 +569,7 @@ export function ManualOrderForm() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-300">Dirección del local</label>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-300">DirecciÃ³n del local</label>
               <input
                 value={selectedBusiness?.address || ''}
                 readOnly
@@ -504,7 +579,7 @@ export function ManualOrderForm() {
               {selectedBusiness && !selectedBusiness.hasAddress && (
                 <p className="mt-1 text-xs text-yellow-400">
                   <AlertTriangle className="mr-1 inline h-3 w-3" />
-                  Este local no tiene dirección registrada
+                  Este local no tiene direcciÃ³n registrada
                 </p>
               )}
             </div>
@@ -528,10 +603,10 @@ export function ManualOrderForm() {
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="text-slate-400">Dirección:</div>
+                <div className="text-slate-400">DirecciÃ³n:</div>
                 <div className="text-slate-200">{selectedBusiness.address || <span className="text-yellow-400">No registrada</span>}</div>
                 <div className="text-slate-400">Barrio:</div>
-                <div className="text-slate-200">{selectedBusiness.neighborhood || <span className="text-slate-500">—</span>}</div>
+                <div className="text-slate-200">{selectedBusiness.neighborhood || <span className="text-slate-500">â€”</span>}</div>
                 <div className="text-slate-400">Ciudad:</div>
                 <div className="text-slate-200">{selectedBusiness.city || 'Santa Marta'}</div>
                 <div className="text-slate-400">Coordenadas:</div>
@@ -559,7 +634,7 @@ export function ManualOrderForm() {
                   className="accent-emerald-500"
                 />
                 <Navigation className="h-4 w-4" />
-                Automático (Google Maps)
+                AutomÃ¡tico (Google Maps)
               </label>
               <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2.5 text-sm ${
                 distanceMode === 'manual'
@@ -580,7 +655,7 @@ export function ManualOrderForm() {
 
           {distanceMode === 'manual' && (
             <div className="mt-1 rounded-lg border border-yellow-700/30 bg-yellow-900/10 p-3 text-xs text-yellow-300">
-              Ingresa los kilómetros estimados manualmente. El precio se calculará según la tarifa base.
+              Modo manual reservado solo para emergencia. El cÃ¡lculo principal debe ser automÃ¡tico con Google Maps.
             </div>
           )}
 
@@ -588,13 +663,13 @@ export function ManualOrderForm() {
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-slate-300">
                 <Navigation className="mr-1.5 inline h-4 w-4" />
-                Kilómetros
+                KilÃ³metros
               </label>
               <input
                 type="number"
                 step="0.1"
                 {...form.register('distanceKm', { valueAsNumber: true })}
-                placeholder={distanceMode === 'auto' ? 'Se llenará automáticamente' : 'Ej: 5.5'}
+                placeholder={distanceMode === 'auto' ? 'Se llenarÃ¡ automÃ¡ticamente' : 'Ej: 5.5'}
                 readOnly={distanceMode === 'auto'}
                 className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 read-only:opacity-60"
               />
@@ -604,7 +679,7 @@ export function ManualOrderForm() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-300">Duración estimada</label>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-300">DuraciÃ³n estimada</label>
               <input
                 type="number"
                 {...form.register('durationMinutes', { valueAsNumber: true })}
@@ -629,14 +704,14 @@ export function ManualOrderForm() {
 
           {priceResult && (
             <div className="mt-4 rounded-xl border border-emerald-700/50 bg-emerald-900/20 p-4">
-              <h3 className="mb-3 text-sm font-semibold text-emerald-300">Cálculo del domicilio</h3>
+              <h3 className="mb-3 text-sm font-semibold text-emerald-300">CÃ¡lculo del domicilio</h3>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg bg-slate-700/50 p-3">
                   <p className="text-xs text-slate-400">Distancia</p>
                   <p className="text-lg font-bold text-white">{priceResult.distanceKm} km</p>
                 </div>
                 <div className="rounded-lg bg-slate-700/50 p-3">
-                  <p className="text-xs text-slate-400">Duración</p>
+                  <p className="text-xs text-slate-400">DuraciÃ³n</p>
                   <p className="text-lg font-bold text-white">{priceResult.durationMinutes} min</p>
                 </div>
                 <div className="rounded-lg bg-slate-700/50 p-3">
@@ -658,7 +733,7 @@ export function ManualOrderForm() {
 
           <div className="mt-5 grid gap-5 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-300">Método de pago</label>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-300">MÃ©todo de pago</label>
               <select
                 {...form.register('paymentMethod')}
                 className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
@@ -681,14 +756,14 @@ export function ManualOrderForm() {
               <input
                 type="number"
                 {...form.register('manualPrice', { valueAsNumber: true })}
-                placeholder="Dejar vacío para usar valor automático"
+                placeholder="Dejar vacÃ­o para usar valor automÃ¡tico"
                 className="w-full rounded-lg border border-slate-600 bg-input-bg p-3 text-sm text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>
           </div>
 
           <div className="mt-5">
-            <label className="mb-3 block text-sm font-semibold text-slate-300">Modo de asignación</label>
+            <label className="mb-3 block text-sm font-semibold text-slate-300">Modo de asignaciÃ³n</label>
             <div className="flex flex-wrap gap-4">
               <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 bg-slate-700/50 px-4 py-2.5 text-sm text-slate-300 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-900/30 has-[:checked]:text-emerald-300">
                 <input
@@ -773,7 +848,7 @@ export function ManualOrderForm() {
 
       {parsedData && (
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
-          <h3 className="mb-2 text-sm font-medium text-slate-400">Confianza de extracción</h3>
+          <h3 className="mb-2 text-sm font-medium text-slate-400">Confianza de extracciÃ³n</h3>
           <div className="flex flex-wrap gap-4 text-xs">
             {Object.entries(parsedData.confidence).map(([key, val]) => (
               <span key={key} className={getConfidenceColor(val)}>
@@ -790,3 +865,7 @@ export function ManualOrderForm() {
 function Store(props: { className?: string }) {
   return <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
 }
+
+
+
+
