@@ -13,10 +13,21 @@ const VALID_TRANSITIONS: Record<string, OrderStatus[]> = {
   in_transit: ['delivered'],
 };
 
+type OrderMetadata = Record<string, unknown>;
+
 function canTransition(current: string, next: string): boolean {
   const allowed = VALID_TRANSITIONS[current];
   if (!allowed) return false;
   return allowed.includes(next as OrderStatus);
+}
+
+function asRecord(value: unknown): OrderMetadata {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as OrderMetadata;
+  return {};
+}
+
+function getString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 async function getDriverId(userId: string): Promise<string | null> {
@@ -45,7 +56,7 @@ export async function acceptOrderByCourierAction(orderId: string) {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('id, status, courier_id, order_type, metadata')
+    .select('id, status, courier_id, order_type, metadata, business_id, order_number')
     .eq('id', orderId)
     .single();
 
@@ -55,11 +66,28 @@ export async function acceptOrderByCourierAction(orderId: string) {
   }
 
   const isManual = order.order_type === 'manual_delivery';
-  const acceptFrom = isManual
-    ? (order.courier_id === userId ? ['assigned'] : ['pending'])
-    : (order.courier_id === userId ? ['assigned'] : ['confirmed', 'ready']);
+  const currentMetadata = asRecord(order.metadata);
+  const assignmentMode = getString(currentMetadata.assignment_mode) || 'public';
+  const closestCourierId = getString(currentMetadata.closest_courier_id);
+  const isAssignedToMe = order.courier_id === userId && order.status === 'assigned';
+  const isPublicManual =
+    isManual &&
+    order.status === 'pending' &&
+    !order.courier_id &&
+    ['public', 'public_all', 'closest_first'].includes(assignmentMode);
 
-  if (!acceptFrom.includes(order.status)) {
+  if (isManual && assignmentMode === 'closest_first' && closestCourierId && closestCourierId !== userId) {
+    return { success: false, error: 'Este pedido fue enviado primero a otro repartidor.' };
+  }
+
+  if (isManual && !isAssignedToMe && !isPublicManual) {
+    return { success: false, error: 'El pedido no está disponible para aceptación' };
+  }
+
+  const isNormalAssignedToMe = !isManual && isAssignedToMe;
+  const isNormalAvailable = !isManual && !order.courier_id && ['confirmed', 'ready'].includes(order.status);
+
+  if (!isManual && !isNormalAssignedToMe && !isNormalAvailable) {
     return { success: false, error: 'El pedido no está disponible para aceptación' };
   }
 
@@ -68,30 +96,35 @@ export async function acceptOrderByCourierAction(orderId: string) {
   const courierName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Repartidor';
 
   const metadata = {
-    ...(order.metadata || {}),
+    ...currentMetadata,
     accepted_at: now,
+    accepted_by: userId,
+    accepted_by_name: courierName,
   };
 
-  const updateQuery = supabase
+  let updateQuery = supabase
     .from('orders')
     .update({
       courier_id: userId,
       status: 'accepted',
       updated_at: now,
       metadata,
-    });
+    })
+    .eq('id', orderId);
 
   if (isManual) {
-    updateQuery.eq('status', 'pending').is('courier_id', null);
-  } else if (order.courier_id === userId) {
-    updateQuery.eq('status', 'assigned');
+    if (isAssignedToMe) {
+      updateQuery = updateQuery.eq('status', 'assigned').eq('courier_id', userId);
+    } else {
+      updateQuery = updateQuery.eq('status', 'pending').is('courier_id', null);
+    }
+  } else if (isNormalAssignedToMe) {
+    updateQuery = updateQuery.eq('status', 'assigned').eq('courier_id', userId);
   } else {
-    updateQuery.eq('status', 'confirmed');
+    updateQuery = updateQuery.in('status', ['confirmed', 'ready']).is('courier_id', null);
   }
 
-  updateQuery.eq('id', orderId);
-
-  const { data: updatedOrder, error: assignError } = await updateQuery.select().single();
+  const { data: updatedOrder, error: assignError } = await updateQuery.select('id').maybeSingle();
 
   if (assignError || !updatedOrder) {
     return { success: false, error: 'El pedido ya no está disponible o ya fue tomado.' };
@@ -103,14 +136,38 @@ export async function acceptOrderByCourierAction(orderId: string) {
     notes: `Aceptado por ${courierName}`,
   });
 
-  await supabase.from('notifications').insert({
-    recipient_id: order.courier_id || userId,
-    sender_id: userId,
-    notification_type: 'order_update',
-    title: 'Pedido aceptado',
-    message: `Has aceptado el pedido #${order.id?.slice(0, 8)}`,
-    channels: ['in_app'],
-  });
+  const { data: business } = await supabase
+    .from('businesses')
+    .select('owner_id')
+    .eq('id', order.business_id)
+    .maybeSingle();
+
+  const { data: admins } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('role', 'admin')
+    .eq('status', 'active');
+
+  const recipientIds = new Set<string>();
+  if (business?.owner_id) recipientIds.add(business.owner_id);
+  for (const admin of admins || []) {
+    if (admin.id) recipientIds.add(admin.id);
+  }
+
+  if (recipientIds.size > 0) {
+    await supabase.from('notifications').insert(
+      Array.from(recipientIds).map((recipientId) => ({
+        recipient_id: recipientId,
+        sender_id: userId,
+        notification_type: 'order_update',
+        title: 'Pedido tomado por repartidor',
+        message: `${courierName} tomó el pedido #${order.order_number || order.id?.slice(0, 8)}`,
+        order_id: orderId,
+        channels: ['in_app'],
+        metadata: { courier_id: userId, courier_name: courierName },
+      })),
+    );
+  }
 
   await serverAudit.logAction(userId, result.session.user.email, 'courier', 'accept_order', 'orders', orderId);
 
@@ -139,7 +196,7 @@ export async function markOrderPickedUpAction(orderId: string) {
 
   const now = new Date().toISOString();
   const metadata = {
-    ...(order.metadata || {}),
+    ...asRecord(order.metadata),
     picked_up_at: now,
   };
 
@@ -187,7 +244,7 @@ export async function markOrderInTransitAction(orderId: string) {
 
   const now = new Date().toISOString();
   const metadata = {
-    ...(order.metadata || {}),
+    ...asRecord(order.metadata),
     in_transit_at: now,
   };
 
@@ -235,7 +292,7 @@ export async function markOrderDeliveredAction(orderId: string, proofPayload?: {
 
   const now = new Date().toISOString();
   const metadata = {
-    ...(order.metadata || {}),
+    ...asRecord(order.metadata),
     delivered_at: now,
     delivery_proof: proofPayload || null,
   };
@@ -327,7 +384,7 @@ export async function reportOrderProblemAction(
   if (order.courier_id !== userId) return { success: false, error: 'Este pedido no te pertenece' };
 
   const now = new Date().toISOString();
-  const currentMetadata = order.metadata || {};
+  const currentMetadata = asRecord(order.metadata);
   const updatedMetadata = {
     ...currentMetadata,
     problem_reported: true,
