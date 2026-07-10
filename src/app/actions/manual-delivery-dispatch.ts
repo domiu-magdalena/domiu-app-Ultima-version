@@ -185,12 +185,27 @@ export async function assignManualOrderToCourierAction(orderId: string, courierI
     if (error || !order) return { success: false, error };
 
     const supabase = getServiceClient();
+    const { data: courier, error: courierError } = await supabase
+      .from('drivers')
+      .select('id, status, is_active')
+      .eq('id', courierId)
+      .maybeSingle();
+
+    if (courierError || !courier) {
+      return { success: false, error: 'El repartidor seleccionado no existe.' };
+    }
+
+    if (courier.is_active !== true || courier.status === 'suspended') {
+      return { success: false, error: 'El repartidor seleccionado no está activo para recibir pedidos.' };
+    }
+
     const now = new Date().toISOString();
     const metadata = {
       ...asRecord(order.metadata),
       assignment_mode: 'manual',
       manually_assigned_at: now,
       manually_assigned_by: admin.auth.session.user.id,
+      manually_assigned_courier_status: courier.status || 'offline',
     };
 
     const { data: updatedOrder, error: updateError } = await supabase
@@ -227,7 +242,7 @@ export async function assignManualOrderToCourierAction(orderId: string, courierI
       'assign_manual_order_to_courier',
       'orders',
       orderId,
-      { courier_id: courierId },
+      { courier_id: courierId, courier_status: courier.status || 'offline' },
     );
 
     return { success: true };
