@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { orderService, type OrderData, type OrderStatus } from '@/services/orders';
+import { orderService, isManualOrderVisibleToCourier, type OrderData, type OrderStatus } from '@/services/orders';
 import { assignmentService, type CourierDriver, type AssignmentRequest } from '@/services/assignment';
 import type { DriverStatus } from '@/types/database';
 import { getBrowserClient } from '@/lib/db/supabase';
@@ -62,7 +62,7 @@ export function CourierProvider({
     try {
       const [c, avail, courierOrders, reqs] = await Promise.all([
         assignmentService.getCourierById(courierId),
-        orderService.getAvailableOrders(),
+        orderService.getAvailableOrders(courierId),
         orderService.getCourierOrders(courierId),
         assignmentService.getPendingRequests(courierId),
       ]);
@@ -125,9 +125,10 @@ export function CourierProvider({
       });
 
       setAvailableOrders((prev) => {
-        const isAvailable =
-          (['confirmed', 'ready'].includes(order.status) && !order.courier_id) ||
-          (order.status === 'pending' && order.order_type === 'manual_delivery' && !order.courier_id);
+        const normalAvailable = ['confirmed', 'ready'].includes(order.status) && !order.courier_id;
+        const manualVisible = isManualOrderVisibleToCourier(order, courierId);
+        const isAvailable = normalAvailable || manualVisible;
+
         if (isAvailable) {
           const exists = prev.findIndex((o) => o.id === order.id);
           if (exists >= 0) {
