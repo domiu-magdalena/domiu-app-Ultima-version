@@ -83,13 +83,13 @@ export default function AdminOrders() {
     if (!selected) return;
     try {
       setActionLoading(true);
-      const { assignNearestCourierToManualOrderAction } = await import('@/app/actions/admin-orders');
+      const { assignNearestCourierToManualOrderAction } = await import('@/app/actions/manual-delivery-dispatch');
       const result = await assignNearestCourierToManualOrderAction(selected.id);
       if (!result.success) {
         setAlert({ type: 'error', msg: result.error || 'No se pudo asignar el repartidor' });
         return;
       }
-      setAlert({ type: 'success', msg: `Pedido asignado a ${result.courierName}` });
+      setAlert({ type: 'success', msg: `Pedido asignado a ${result.courierName}${result.distanceKm ? ` (${result.distanceKm} km)` : ''}` });
       setSelected(null);
       reloadOrders();
     } catch {
@@ -99,12 +99,32 @@ export default function AdminOrders() {
     }
   };
 
-  const handlePublishManualOrder = async () => {
+  const handlePublishClosestCourier = async () => {
     if (!selected) return;
     try {
       setActionLoading(true);
-      const { publishManualDeliveryOrderAction } = await import('@/app/actions/admin-orders');
-      const result = await publishManualDeliveryOrderAction(selected.id);
+      const { notifyClosestCourierForManualOrderAction } = await import('@/app/actions/manual-delivery-dispatch');
+      const result = await notifyClosestCourierForManualOrderAction(selected.id);
+      if (!result.success) {
+        setAlert({ type: 'error', msg: result.error || 'No se pudo publicar al repartidor cercano' });
+        return;
+      }
+      setAlert({ type: 'success', msg: `Pedido enviado primero a ${result.courierName}${result.distanceKm ? ` (${result.distanceKm} km)` : ''}` });
+      setSelected(null);
+      reloadOrders();
+    } catch {
+      setAlert({ type: 'error', msg: 'Error al publicar al repartidor cercano' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handlePublishAllCouriers = async () => {
+    if (!selected) return;
+    try {
+      setActionLoading(true);
+      const { publishManualDeliveryOrderToAllCouriersAction } = await import('@/app/actions/manual-delivery-dispatch');
+      const result = await publishManualDeliveryOrderToAllCouriersAction(selected.id);
       if (!result.success) {
         setAlert({ type: 'error', msg: result.error || 'No se pudo publicar el pedido' });
         return;
@@ -197,10 +217,13 @@ export default function AdminOrders() {
             {selected.order_type === 'manual_delivery' && selected.status === 'pending' && !selected.courier_name && (
               <div className="space-y-2 pt-2">
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" size="sm" onClick={handleAssignNearestCourier} disabled={actionLoading}>Asignar repartidor cercano</Button>
-                  <Button variant="outline" size="sm" onClick={handlePublishManualOrder} disabled={actionLoading}>Publicar a repartidores</Button>
+                  <Button variant="secondary" size="sm" onClick={handleAssignNearestCourier} disabled={actionLoading}>Asignar más cercano</Button>
+                  <Button variant="outline" size="sm" onClick={handlePublishClosestCourier} disabled={actionLoading}>Publicar al más cercano</Button>
+                  <Button variant="outline" size="sm" onClick={handlePublishAllCouriers} disabled={actionLoading}>Publicar a todos</Button>
                 </div>
-                <p className="text-sm text-muted-foreground">Puedes asignar el pedido al repartidor más cercano o publicarlo para que lo tomen.</p>
+                <p className="text-sm text-muted-foreground">
+                  Asignar fija el pedido a un repartidor. Publicar lo deja libre para aceptación; el primero que acepte lo toma.
+                </p>
               </div>
             )}
             <div className="flex gap-2 pt-2">
