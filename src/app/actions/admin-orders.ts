@@ -434,7 +434,7 @@ export async function getAvailableCouriersForAdmin() {
         id: driver.id,
         name: [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Sin nombre',
         phone: profile?.phone || '',
-        status: driver.status || null,
+        status: driver.status || 'offline',
       };
     });
   } catch {
