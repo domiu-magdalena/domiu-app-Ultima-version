@@ -47,6 +47,7 @@ export default function AdminOrders() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AdminOrder | null>(null);
   const [newStatus, setNewStatus] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   const reloadOrders = async () => {
@@ -64,13 +65,58 @@ export default function AdminOrders() {
   const handleStatusChange = async () => {
     if (!newStatus || !selected) return;
     try {
+      setActionLoading(true);
       await adminService.updateOrderStatusAdmin(selected.id, newStatus as OrderStatus);
       if (profile) await adminService.logAudit(profile.id, `${profile.first_name} ${profile.last_name}`, 'cambiar_estado_pedido', 'order', selected.id, `#${selected.order_number}: ${selected.status} -> ${newStatus}`);
       setAlert({ type: 'success', msg: `Pedido #${selected.order_number} actualizado a ${newStatus}` });
       setSelected(null);
       setNewStatus('');
       reloadOrders();
-    } catch { setAlert({ type: 'error', msg: 'Error al actualizar' }); }
+    } catch {
+      setAlert({ type: 'error', msg: 'Error al actualizar' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAssignNearestCourier = async () => {
+    if (!selected) return;
+    try {
+      setActionLoading(true);
+      const { assignNearestCourierToManualOrderAction } = await import('@/app/actions/admin-orders');
+      const result = await assignNearestCourierToManualOrderAction(selected.id);
+      if (!result.success) {
+        setAlert({ type: 'error', msg: result.error || 'No se pudo asignar el repartidor' });
+        return;
+      }
+      setAlert({ type: 'success', msg: `Pedido asignado a ${result.courierName}` });
+      setSelected(null);
+      reloadOrders();
+    } catch {
+      setAlert({ type: 'error', msg: 'Error al asignar repartidor' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handlePublishManualOrder = async () => {
+    if (!selected) return;
+    try {
+      setActionLoading(true);
+      const { publishManualDeliveryOrderAction } = await import('@/app/actions/admin-orders');
+      const result = await publishManualDeliveryOrderAction(selected.id);
+      if (!result.success) {
+        setAlert({ type: 'error', msg: result.error || 'No se pudo publicar el pedido' });
+        return;
+      }
+      setAlert({ type: 'success', msg: `Pedido publicado a ${result.notifiedCount} repartidores` });
+      setSelected(null);
+      reloadOrders();
+    } catch {
+      setAlert({ type: 'error', msg: 'Error al publicar pedido' });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const columns: EnterpriseColumn<AdminOrder>[] = [
@@ -148,8 +194,17 @@ export default function AdminOrders() {
               <p className="mb-1 text-sm text-muted-foreground">Cambiar estado manualmente:</p>
               <Select value={newStatus} onChange={e => setNewStatus(e.target.value)} options={ORDER_STATUSES.map(s => ({ value: s, label: s.replace('_', ' ') }))} />
             </div>
+            {selected.order_type === 'manual_delivery' && selected.status === 'pending' && !selected.courier_name && (
+              <div className="space-y-2 pt-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm" onClick={handleAssignNearestCourier} disabled={actionLoading}>Asignar repartidor cercano</Button>
+                  <Button variant="outline" size="sm" onClick={handlePublishManualOrder} disabled={actionLoading}>Publicar a repartidores</Button>
+                </div>
+                <p className="text-sm text-muted-foreground">Puedes asignar el pedido al repartidor más cercano o publicarlo para que lo tomen.</p>
+              </div>
+            )}
             <div className="flex gap-2 pt-2">
-              <Button onClick={handleStatusChange} disabled={newStatus === selected.status}>Actualizar Estado</Button>
+              <Button onClick={handleStatusChange} disabled={newStatus === selected.status || actionLoading}>Actualizar Estado</Button>
               <Button variant="ghost" onClick={() => setSelected(null)}>Cerrar</Button>
             </div>
           </div>

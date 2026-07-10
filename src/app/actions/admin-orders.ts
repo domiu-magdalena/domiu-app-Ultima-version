@@ -464,3 +464,191 @@ export async function findNearestAvailableCourier(businessLat: number, businessL
     return null;
   }
 }
+
+async function getOrderBusinessCoordinates(orderId: string) {
+  const supabase = getServiceClient();
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .select('id, business_id, order_type, status, courier_id, order_number, metadata')
+    .eq('id', orderId)
+    .single();
+
+  if (orderError || !order) return { error: 'Pedido no encontrado' };
+  if (order.order_type !== 'manual_delivery') return { error: 'Solo pedidos de domicilio manual pueden asignarse' };
+  if (order.status !== 'pending') return { error: 'Solo pedidos pendientes pueden asignarse' };
+  if (order.courier_id) return { error: 'El pedido ya tiene repartidor asignado' };
+
+  const metadata = (order.metadata as Record<string, any>) || {};
+  let businessLat = metadata.business_lat as number | null;
+  let businessLng = metadata.business_lng as number | null;
+
+  if (!businessLat || !businessLng) {
+    const { data: backendAddress, error: addrError } = await supabase
+      .from('business_addresses')
+      .select('latitude, longitude')
+      .eq('business_id', order.business_id)
+      .limit(1)
+      .single();
+
+    if (addrError || !backendAddress || backendAddress.latitude == null || backendAddress.longitude == null) {
+      return { error: 'No se pudieron obtener las coordenadas del local' };
+    }
+
+    businessLat = backendAddress.latitude;
+    businessLng = backendAddress.longitude;
+  }
+
+  return { businessLat, businessLng, order };
+}
+
+export async function assignNearestCourierToManualOrderAction(orderId: string) {
+  try {
+    const auth = await requireAuth();
+    if (auth.error) return { success: false, error: auth.error.message };
+    if (auth.session.profile.role !== 'admin') {
+      return { success: false, error: 'Solo administradores pueden asignar pedidos' };
+    }
+
+    const coordsResult = await getOrderBusinessCoordinates(orderId);
+    if ('error' in coordsResult) return { success: false, error: coordsResult.error };
+
+    const nearest = await findNearestAvailableCourier(coordsResult.businessLat, coordsResult.businessLng);
+    if (!nearest) {
+      return { success: false, error: 'No hay repartidores disponibles o sin ubicación válida' };
+    }
+
+    const supabase = getServiceClient();
+    const now = new Date().toISOString();
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update({ courier_id: nearest.id, status: 'assigned', updated_at: now })
+      .eq('id', orderId)
+      .eq('status', 'pending')
+      .is('courier_id', null)
+      .select()
+      .maybeSingle();
+
+    if (updateError || !updatedOrder) {
+      return { success: false, error: 'No se pudo asignar el repartidor. El pedido pudo haber sido tomado.' };
+    }
+
+    await supabase.from('order_tracking').insert({
+      order_id: orderId,
+      status: 'assigned',
+      notes: `Asignado a ${nearest.name}`,
+    });
+
+    try {
+      try {
+        const orderObj = coordsResult.order as Record<string, unknown> | undefined;
+        const orderNumber = orderObj && typeof orderObj['order_number'] === 'string' ? (orderObj['order_number'] as string) : orderId;
+        await supabase.rpc('create_notification', {
+          p_recipient_id: nearest.id,
+          p_notification_type: 'order_assigned',
+          p_title: 'Pedido asignado',
+          p_message: `Se te ha asignado el pedido #${orderNumber}`,
+          p_order_id: orderId,
+        });
+      } catch {}
+    } catch {}
+
+    await serverAudit.logAction(
+      auth.session.user.id,
+      auth.session.user.email,
+      auth.session.profile.role,
+      'assign_manual_order',
+      'orders',
+      orderId,
+      {
+        courier_id: nearest.id,
+        courier_name: nearest.name,
+        distance_km: nearest.distanceKm,
+      },
+    );
+
+    return { success: true, courierName: nearest.name };
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err.message : 'Error desconocido';
+    console.error('[admin-orders] assignNearestCourierToManualOrderAction error:', err);
+    return { success: false, error };
+  }
+}
+
+export async function publishManualDeliveryOrderAction(orderId: string) {
+  try {
+    const auth = await requireAuth();
+    if (auth.error) return { success: false, error: auth.error.message };
+    if (auth.session.profile.role !== 'admin') {
+      return { success: false, error: 'Solo administradores pueden publicar pedidos' };
+    }
+
+    const supabase = getServiceClient();
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id, order_type, status, courier_id, order_number, metadata')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) return { success: false, error: 'Pedido no encontrado' };
+    if (order.order_type !== 'manual_delivery') return { success: false, error: 'Solo pedidos de domicilio manual pueden publicarse' };
+    if (order.courier_id) return { success: false, error: 'El pedido ya tiene repartidor asignado' };
+
+    const now = new Date().toISOString();
+    const metadata = { ...(order.metadata as Record<string, any> || {}), assignment_mode: 'public' };
+
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update({ status: 'pending', updated_at: now, metadata })
+      .eq('id', orderId)
+      .select()
+      .maybeSingle();
+
+    if (updateError || !updatedOrder) {
+      return { success: false, error: 'No se pudo publicar el pedido' };
+    }
+
+    const { data: drivers } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('status', 'available')
+      .eq('is_active', true);
+
+    const availableDriverIds = (drivers || []).map((d: any) => d.id).filter(Boolean);
+    if (availableDriverIds.length > 0) {
+      const notifications = availableDriverIds.map((driverId: string) => ({
+        recipient_id: driverId,
+        sender_id: auth.session.user.id,
+        notification_type: 'courier_nearby',
+        title: 'Nuevo pedido disponible',
+        message: `Un pedido manual está disponible para entrega #${order.order_number}`,
+        order_id: orderId,
+        channels: ['in_app'],
+      }));
+      try {
+        await supabase.from('notifications').insert(notifications);
+      } catch {}
+    }
+
+    await supabase.from('order_tracking').insert({
+      order_id: orderId,
+      status: 'pending',
+      notes: 'Pedido publicado a repartidores disponibles',
+    });
+
+    await serverAudit.logAction(
+      auth.session.user.id,
+      auth.session.user.email,
+      auth.session.profile.role,
+      'publish_manual_order',
+      'orders',
+      orderId,
+      { notified_couriers: availableDriverIds.length },
+    );
+
+    return { success: true, notifiedCount: availableDriverIds.length };
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err.message : 'Error desconocido';
+    console.error('[admin-orders] publishManualDeliveryOrderAction error:', err);
+    return { success: false, error };
+  }
+}

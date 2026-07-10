@@ -72,17 +72,30 @@ export async function acceptOrderByCourierAction(orderId: string) {
     accepted_at: now,
   };
 
-  const { error: assignError } = await supabase
+  const updateQuery = supabase
     .from('orders')
     .update({
       courier_id: userId,
       status: 'accepted',
       updated_at: now,
       metadata,
-    })
-    .eq('id', orderId);
+    });
 
-  if (assignError) return { success: false, error: 'Error al aceptar pedido: ' + assignError.message };
+  if (isManual) {
+    updateQuery.eq('status', 'pending').is('courier_id', null);
+  } else if (order.courier_id === userId) {
+    updateQuery.eq('status', 'assigned');
+  } else {
+    updateQuery.eq('status', 'confirmed');
+  }
+
+  updateQuery.eq('id', orderId);
+
+  const { data: updatedOrder, error: assignError } = await updateQuery.select().single();
+
+  if (assignError || !updatedOrder) {
+    return { success: false, error: 'El pedido ya no está disponible o ya fue tomado.' };
+  }
 
   await supabase.from('order_tracking').insert({
     order_id: orderId,
