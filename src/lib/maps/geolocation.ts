@@ -1,6 +1,6 @@
 'use client';
 
-import { loadGoogleMaps } from '@/lib/maps/loader';
+import { hasApiKey, loadGoogleMaps } from '@/lib/maps/loader';
 
 export interface ExactLocation {
   lat: number;
@@ -58,11 +58,17 @@ function coordinateFallback(lat: number, lng: number, accuracy: number): ExactLo
   };
 }
 
+export function isCoordinateFallback(address: string): boolean {
+  return address.startsWith('Ubicación GPS ');
+}
+
 export async function reverseGeocodeCoordinates(
   lat: number,
   lng: number,
   accuracy = 0,
 ): Promise<ExactLocation> {
+  if (!hasApiKey()) return coordinateFallback(lat, lng, accuracy);
+
   try {
     await loadGoogleMaps();
     if (!window.google?.maps) return coordinateFallback(lat, lng, accuracy);
@@ -84,7 +90,7 @@ export async function reverseGeocodeCoordinates(
       postalCode: parts.postalCode,
     };
   } catch {
-    // La coordenada GPS sigue siendo válida para tarifa y seguimiento aunque
+    // Las coordenadas GPS siguen siendo válidas para tarifa y seguimiento aunque
     // Google no pueda devolver el nombre de la calle en ese momento.
     return coordinateFallback(lat, lng, accuracy);
   }
