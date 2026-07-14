@@ -232,8 +232,8 @@ export function AdminLiveDashboard() {
               <strong className="text-foreground">{loading ? '...' : couriers.length}</strong>
             </div>
             <div className="flex items-center justify-between rounded-2xl bg-muted/50 px-4 py-3">
-              <span className="text-sm text-muted-foreground">Usuarios totales</span>
-              <strong className="text-foreground">{loading ? '...' : stats?.totalUsers ?? 0}</strong>
+              <span className="text-sm text-muted-foreground">Clientes registrados</span>
+              <strong className="text-foreground">{loading ? '...' : stats?.totalCustomers ?? 0}</strong>
             </div>
           </div>
 
@@ -260,8 +260,8 @@ export function AdminLiveDashboard() {
       <section className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-3xl border border-border/70 bg-card p-5">
           <Users className="h-5 w-5 text-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">Usuarios registrados</p>
-          <p className="mt-1 text-2xl font-black text-foreground">{loading ? '...' : stats?.totalUsers ?? 0}</p>
+          <p className="mt-4 text-sm text-muted-foreground">Clientes registrados</p>
+          <p className="mt-1 text-2xl font-black text-foreground">{loading ? '...' : stats?.totalCustomers ?? 0}</p>
         </div>
         <div className="rounded-3xl border border-border/70 bg-card p-5">
           <Building2 className="h-5 w-5 text-primary" />
