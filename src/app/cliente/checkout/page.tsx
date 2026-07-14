@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Clock3, LocateFixed, MapPin, Route } from 'lucide-react';
@@ -25,21 +25,12 @@ function customizationSummary(customization?: CartCustomization) {
   if (customization.style) rows.push(`Estilo: ${customization.style}`);
   if (customization.sauces?.length) rows.push(`Salsas: ${customization.sauces.join(', ')}`);
   if (customization.saucePresentation) {
-    rows.push(
-      `Presentación: ${customization.saucePresentation === 'aparte' ? 'salsas aparte' : 'alitas bañadas en salsa'}`,
-    );
+    rows.push(`Presentación: ${customization.saucePresentation === 'aparte' ? 'salsas aparte' : 'alitas bañadas en salsa'}`);
   }
   if (customization.extras?.length) {
-    rows.push(
-      `Adicionales: ${customization.extras
-        .filter((extra) => extra.quantity > 0)
-        .map((extra) => `${extra.quantity}x ${extra.name}`)
-        .join(', ')}`,
-    );
+    rows.push(`Adicionales: ${customization.extras.filter((extra) => extra.quantity > 0).map((extra) => `${extra.quantity}x ${extra.name}`).join(', ')}`);
   }
-  if (customization.preparationNote?.trim()) {
-    rows.push(`Nota de preparación: ${customization.preparationNote.trim()}`);
-  }
+  if (customization.preparationNote?.trim()) rows.push(`Nota: ${customization.preparationNote.trim()}`);
   return rows;
 }
 
@@ -53,7 +44,6 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { profile } = useAuth();
   const { items, businessId, businessName, subtotal, isEmpty, clearCart } = useCart();
-
   const [addresses, setAddresses] = useState<DeliveryAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [loadingAddresses, setLoadingAddresses] = useState(true);
@@ -71,7 +61,7 @@ export default function CheckoutPage() {
     [addresses, selectedAddressId],
   );
 
-  const loadAddresses = async (preferredId?: string) => {
+  const loadAddresses = useCallback(async (preferredId?: string) => {
     if (!profile?.id) return;
     setLoadingAddresses(true);
     try {
@@ -86,11 +76,11 @@ export default function CheckoutPage() {
     } finally {
       setLoadingAddresses(false);
     }
-  };
+  }, [profile?.id]);
 
   useEffect(() => {
     void loadAddresses();
-  }, [profile?.id]);
+  }, [loadAddresses]);
 
   useEffect(() => {
     if (!businessId || !selectedAddressId) {
@@ -99,16 +89,17 @@ export default function CheckoutPage() {
     }
 
     let active = true;
-    setQuoteLoading(true);
-    setQuoteError('');
-    const supabase = getBrowserClient();
-    void supabase
-      .rpc('calculate_delivery_quote', {
-        p_business_id: businessId,
-        p_address_id: selectedAddressId,
-      })
-      .single()
-      .then(({ data, error: rpcError }) => {
+    const calculate = async () => {
+      setQuoteLoading(true);
+      setQuoteError('');
+      try {
+        const supabase = getBrowserClient();
+        const { data, error: rpcError } = await supabase
+          .rpc('calculate_delivery_quote', {
+            p_business_id: businessId,
+            p_address_id: selectedAddressId,
+          })
+          .single();
         if (!active) return;
         if (rpcError || !data) {
           setQuote(null);
@@ -121,11 +112,11 @@ export default function CheckoutPage() {
           duration_minutes: Number(row.duration_minutes),
           delivery_fee: Number(row.delivery_fee),
         });
-      })
-      .finally(() => {
+      } finally {
         if (active) setQuoteLoading(false);
-      });
-
+      }
+    };
+    void calculate();
     return () => {
       active = false;
     };
@@ -157,35 +148,22 @@ export default function CheckoutPage() {
       );
       await loadAddresses(saved.id);
     } catch (cause) {
-      setError(
-        cause instanceof GeolocationPositionError
-          ? 'No se pudo acceder a tu ubicación. Revisa el permiso del navegador.'
-          : cause instanceof Error
-            ? cause.message
-            : 'No se pudo guardar la ubicación',
-      );
+      setError(cause instanceof Error ? cause.message : 'No se pudo guardar la ubicación');
     } finally {
       setLocating(false);
     }
   };
 
   const deliveryFee = quote?.delivery_fee ?? 0;
-  const tax = 0;
-  const total = subtotal + deliveryFee + tax;
+  const total = subtotal + deliveryFee;
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!profile) return setError('Debes iniciar sesión para confirmar el pedido.');
-    if (!businessId || !businessName || items.length === 0) {
-      return setError('El carrito no contiene un pedido válido.');
-    }
-    if (!selectedAddressId || !selectedAddress) {
-      return setError('Selecciona una dirección de entrega.');
-    }
-    if (selectedAddress.latitude == null || selectedAddress.longitude == null) {
-      return setError('Comparte la ubicación exacta de la dirección antes de confirmar.');
-    }
-    if (!quote) return setError(quoteError || 'Espera mientras calculamos el valor del domicilio.');
+    if (!businessId || !businessName || items.length === 0) return setError('El carrito no contiene un pedido válido.');
+    if (!selectedAddressId || !selectedAddress) return setError('Selecciona una dirección de entrega.');
+    if (selectedAddress.latitude == null || selectedAddress.longitude == null) return setError('Comparte la ubicación exacta de la dirección antes de confirmar.');
+    if (!quote) return setError(quoteError || 'Espera mientras calculamos el domicilio.');
 
     setPlacing(true);
     setError('');
@@ -201,10 +179,9 @@ export default function CheckoutPage() {
           specialInstructions: item.customization?.preparationNote,
         })),
         subtotal,
-        taxAmount: tax,
+        taxAmount: 0,
         instructions: instructions.trim(),
       });
-
       if (!result.success) throw new Error(result.error);
       setPlaced(true);
       clearCart();
@@ -218,11 +195,9 @@ export default function CheckoutPage() {
   if (isEmpty && !placed) {
     return (
       <main className="mx-auto flex min-h-[70vh] max-w-3xl items-center justify-center px-4 py-12">
-        <section className="w-full rounded-3xl border border-dashed border-border bg-card p-10 text-center">
+        <section className="w-full rounded-3xl border border-dashed bg-card p-10 text-center">
           <h1 className="text-xl font-bold">Tu carrito está vacío</h1>
-          <Link href="/cliente" className="mt-6 inline-flex rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">
-            Explorar negocios
-          </Link>
+          <Link href="/cliente" className="mt-6 inline-flex rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">Explorar negocios</Link>
         </section>
       </main>
     );
@@ -230,99 +205,51 @@ export default function CheckoutPage() {
 
   if (placed) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4">
+      <main className="flex min-h-screen items-center justify-center px-4">
         <section className="max-w-md rounded-3xl border bg-card p-10 text-center shadow-sm">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10 text-3xl">✓</div>
           <h1 className="text-2xl font-bold">¡Pedido confirmado!</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Estamos abriendo el seguimiento de tu pedido.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Abriendo el seguimiento en vivo.</p>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-background pb-20">
+    <main className="min-h-screen pb-20">
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-5">
         <form onSubmit={submit} className="space-y-5 lg:col-span-3">
           <section className="rounded-2xl border bg-card p-5">
             <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="font-bold">Dirección de entrega</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Las coordenadas permiten calcular el domicilio y hacer seguimiento.</p>
-              </div>
+              <div><h2 className="font-bold">Dirección de entrega</h2><p className="mt-1 text-xs text-muted-foreground">Las coordenadas se usan para tarifa y seguimiento.</p></div>
               <Link href="/cliente/direcciones" className="text-xs font-semibold text-primary">Administrar</Link>
             </div>
-
-            {loadingAddresses ? (
-              <p className="text-sm text-muted-foreground">Cargando direcciones…</p>
-            ) : addresses.length > 0 ? (
+            {loadingAddresses ? <p className="text-sm text-muted-foreground">Cargando direcciones…</p> : addresses.length > 0 ? (
               <div className="space-y-2">
                 {addresses.map((address) => (
-                  <label key={address.id} className={`flex cursor-pointer gap-3 rounded-xl border p-3 ${selectedAddressId === address.id ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                  <label key={address.id} className={`flex cursor-pointer gap-3 rounded-xl border p-3 ${selectedAddressId === address.id ? 'border-primary bg-primary/5' : ''}`}>
                     <input type="radio" name="address" checked={selectedAddressId === address.id} onChange={() => setSelectedAddressId(address.id)} />
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <span className="min-w-0 text-sm">
-                      <strong className="block">{address.label || (address.type === 'home' ? 'Casa' : 'Dirección')}</strong>
-                      <span className="block text-xs text-muted-foreground">{address.street_address}</span>
-                      <span className={`mt-1 block text-[11px] font-medium ${address.latitude != null ? 'text-success' : 'text-warning'}`}>
-                        {address.latitude != null ? 'Ubicación exacta guardada' : 'Falta compartir ubicación exacta'}
-                      </span>
-                    </span>
+                    <span className="min-w-0 text-sm"><strong className="block">{address.label || 'Dirección'}</strong><span className="block text-xs text-muted-foreground">{address.street_address}</span><span className={`mt-1 block text-[11px] font-medium ${address.latitude != null ? 'text-success' : 'text-warning'}`}>{address.latitude != null ? 'Ubicación exacta guardada' : 'Faltan coordenadas'}</span></span>
                   </label>
                 ))}
               </div>
-            ) : (
-              <p className="rounded-xl bg-warning/10 p-3 text-sm text-warning">Todavía no tienes una dirección guardada.</p>
-            )}
-
-            <button type="button" onClick={() => void useCurrentLocation()} disabled={locating} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-bold text-primary disabled:opacity-50">
-              <LocateFixed className={`h-4 w-4 ${locating ? 'animate-pulse' : ''}`} />
-              {locating ? 'Obteniendo ubicación exacta…' : selectedAddress ? 'Actualizar con mi ubicación actual' : 'Usar mi ubicación actual'}
-            </button>
+            ) : <p className="rounded-xl bg-warning/10 p-3 text-sm text-warning">No tienes una dirección guardada.</p>}
+            <button type="button" onClick={() => void useCurrentLocation()} disabled={locating} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-bold text-primary disabled:opacity-50"><LocateFixed className={`h-4 w-4 ${locating ? 'animate-pulse' : ''}`} />{locating ? 'Obteniendo ubicación…' : selectedAddress ? 'Actualizar con mi ubicación actual' : 'Usar mi ubicación actual'}</button>
           </section>
 
-          <section className="rounded-2xl border bg-card p-5">
-            <h2 className="mb-3 font-bold">Instrucciones de entrega</h2>
-            <textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Ejemplo: llamar al llegar o entregar en portería." rows={4} className="w-full resize-y rounded-xl border bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-          </section>
-
+          <section className="rounded-2xl border bg-card p-5"><h2 className="mb-3 font-bold">Instrucciones de entrega</h2><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Ejemplo: llamar al llegar o entregar en portería." rows={4} className="w-full resize-y rounded-xl border bg-background px-3 py-3 text-sm outline-none" /></section>
           {quoteLoading && <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">Calculando distancia y tarifa…</p>}
           {quoteError && <p className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">{quoteError}</p>}
           {error && <p className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-
-          <button type="submit" disabled={placing || quoteLoading || !quote} className="flex w-full items-center justify-center rounded-2xl bg-primary py-4 font-bold text-primary-foreground disabled:opacity-60">
-            {placing ? 'Creando pedido…' : `Confirmar pedido — ${formatCurrency(total)}`}
-          </button>
+          <button type="submit" disabled={placing || quoteLoading || !quote} className="w-full rounded-2xl bg-primary py-4 font-bold text-primary-foreground disabled:opacity-60">{placing ? 'Creando pedido…' : `Confirmar pedido — ${formatCurrency(total)}`}</button>
         </form>
 
         <aside className="h-fit rounded-2xl border bg-card p-5 lg:sticky lg:top-20 lg:col-span-2">
-          <h2 className="font-bold">Resumen del pedido</h2>
-          <p className="mb-4 text-sm text-muted-foreground">{businessName}</p>
-
-          <div className="space-y-4">
-            {items.map((item) => (
-              <article key={item.id} className="border-b pb-4 last:border-b-0">
-                <div className="flex justify-between gap-3">
-                  <span className="font-medium">{item.quantity}x {item.product.name}</span>
-                  <span className="font-semibold">{formatCurrency(item.unitPrice * item.quantity)}</span>
-                </div>
-                {customizationSummary(item.customization).map((row) => <p key={row} className="mt-1 text-xs text-muted-foreground">{row}</p>)}
-              </article>
-            ))}
-          </div>
-
-          <div className="mt-4 space-y-2 border-t pt-4 text-sm">
-            <div className="flex justify-between"><span>Productos</span><span>{formatCurrency(subtotal)}</span></div>
-            <div className="flex justify-between font-semibold"><span>Domicilio</span><span>{quote ? formatCurrency(deliveryFee) : 'Por calcular'}</span></div>
-          </div>
-
-          {quote && (
-            <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-muted/50 p-3 text-xs">
-              <div className="flex items-center gap-2"><Route className="h-4 w-4 text-primary" /><span>{quote.distance_km.toFixed(2)} km</span></div>
-              <div className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-primary" /><span>aprox. {quote.duration_minutes} min</span></div>
-            </div>
-          )}
-
+          <h2 className="font-bold">Resumen del pedido</h2><p className="mb-4 text-sm text-muted-foreground">{businessName}</p>
+          <div className="space-y-4">{items.map((item) => <article key={item.id} className="border-b pb-4 last:border-0"><div className="flex justify-between gap-3"><span className="font-medium">{item.quantity}x {item.product.name}</span><span className="font-semibold">{formatCurrency(item.unitPrice * item.quantity)}</span></div>{customizationSummary(item.customization).map((row) => <p key={row} className="mt-1 text-xs text-muted-foreground">{row}</p>)}</article>)}</div>
+          <div className="mt-4 space-y-2 border-t pt-4 text-sm"><div className="flex justify-between"><span>Productos</span><span>{formatCurrency(subtotal)}</span></div><div className="flex justify-between font-semibold"><span>Domicilio</span><span>{quote ? formatCurrency(deliveryFee) : 'Por calcular'}</span></div></div>
+          {quote && <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-muted/50 p-3 text-xs"><div className="flex items-center gap-2"><Route className="h-4 w-4 text-primary" />{quote.distance_km.toFixed(2)} km</div><div className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-primary" />aprox. {quote.duration_minutes} min</div></div>}
           <div className="mt-4 flex justify-between border-t pt-4 text-lg font-bold"><span>Total</span><span>{formatCurrency(total)}</span></div>
         </aside>
       </div>
