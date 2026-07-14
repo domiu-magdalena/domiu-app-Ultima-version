@@ -51,6 +51,11 @@ export const orderService = {
   acceptOrder: async (orderId: string) => orderService.updateStatus(orderId, 'confirmed'),
   rejectOrder: async (orderId: string) => orderService.updateStatus(orderId, 'cancelled'),
   getOrderEvents: async (orderId: string): Promise<OrderEvent[]> => { const supabase = await getClient(); const { data } = await supabase.from('order_tracking').select('*').eq('order_id', orderId).order('created_at'); return (data ?? []).map((event: any) => ({ order_id: event.order_id, status: event.status, timestamp: event.created_at, actor: 'system', note: event.notes ?? undefined })); },
-  subscribe: (listener: OrderListener) => { listeners.add(listener); return () => listeners.delete(listener); },
+  subscribe: (listener: OrderListener) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  },
   startPolling: (callback: () => void, intervalMs = 3000) => { const id = setInterval(callback, intervalMs); return () => clearInterval(id); },
 };
