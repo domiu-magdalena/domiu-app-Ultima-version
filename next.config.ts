@@ -1,17 +1,20 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   images: {
+    // Para el lanzamiento se prioriza estabilidad: las imágenes externas se
+    // sirven sin pasar por el optimizador de Next y nunca bloquean una página.
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'images.unsplash.com',
-        search: '',
+        pathname: '/**',
       },
       {
         protocol: 'https',
         hostname: '**.supabase.co',
-        search: '',
+        pathname: '/**',
       },
     ],
   },
