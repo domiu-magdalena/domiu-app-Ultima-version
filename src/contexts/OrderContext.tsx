@@ -25,7 +25,8 @@ interface CreateOrderInput {
   deliveryFee: number;
   taxAmount: number;
   totalAmount: number;
-  deliveryAddress: string;
+  deliveryAddressId: string;
+  deliveryAddress?: string;
   instructions: string;
 }
 
@@ -62,7 +63,6 @@ export function OrderProvider({
         customerId ? orderService.getCustomerOrders(customerId) : Promise.resolve([]),
         businessId ? orderService.getBusinessOrders(businessId) : Promise.resolve([]),
       ]);
-
       setCustomerOrders(nextCustomerOrders);
       setBusinessOrders(nextBusinessOrders);
     } finally {
@@ -71,10 +71,7 @@ export function OrderProvider({
   }, [customerId, businessId]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      void refreshOrders();
-    }, 0);
-
+    const timeout = window.setTimeout(() => void refreshOrders(), 0);
     return () => window.clearTimeout(timeout);
   }, [refreshOrders]);
 
@@ -88,7 +85,6 @@ export function OrderProvider({
           next[index] = updated;
           return next;
         });
-
         setBusinessOrders((previous) => {
           const index = previous.findIndex((order) => order.id === updated.id);
           if (index < 0) return [updated, ...previous];
@@ -112,12 +108,9 @@ export function OrderProvider({
     [],
   );
 
-  const updateOrderStatus = useCallback(
-    async (orderId: string, status: OrderStatus) => {
-      await orderService.updateStatus(orderId, status);
-    },
-    [],
-  );
+  const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
+    await orderService.updateStatus(orderId, status);
+  }, []);
 
   const acceptOrder = useCallback(async (orderId: string) => {
     await orderService.acceptOrder(orderId);
