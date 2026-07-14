@@ -120,4 +120,14 @@ export const addressService = {
       .eq('user_id', userId);
     if (error) throw new Error(error.message);
   },
+
+  async remove(userId: string, addressId: string): Promise<void> {
+    const supabase = getBrowserClient();
+    const { error } = await supabase
+      .from('addresses')
+      .update({ deleted_at: new Date().toISOString(), is_primary: false })
+      .eq('id', addressId)
+      .eq('user_id', userId);
+    if (error) throw new Error(error.message);
+  },
 };
