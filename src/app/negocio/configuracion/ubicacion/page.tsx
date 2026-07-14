@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { getBrowserClient } from '@/lib/db/supabase';
-import { getCurrentExactLocation } from '@/lib/maps/geolocation';
+import { getCurrentExactLocation, isCoordinateFallback } from '@/lib/maps/geolocation';
 import { SkeletonCard } from '@/components/ui/skeleton';
 
 const PlacesAutocomplete = dynamic(
@@ -100,16 +100,19 @@ export default function BusinessLocationPage() {
       const location = await getCurrentExactLocation();
       setForm((current) => ({
         ...current,
-        streetAddress: location.formattedAddress,
-        city: location.city,
-        state: location.state,
-        country: location.country,
-        postalCode: location.postalCode,
+        streetAddress:
+          isCoordinateFallback(location.formattedAddress) && current.streetAddress.trim()
+            ? current.streetAddress
+            : location.formattedAddress,
+        city: location.city || current.city,
+        state: location.state || current.state,
+        country: location.country || current.country,
+        postalCode: location.postalCode || current.postalCode,
         latitude: location.lat,
         longitude: location.lng,
         accuracy: location.accuracy,
       }));
-      toast.success('Ubicación exacta del local capturada');
+      toast.success('Coordenadas exactas del local capturadas');
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'No se pudo obtener la ubicación');
     } finally {
@@ -119,8 +122,12 @@ export default function BusinessLocationPage() {
 
   const save = async () => {
     if (!form.businessId || saving) return;
-    if (!form.streetAddress.trim() || form.latitude == null || form.longitude == null) {
-      toast.error('Selecciona una dirección de Google o comparte la ubicación actual del local');
+    if (!form.streetAddress.trim()) {
+      toast.error('Escribe la dirección del local');
+      return;
+    }
+    if (form.latitude == null || form.longitude == null) {
+      toast.error('Comparte la ubicación actual del local para guardar sus coordenadas exactas');
       return;
     }
 
@@ -140,7 +147,8 @@ export default function BusinessLocationPage() {
         delivery_available: true,
         metadata: {
           location_accuracy_meters: form.accuracy,
-          coordinates_source: 'merchant_device_or_google_places',
+          coordinates_source: form.accuracy == null ? 'saved_or_places' : 'merchant_device_gps',
+          location_verified: true,
         },
         updated_at: new Date().toISOString(),
       };
@@ -148,11 +156,22 @@ export default function BusinessLocationPage() {
       const query = form.addressId
         ? supabase.from('business_addresses').update(payload).eq('id', form.addressId)
         : supabase.from('business_addresses').insert(payload);
-      const { data, error } = await query.select('id').single();
+      const { data, error } = await query.select('id,latitude,longitude').single();
       if (error || !data) throw new Error(error?.message || 'No se pudo guardar la ubicación');
 
+      const { error: businessUpdateError } = await supabase
+        .from('businesses')
+        .update({
+          latitude: form.latitude,
+          longitude: form.longitude,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', form.businessId);
+      if (businessUpdateError) throw businessUpdateError;
+
       setForm((current) => ({ ...current, addressId: data.id }));
-      toast.success('Ubicación del negocio guardada. Ya se puede calcular el domicilio.');
+      toast.success('Ubicación guardada y verificada para calcular domicilios');
+      await load();
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'No se pudo guardar');
     } finally {
@@ -165,32 +184,53 @@ export default function BusinessLocationPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-5 px-4 py-6">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="rounded-xl border p-2"><ArrowLeft className="h-5 w-5" /></button>
-        <div><h1 className="text-2xl font-black">Ubicación exacta del negocio</h1><p className="text-sm text-muted-foreground">Se usa para calcular cada domicilio desde el local hasta el cliente.</p></div>
+        <button type="button" onClick={() => router.back()} className="rounded-xl border p-2" aria-label="Volver">
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-black">Ubicación exacta del negocio</h1>
+          <p className="text-sm text-muted-foreground">Se usa para calcular cada domicilio desde el local hasta el cliente.</p>
+        </div>
       </header>
 
       <section className="rounded-3xl border bg-card p-5 shadow-sm">
-        <button type="button" onClick={() => void useCurrentLocation()} disabled={locating} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-4 text-sm font-black text-primary-foreground disabled:opacity-60">
+        <button
+          type="button"
+          onClick={() => void useCurrentLocation()}
+          disabled={locating}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-4 text-sm font-black text-primary-foreground disabled:opacity-60"
+        >
           <LocateFixed className={`h-5 w-5 ${locating ? 'animate-pulse' : ''}`} />
-          {locating ? 'Obteniendo ubicación del local…' : 'Compartir ubicación actual del local'}
+          {locating ? 'Obteniendo coordenadas del local…' : 'Compartir ubicación actual del local'}
         </button>
 
-        <div className="relative my-5 text-center text-xs text-muted-foreground before:absolute before:left-0 before:right-0 before:top-1/2 before:border-t"><span className="relative bg-card px-3">o busca la dirección manualmente</span></div>
+        <div className="relative my-5 text-center text-xs text-muted-foreground before:absolute before:left-0 before:right-0 before:top-1/2 before:border-t">
+          <span className="relative bg-card px-3">dirección del establecimiento</span>
+        </div>
 
         <PlacesAutocomplete
           defaultValue={form.streetAddress}
-          placeholder="Buscar dirección del negocio"
-          onPlaceSelected={(place) => setForm((current) => ({
-            ...current,
-            streetAddress: place.formattedAddress,
-            city: place.city || current.city,
-            state: place.state || current.state,
-            country: place.country || current.country,
-            postalCode: place.postalCode || current.postalCode,
-            latitude: place.lat,
-            longitude: place.lng,
-            accuracy: null,
-          }))}
+          placeholder="Escribe o busca la dirección del negocio"
+          onValueChange={(streetAddress) =>
+            setForm((current) =>
+              streetAddress === current.streetAddress
+                ? current
+                : { ...current, streetAddress, latitude: null, longitude: null, accuracy: null },
+            )
+          }
+          onPlaceSelected={(place) =>
+            setForm((current) => ({
+              ...current,
+              streetAddress: place.formattedAddress,
+              city: place.city || current.city,
+              state: place.state || current.state,
+              country: place.country || current.country,
+              postalCode: place.postalCode || current.postalCode,
+              latitude: place.lat,
+              longitude: place.lng,
+              accuracy: null,
+            }))
+          }
         />
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -199,10 +239,20 @@ export default function BusinessLocationPage() {
         </div>
 
         <div className={`mt-4 rounded-xl p-4 ${form.latitude != null ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-          <div className="flex gap-2"><MapPin className="h-5 w-5" /><div><p className="text-sm font-black">{form.latitude != null ? 'Coordenadas listas' : 'Falta ubicación exacta'}</p><p className="mt-1 text-xs">{form.streetAddress || 'Comparte o busca la dirección del local'}</p>{form.latitude != null && <p className="mt-1 text-[11px]">{form.latitude.toFixed(6)}, {form.longitude?.toFixed(6)}</p>}</div></div>
+          <div className="flex gap-2">
+            <MapPin className="h-5 w-5" />
+            <div>
+              <p className="text-sm font-black">{form.latitude != null ? 'Coordenadas listas' : 'Falta ubicación exacta'}</p>
+              <p className="mt-1 text-xs">{form.streetAddress || 'Escribe la dirección y comparte la ubicación del local'}</p>
+              {form.latitude != null && <p className="mt-1 text-[11px]">{form.latitude.toFixed(6)}, {form.longitude?.toFixed(6)}</p>}
+            </div>
+          </div>
         </div>
 
-        <button type="button" onClick={() => void save()} disabled={saving} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white disabled:opacity-60"><Save className="h-4 w-4" />{saving ? 'Guardando…' : 'Guardar ubicación permanentemente'}</button>
+        <button type="button" onClick={() => void save()} disabled={saving || locating} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white disabled:opacity-60">
+          <Save className="h-4 w-4" />
+          {saving ? 'Guardando y verificando…' : 'Guardar ubicación permanentemente'}
+        </button>
       </section>
     </main>
   );
