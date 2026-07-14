@@ -1,5 +1,7 @@
 'use client';
 
+import { loadGoogleMaps } from '@/lib/maps/loader';
+
 export interface ExactLocation {
   lat: number;
   lng: number;
@@ -43,31 +45,49 @@ export function requestCurrentCoordinates(): Promise<GeolocationPosition> {
   });
 }
 
+function coordinateFallback(lat: number, lng: number, accuracy: number): ExactLocation {
+  return {
+    lat,
+    lng,
+    accuracy,
+    formattedAddress: `Ubicación GPS ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+    city: 'Santa Marta',
+    state: 'Magdalena',
+    country: 'Colombia',
+    postalCode: '',
+  };
+}
+
 export async function reverseGeocodeCoordinates(
   lat: number,
   lng: number,
   accuracy = 0,
 ): Promise<ExactLocation> {
-  if (!window.google?.maps) {
-    throw new Error('Google Maps todavía no está disponible. Intenta nuevamente.');
+  try {
+    await loadGoogleMaps();
+    if (!window.google?.maps) return coordinateFallback(lat, lng, accuracy);
+
+    const geocoder = new google.maps.Geocoder();
+    const results = await geocoder.geocode({ location: { lat, lng } });
+    const best = results.results?.[0];
+    if (!best) return coordinateFallback(lat, lng, accuracy);
+
+    const parts = extractAddress(best);
+    return {
+      lat,
+      lng,
+      accuracy,
+      formattedAddress: best.formatted_address,
+      city: parts.city || 'Santa Marta',
+      state: parts.state || 'Magdalena',
+      country: parts.country,
+      postalCode: parts.postalCode,
+    };
+  } catch {
+    // La coordenada GPS sigue siendo válida para tarifa y seguimiento aunque
+    // Google no pueda devolver el nombre de la calle en ese momento.
+    return coordinateFallback(lat, lng, accuracy);
   }
-
-  const geocoder = new google.maps.Geocoder();
-  const results = await geocoder.geocode({ location: { lat, lng } });
-  const best = results.results?.[0];
-  if (!best) throw new Error('No se pudo identificar la dirección de esta ubicación.');
-
-  const parts = extractAddress(best);
-  return {
-    lat,
-    lng,
-    accuracy,
-    formattedAddress: best.formatted_address,
-    city: parts.city || 'Santa Marta',
-    state: parts.state || 'Magdalena',
-    country: parts.country,
-    postalCode: parts.postalCode,
-  };
 }
 
 export async function getCurrentExactLocation(): Promise<ExactLocation> {
