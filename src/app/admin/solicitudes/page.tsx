@@ -18,7 +18,11 @@ import {
   rejectBusinessApplication,
   type CourierApplication,
   type BusinessApplication,
-} from '@/app/actions/admin-applications';`r`nimport { approveBusinessApplicationSafe, rejectBusinessApplicationSafe } from '@/app/actions/admin-business-applications';
+} from '@/app/actions/admin-applications';
+import {
+  approveBusinessApplicationSafe,
+  rejectBusinessApplicationSafe,
+} from '@/app/actions/admin-business-applications';
 
 const statusBadge: Record<string, 'warning' | 'success' | 'destructive' | 'outline'> = {
   pending: 'warning',
