@@ -30,9 +30,19 @@ interface CustomerOrderLiveMapProps {
 const SANTA_MARTA: Point = { lat: 11.2408, lng: -74.199 };
 
 function point(lat: number | null, lng: number | null): Point | null {
-  return lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)
-    ? null
-    : { lat, lng };
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  return Number.isFinite(latitude) && Number.isFinite(longitude) ? { lat: latitude, lng: longitude } : null;
+}
+
+function haversineKm(a: Point, b: Point) {
+  const radius = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const value = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return radius * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }
 
 export function CustomerOrderLiveMap({
@@ -57,10 +67,10 @@ export function CustomerOrderLiveMap({
   const pickup = useMemo(() => point(pickupLat, pickupLng), [pickupLat, pickupLng]);
   const delivery = useMemo(() => point(deliveryLat, deliveryLng), [deliveryLat, deliveryLng]);
   const goingToCustomer = status === 'picked_up' || status === 'in_transit';
-  const destination: Point | string = goingToCustomer
-    ? delivery || deliveryAddress
-    : pickup || pickupAddress;
-  const origin: Point | string = courierLocation || pickup || pickupAddress;
+  const destinationPoint = goingToCustomer ? delivery : pickup;
+  const originPoint = courierLocation || pickup;
+  const destination: Point | string = destinationPoint || (goingToCustomer ? deliveryAddress : pickupAddress);
+  const origin: Point | string = originPoint || pickupAddress;
 
   useEffect(() => {
     if (!courierId) return;
@@ -69,15 +79,15 @@ export function CustomerOrderLiveMap({
     const loadLatest = async () => {
       const { data } = await supabase
         .from('driver_locations')
-        .select('latitude,longitude,created_at')
+        .select('latitude,longitude,updated_at,created_at')
         .eq('driver_id', courierId)
         .eq('order_id', orderId)
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (data?.latitude != null && data?.longitude != null) {
         setCourierLocation({ lat: Number(data.latitude), lng: Number(data.longitude) });
-        setLocationUpdatedAt(String(data.created_at));
+        setLocationUpdatedAt(String(data.updated_at || data.created_at));
       }
     };
 
@@ -86,23 +96,18 @@ export function CustomerOrderLiveMap({
       .channel(`customer-order-location-${orderId}`)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'driver_locations',
-          filter: `order_id=eq.${orderId}`,
-        },
+        { event: '*', schema: 'public', table: 'driver_locations', filter: `order_id=eq.${orderId}` },
         (payload) => {
           const row = payload.new as Record<string, unknown>;
           if (row.latitude != null && row.longitude != null) {
             setCourierLocation({ lat: Number(row.latitude), lng: Number(row.longitude) });
-            setLocationUpdatedAt(String(row.created_at || new Date().toISOString()));
+            setLocationUpdatedAt(String(row.updated_at || row.created_at || new Date().toISOString()));
           }
         },
       )
       .subscribe();
 
-    const polling = window.setInterval(() => void loadLatest(), 12_000);
+    const polling = window.setInterval(() => void loadLatest(), 8_000);
     return () => {
       window.clearInterval(polling);
       void supabase.removeChannel(channel);
@@ -110,7 +115,7 @@ export function CustomerOrderLiveMap({
   }, [courierId, orderId]);
 
   useEffect(() => {
-    if (!map || !window.google?.maps || !pickupAddress || !deliveryAddress) return;
+    if (!map || !window.google?.maps) return;
     directionsRef.current?.setMap(null);
 
     const renderer = new google.maps.DirectionsRenderer({
@@ -154,11 +159,23 @@ export function CustomerOrderLiveMap({
       active = false;
       renderer.setMap(null);
     };
-  }, [destination, goingToCustomer, map, origin, pickupAddress, deliveryAddress]);
+  }, [destination, goingToCustomer, map, origin]);
 
-  const fallbackMinutes = estimatedDeliveryTime
+  const fallbackDistance = originPoint && destinationPoint
+    ? haversineKm(originPoint, destinationPoint)
+    : storedDistanceKm ?? null;
+  const fallbackDuration = fallbackDistance == null ? null : Math.max(2, Math.ceil((fallbackDistance / 25) * 60));
+  const storedMinutes = estimatedDeliveryTime
     ? Math.max(0, Math.ceil((new Date(estimatedDeliveryTime).getTime() - Date.now()) / 60_000))
     : null;
+
+  const fallbackPoints = [
+    ...(pickup ? [{ id: 'pickup', ...pickup, label: `Recogida: ${pickupAddress}`, color: '#F97316' }] : []),
+    ...(delivery ? [{ id: 'delivery', ...delivery, label: `Entrega: ${deliveryAddress}`, color: '#4F46E5' }] : []),
+    ...(courierLocation ? [{ id: 'courier', ...courierLocation, label: 'Repartidor en tiempo real', color: '#7C3AED' }] : []),
+  ];
+
+  const fallbackRoute = originPoint && destinationPoint ? [originPoint, destinationPoint] : [];
 
   return (
     <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
@@ -167,11 +184,7 @@ export function CustomerOrderLiveMap({
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-primary">Seguimiento en vivo</p>
             <h2 className="mt-1 text-lg font-black">
-              {courierId
-                ? goingToCustomer
-                  ? 'Tu pedido va hacia ti'
-                  : 'El repartidor va a recoger tu pedido'
-                : 'Buscando repartidor'}
+              {courierId ? (goingToCustomer ? 'Tu pedido va hacia ti' : 'El repartidor va a recoger tu pedido') : 'Buscando repartidor'}
             </h2>
           </div>
           {courierLocation && (
@@ -184,12 +197,12 @@ export function CustomerOrderLiveMap({
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           <div className="rounded-xl bg-muted/60 p-3">
             <Route className="h-4 w-4 text-primary" />
-            <p className="mt-1 text-sm font-black">{eta?.distance || (storedDistanceKm ? `${storedDistanceKm.toFixed(2)} km` : 'Calculando')}</p>
-            <p className="text-[10px] text-muted-foreground">Distancia</p>
+            <p className="mt-1 text-sm font-black">{eta?.distance || (fallbackDistance != null ? `${fallbackDistance.toFixed(2)} km` : 'Calculando')}</p>
+            <p className="text-[10px] text-muted-foreground">Distancia restante</p>
           </div>
           <div className="rounded-xl bg-muted/60 p-3">
             <Clock3 className="h-4 w-4 text-primary" />
-            <p className="mt-1 text-sm font-black">{eta?.duration || (fallbackMinutes != null ? `${fallbackMinutes} min` : 'Calculando')}</p>
+            <p className="mt-1 text-sm font-black">{eta?.duration || `${fallbackDuration ?? storedMinutes ?? '—'} min`}</p>
             <p className="text-[10px] text-muted-foreground">Tiempo estimado</p>
           </div>
           <div className="col-span-2 rounded-xl bg-muted/60 p-3 sm:col-span-1">
@@ -205,14 +218,12 @@ export function CustomerOrderLiveMap({
           config={{
             center: courierLocation || pickup || delivery || SANTA_MARTA,
             zoom: 14,
-            options: {
-              mapTypeControl: false,
-              streetViewControl: false,
-              fullscreenControl: true,
-            },
+            options: { mapTypeControl: false, streetViewControl: false, fullscreenControl: true },
           }}
           className="absolute inset-0 h-full w-full"
           onLoad={setMap}
+          fallbackPoints={fallbackPoints}
+          fallbackRoute={fallbackRoute}
         >
           {() => null}
         </DynamicMapWrapper>
