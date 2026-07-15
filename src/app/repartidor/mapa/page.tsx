@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Clock, ExternalLink, LocateFixed, MapPin, Navigation, Store } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,7 +8,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCourier } from '@/contexts/CourierContext';
 import { getBrowserClient } from '@/lib/db/supabase';
 import { SkeletonMap } from '@/components/ui/skeleton';
-import { OpenStreetLiveMap } from '@/components/tracking/maps/OpenStreetLiveMap';
+import {
+  OpenStreetLiveMap,
+  type OpenStreetMapPoint,
+  type ResolvedRoute,
+} from '@/components/tracking/maps/OpenStreetLiveMap';
 
 type LatLng = { lat: number; lng: number };
 type RouteStep = 'to_business' | 'to_customer';
@@ -16,6 +20,7 @@ type RouteStep = 'to_business' | 'to_customer';
 const SANTA_MARTA_CENTER: LatLng = { lat: 11.2408, lng: -74.199 };
 
 function point(lat: number | null | undefined, lng: number | null | undefined): LatLng | null {
+  if (lat == null || lng == null) return null;
   const latitude = Number(lat);
   const longitude = Number(lng);
   return Number.isFinite(latitude) && Number.isFinite(longitude) ? { lat: latitude, lng: longitude } : null;
@@ -44,6 +49,7 @@ export default function CourierMapPage() {
   const [step, setStep] = useState<RouteStep>('to_business');
   const [locating, setLocating] = useState(true);
   const [locationError, setLocationError] = useState('');
+  const [resolvedRoute, setResolvedRoute] = useState<ResolvedRoute | null>(null);
   const lastWriteRef = useRef(0);
 
   const pickup = useMemo(
@@ -121,6 +127,10 @@ export default function CourierMapPage() {
     };
   }, [profile?.id, refresh]);
 
+  const handleRouteResolved = useCallback((nextRoute: ResolvedRoute) => {
+    setResolvedRoute(nextRoute);
+  }, []);
+
   if (loading) return <SkeletonMap />;
 
   if (!activeOrder) {
@@ -138,12 +148,13 @@ export default function CourierMapPage() {
 
   const origin = driverLocation || pickup || SANTA_MARTA_CENTER;
   const destination = step === 'to_business' ? pickup : delivery;
-  const distanceKm = destination ? haversineKm(origin, destination) : null;
-  const minutes = distanceKm == null ? null : Math.max(2, Math.ceil((distanceKm / 25) * 60));
-  const mapPoints = [
-    ...(pickup ? [{ id: 'pickup', ...pickup, label: `Recoger en ${activeOrder.business_name}`, color: '#F97316' }] : []),
-    ...(delivery ? [{ id: 'delivery', ...delivery, label: `Entregar a ${activeOrder.customer_name}`, color: '#4F46E5' }] : []),
-    ...(driverLocation ? [{ id: 'driver', ...driverLocation, label: 'Tu ubicación en tiempo real', color: '#7C3AED' }] : []),
+  const fallbackDistanceKm = destination ? haversineKm(origin, destination) : null;
+  const distanceKm = resolvedRoute?.distanceKm ?? fallbackDistanceKm;
+  const minutes = resolvedRoute?.durationMinutes ?? (distanceKm == null ? null : Math.max(2, Math.ceil((distanceKm / 25) * 60)));
+  const mapPoints: OpenStreetMapPoint[] = [
+    ...(pickup ? [{ id: 'pickup', ...pickup, label: `Recoger en ${activeOrder.business_name}`, color: '#F97316', kind: 'pickup' as const }] : []),
+    ...(delivery ? [{ id: 'delivery', ...delivery, label: `Entregar a ${activeOrder.customer_name}`, color: '#4F46E5', kind: 'delivery' as const }] : []),
+    ...(driverLocation ? [{ id: 'driver', ...driverLocation, label: 'Tu ubicación en tiempo real', color: '#7C3AED', kind: 'courier' as const }] : []),
   ];
   const route = destination ? [origin, destination] : [];
 
@@ -163,10 +174,18 @@ export default function CourierMapPage() {
       {locationError && <p className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{locationError}</p>}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_22rem]">
-        <section className="relative min-h-[520px] overflow-hidden rounded-3xl border bg-muted">
-          <OpenStreetLiveMap points={mapPoints} route={route} center={origin} zoom={15} className="absolute inset-0 h-full w-full" />
+        <section className="relative min-h-[430px] overflow-hidden rounded-2xl border bg-muted sm:min-h-[520px] sm:rounded-3xl">
+          <OpenStreetLiveMap
+            points={mapPoints}
+            route={route}
+            center={origin}
+            zoom={15}
+            className="absolute inset-0 h-full w-full rounded-none"
+            followPointId={driverLocation ? 'driver' : undefined}
+            onRouteResolved={handleRouteResolved}
+          />
           {distanceKm != null && (
-            <div className="absolute right-4 top-4 z-[500] rounded-2xl bg-slate-950/85 px-4 py-3 text-white shadow-xl">
+            <div className="absolute right-4 top-14 z-[500] rounded-2xl bg-slate-950/85 px-4 py-3 text-white shadow-xl">
               <div className="flex items-center gap-2"><Clock className="h-4 w-4" /><div><p className="text-sm font-black">{minutes} min</p><p className="text-[11px] text-white/70">{distanceKm.toFixed(2)} km</p></div></div>
             </div>
           )}
