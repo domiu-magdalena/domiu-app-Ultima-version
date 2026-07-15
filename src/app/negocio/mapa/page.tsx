@@ -1,33 +1,21 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Bike, MapPin, Package, RefreshCw, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MapsProvider, useMaps } from '@/contexts/MapsContext';
 import { businessService, type BusinessOrder } from '@/services/business';
 import { getBrowserClient } from '@/lib/db/supabase';
-import { SkeletonMap, SkeletonList } from '@/components/ui/skeleton';
-import { Bike, MapPin, Navigation, Package, RefreshCw, Search } from 'lucide-react';
+import { SkeletonList } from '@/components/ui/skeleton';
+import { OpenStreetLiveMap } from '@/components/tracking/maps/OpenStreetLiveMap';
 
-interface Coordinates {
-  lat: number;
-  lng: number;
-}
+type Coordinates = { lat: number; lng: number };
 
-interface MapOrder extends BusinessOrder {
+type MapOrder = BusinessOrder & {
   customerPosition: Coordinates | null;
   courierPosition: Coordinates | null;
-}
+};
 
-const ACTIVE_STATUSES = [
-  'pending',
-  'confirmed',
-  'preparing',
-  'ready',
-  'assigned',
-  'accepted',
-  'picked_up',
-  'in_transit',
-];
+const ACTIVE_STATUSES = ['pending', 'confirmed', 'preparing', 'ready', 'assigned', 'accepted', 'picked_up', 'in_transit'];
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendiente',
@@ -52,60 +40,38 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
-  }).format(value);
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value);
 
-async function geocodeAddress(address: string): Promise<Coordinates | null> {
-  if (!window.google?.maps || !address || address === 'Dirección no disponible') return null;
-  const geocoder = new google.maps.Geocoder();
-  return new Promise((resolve) => {
-    geocoder.geocode({ address }, (results, status) => {
-      const location = results?.[0]?.geometry.location;
-      if (status === 'OK' && location) {
-        resolve({ lat: location.lat(), lng: location.lng() });
-      } else {
-        resolve(null);
-      }
-    });
-  });
+function validPoint(lat: number | null | undefined, lng: number | null | undefined): Coordinates | null {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  return Number.isFinite(latitude) && Number.isFinite(longitude) ? { lat: latitude, lng: longitude } : null;
 }
 
-function BusinessMapInner() {
-  const { isReady } = useMaps();
+export default function BusinessLiveMapPage() {
   const { profile } = useAuth();
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
-  const directionsRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [businessPosition, setBusinessPosition] = useState<Coordinates | null>(null);
   const [orders, setOrders] = useState<MapOrder[]>([]);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
-  const loadOrders = useCallback(async (showSpinner = false) => {
+  const load = useCallback(async (showSpinner = false) => {
     if (!profile?.id) return;
     if (showSpinner) setRefreshing(true);
     try {
       const id = businessId || (await businessService.getBusinessId(profile.id));
-      if (!id) {
-        setOrders([]);
-        setError('No se encontró el negocio asociado a esta cuenta.');
-        return;
-      }
+      if (!id) throw new Error('No se encontró el negocio asociado a esta cuenta');
       if (!businessId) setBusinessId(id);
 
       const supabase = getBrowserClient();
-      const [{ data: businessAddress }, allOrders] = await Promise.all([
+      const [{ data: businessAddress }, businessOrders] = await Promise.all([
         supabase
           .from('business_addresses')
-          .select('street_address,city,state_province,latitude,longitude')
+          .select('latitude,longitude')
           .eq('business_id', id)
           .eq('is_primary', true)
           .is('deleted_at', null)
@@ -113,326 +79,142 @@ function BusinessMapInner() {
         businessService.getBusinessOrders(id),
       ]);
 
-      let localBusinessPosition: Coordinates | null = null;
-      if (businessAddress?.latitude != null && businessAddress?.longitude != null) {
-        localBusinessPosition = {
-          lat: Number(businessAddress.latitude),
-          lng: Number(businessAddress.longitude),
-        };
-      } else if (isReady && businessAddress) {
-        localBusinessPosition = await geocodeAddress(
-          [businessAddress.street_address, businessAddress.city, businessAddress.state_province]
-            .filter(Boolean)
-            .join(', '),
-        );
-      }
+      const localBusinessPosition = validPoint(businessAddress?.latitude, businessAddress?.longitude);
       setBusinessPosition(localBusinessPosition);
 
-      const activeOrders = allOrders.filter((order) => ACTIVE_STATUSES.includes(order.status));
-      const courierIds = [
-        ...new Set(activeOrders.map((order) => order.courier_id).filter((id): id is string => Boolean(id))),
-      ];
-      const courierLocationMap = new Map<string, Coordinates>();
+      const active = businessOrders.filter((order) => ACTIVE_STATUSES.includes(order.status));
+      const courierIds = [...new Set(active.map((order) => order.courier_id).filter((value): value is string => Boolean(value)))];
+      const courierMap = new Map<string, Coordinates>();
+
       if (courierIds.length > 0) {
-        const { data: driverRows } = await supabase
+        const { data: locations } = await supabase
           .from('driver_locations')
-          .select('driver_id,latitude,longitude,created_at')
+          .select('driver_id,latitude,longitude,updated_at,created_at')
           .in('driver_id', courierIds)
-          .order('created_at', { ascending: false });
-        for (const row of driverRows || []) {
+          .order('updated_at', { ascending: false });
+        for (const row of locations || []) {
           const driverId = String(row.driver_id);
-          if (!courierLocationMap.has(driverId)) {
-            courierLocationMap.set(driverId, {
-              lat: Number(row.latitude),
-              lng: Number(row.longitude),
-            });
-          }
+          const coordinate = validPoint(row.latitude, row.longitude);
+          if (coordinate && !courierMap.has(driverId)) courierMap.set(driverId, coordinate);
         }
       }
 
-      const enriched: MapOrder[] = [];
-      for (const order of activeOrders) {
-        let customerPosition: Coordinates | null = null;
-        if (order.delivery_latitude != null && order.delivery_longitude != null) {
-          customerPosition = {
-            lat: order.delivery_latitude,
-            lng: order.delivery_longitude,
-          };
-        } else if (isReady) {
-          customerPosition = await geocodeAddress(order.delivery_address);
-        }
-        enriched.push({
-          ...order,
-          customerPosition,
-          courierPosition: order.courier_id
-            ? courierLocationMap.get(order.courier_id) || null
-            : null,
-        });
-      }
+      const enriched = active.map<MapOrder>((order) => ({
+        ...order,
+        customerPosition: validPoint(order.delivery_latitude, order.delivery_longitude),
+        courierPosition: order.courier_id ? courierMap.get(order.courier_id) || null : null,
+      }));
 
       setOrders(enriched);
+      setSelectedOrderId((current) => current || enriched[0]?.id || null);
       setError('');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo cargar el mapa operativo.');
+      setError(cause instanceof Error ? cause.message : 'No se pudo cargar el mapa operativo');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [businessId, isReady, profile?.id]);
+  }, [businessId, profile?.id]);
 
   useEffect(() => {
-    if (!isReady) return;
-    void loadOrders();
-  }, [isReady, loadOrders]);
+    void load();
+  }, [load]);
 
   useEffect(() => {
     if (!businessId) return;
     const supabase = getBrowserClient();
-    const channel = supabase
-      .channel(`business-map-orders-${businessId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `business_id=eq.${businessId}`,
-        },
-        () => void loadOrders(),
-      )
+    const ordersChannel = supabase
+      .channel(`business-live-orders-${businessId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `business_id=eq.${businessId}` }, () => void load())
       .subscribe();
-    const timer = window.setInterval(() => void loadOrders(), 20000);
+    const locationsChannel = supabase
+      .channel(`business-live-locations-${businessId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_locations' }, () => void load())
+      .subscribe();
+    const timer = window.setInterval(() => void load(), 10_000);
     return () => {
       window.clearInterval(timer);
-      void supabase.removeChannel(channel);
+      void supabase.removeChannel(ordersChannel);
+      void supabase.removeChannel(locationsChannel);
     };
-  }, [businessId, loadOrders]);
+  }, [businessId, load]);
 
-  useEffect(() => {
-    if (!isReady || !mapRef.current || mapInstanceRef.current) return;
-    mapInstanceRef.current = new google.maps.Map(mapRef.current, {
-      center: { lat: 11.2408, lng: -74.199 },
-      zoom: 13,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: true,
-    });
-    directionsRef.current = new google.maps.DirectionsRenderer({
-      map: mapInstanceRef.current,
-      suppressMarkers: true,
-      polylineOptions: { strokeColor: '#2563EB', strokeWeight: 5 },
-    });
-  }, [isReady]);
+  const selected = orders.find((order) => order.id === selectedOrderId) || null;
 
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    markersRef.current.forEach((marker) => marker.setMap(null));
-    markersRef.current = [];
-    directionsRef.current?.set('directions', null);
-    const bounds = new google.maps.LatLngBounds();
-    let points = 0;
-
-    if (businessPosition) {
-      const marker = new google.maps.Marker({
-        position: businessPosition,
-        map,
-        title: 'Olma Wings and Smokehouse',
-        label: { text: 'O', color: '#ffffff', fontWeight: '700' },
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 15,
-          fillColor: '#F59E0B',
-          fillOpacity: 1,
-          strokeColor: '#ffffff',
-          strokeWeight: 3,
-        },
-      });
-      markersRef.current.push(marker);
-      bounds.extend(businessPosition);
-      points += 1;
-    }
-
+  const mapPoints = useMemo(() => {
+    const points: { id: string; lat: number; lng: number; label: string; color: string }[] = [];
+    if (businessPosition) points.push({ id: 'business', ...businessPosition, label: 'Olma Wings and Smokehouse', color: '#F59E0B' });
     for (const order of orders) {
-      if (order.customerPosition) {
-        const marker = new google.maps.Marker({
-          position: order.customerPosition,
-          map,
-          title: `Ticket ${order.order_number} · ${order.customer_name}`,
-          label: { text: order.order_number.slice(-4), color: '#ffffff', fontSize: '10px' },
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: selectedOrder === order.id ? 18 : 15,
-            fillColor: selectedOrder === order.id ? '#2563EB' : '#10B981',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 3,
-          },
-        });
-        marker.addListener('click', () => setSelectedOrder(order.id));
-        markersRef.current.push(marker);
-        bounds.extend(order.customerPosition);
-        points += 1;
-      }
-
-      if (order.courierPosition) {
-        const marker = new google.maps.Marker({
-          position: order.courierPosition,
-          map,
-          title: `${order.courier_name || 'Repartidor'} · ${order.order_number}`,
-          label: { text: 'R', color: '#ffffff', fontWeight: '700' },
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 14,
-            fillColor: '#7C3AED',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 3,
-          },
-        });
-        markersRef.current.push(marker);
-        bounds.extend(order.courierPosition);
-        points += 1;
-      }
+      if (order.customerPosition) points.push({ id: order.id, ...order.customerPosition, label: `${order.order_number} · ${order.customer_name}`, color: selectedOrderId === order.id ? '#2563EB' : '#10B981' });
+      if (order.courierPosition) points.push({ id: `courier-${order.id}`, ...order.courierPosition, label: `${order.courier_name || 'Repartidor'} · ${order.order_number}`, color: '#7C3AED' });
     }
+    return points;
+  }, [businessPosition, orders, selectedOrderId]);
 
-    const selected = orders.find((order) => order.id === selectedOrder);
-    if (selected?.customerPosition && businessPosition) {
-      const origin = selected.courierPosition || businessPosition;
-      const directionsService = new google.maps.DirectionsService();
-      directionsService.route(
-        {
-          origin,
-          destination: selected.customerPosition,
-          travelMode: google.maps.TravelMode.DRIVING,
-        },
-        (result, status) => {
-          if (status === 'OK' && result) directionsRef.current?.setDirections(result);
-        },
-      );
-      map.panTo(selected.customerPosition);
-      map.setZoom(15);
-    } else if (points > 0) {
-      map.fitBounds(bounds, 70);
-    }
-  }, [businessPosition, orders, selectedOrder]);
+  const route = useMemo(() => {
+    if (!selected?.customerPosition) return [];
+    const origin = selected.courierPosition || businessPosition;
+    return origin ? [origin, selected.customerPosition] : [selected.customerPosition];
+  }, [businessPosition, selected]);
 
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return orders;
-    return orders.filter((order) =>
-      `${order.order_number} ${order.customer_name} ${order.delivery_address}`
-        .toLowerCase()
-        .includes(term),
-    );
+    return orders.filter((order) => `${order.order_number} ${order.customer_name} ${order.delivery_address}`.toLowerCase().includes(term));
   }, [orders, search]);
 
   return (
     <div className="flex min-h-[680px] flex-col overflow-hidden rounded-2xl border bg-card lg:h-[calc(100vh-7rem)] lg:flex-row">
       <div className="relative min-h-[480px] flex-1">
-        {!isReady && <SkeletonMap />}
-        <div ref={mapRef} className={`h-full min-h-[480px] w-full ${!isReady ? 'hidden' : ''}`} />
-        <button
-          type="button"
-          onClick={() => void loadOrders(true)}
-          disabled={refreshing}
-          className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-xl bg-background/90 px-3 py-2 text-xs font-medium shadow-lg backdrop-blur"
-        >
+        <OpenStreetLiveMap
+          points={mapPoints}
+          route={route}
+          center={selected?.courierPosition || selected?.customerPosition || businessPosition || { lat: 11.2408, lng: -74.199 }}
+          zoom={14}
+          className="h-full min-h-[480px] w-full rounded-none"
+          onPointClick={(id) => {
+            const orderId = id.startsWith('courier-') ? id.replace('courier-', '') : id;
+            if (orders.some((order) => order.id === orderId)) setSelectedOrderId(orderId);
+          }}
+        />
+
+        <button type="button" onClick={() => void load(true)} disabled={refreshing} className="absolute right-3 top-3 z-[500] flex items-center gap-2 rounded-xl bg-background/95 px-3 py-2 text-xs font-medium shadow-lg">
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Actualizar
         </button>
-        <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-2">
-          <span className="rounded-lg bg-background/90 px-2 py-1 text-[10px] shadow">🟠 Negocio</span>
-          <span className="rounded-lg bg-background/90 px-2 py-1 text-[10px] shadow">🟢 Cliente</span>
-          <span className="rounded-lg bg-background/90 px-2 py-1 text-[10px] shadow">🟣 Repartidor</span>
+        <div className="absolute bottom-3 left-3 z-[500] flex flex-wrap gap-2">
+          <span className="rounded-lg bg-background/95 px-2 py-1 text-[10px] shadow">🟠 Negocio</span>
+          <span className="rounded-lg bg-background/95 px-2 py-1 text-[10px] shadow">🟢 Cliente</span>
+          <span className="rounded-lg bg-background/95 px-2 py-1 text-[10px] shadow">🟣 Repartidor</span>
         </div>
       </div>
 
       <aside className="w-full border-t lg:w-[390px] lg:border-l lg:border-t-0">
         <div className="border-b p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-bold">Tickets activos</h2>
-              <p className="text-xs text-muted-foreground">{orders.length} pedidos en operación</p>
-            </div>
-          </div>
+          <h2 className="font-bold">Tickets activos</h2>
+          <p className="text-xs text-muted-foreground">{orders.length} pedidos en operación</p>
           <div className="relative mt-3">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar ticket, cliente o dirección..."
-              className="h-10 w-full rounded-xl border bg-background pl-10 pr-3 text-sm"
-            />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar ticket, cliente o dirección..." className="h-10 w-full rounded-xl border bg-background pl-10 pr-3 text-sm" />
           </div>
           {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
         </div>
 
         <div className="max-h-[520px] overflow-y-auto lg:h-[calc(100%-116px)] lg:max-h-none">
-          {loading ? (
-            <SkeletonList />
-          ) : filteredOrders.length === 0 ? (
-            <div className="p-10 text-center">
-              <Package className="mx-auto h-8 w-8 text-muted-foreground" />
-              <p className="mt-3 text-sm font-medium">Sin tickets activos</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Los pedidos nuevos aparecerán aquí automáticamente.
-              </p>
-            </div>
-          ) : (
-            filteredOrders.map((order) => (
-              <button
-                key={order.id}
-                type="button"
-                onClick={() => setSelectedOrder(selectedOrder === order.id ? null : order.id)}
-                className={`w-full border-b p-4 text-left transition-colors hover:bg-muted/40 ${
-                  selectedOrder === order.id ? 'bg-primary/5' : ''
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold">#{order.order_number}</p>
-                    <p className="mt-1 text-sm font-medium">{order.customer_name}</p>
-                  </div>
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${STATUS_COLORS[order.status] || 'bg-muted'}`}>
-                    {STATUS_LABELS[order.status] || order.status}
-                  </span>
-                </div>
-                <p className="mt-2 text-xs font-semibold">{formatCurrency(order.total_amount)}</p>
-                <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                  <MapPin className="mr-1 inline h-3 w-3" /> {order.delivery_address}
-                </p>
-                {order.courier_name ? (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    <Bike className="mr-1 inline h-3 w-3 text-primary" /> {order.courier_name}
-                  </p>
-                ) : (
-                  <p className="mt-2 text-xs text-warning">Esperando repartidor</p>
-                )}
-                {selectedOrder === order.id && order.customerPosition && businessPosition && (
-                  <a
-                    href={`https://www.google.com/maps/dir/${businessPosition.lat},${businessPosition.lng}/${order.customerPosition.lat},${order.customerPosition.lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(event) => event.stopPropagation()}
-                    className="mt-3 inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary"
-                  >
-                    <Navigation className="h-3 w-3" /> Abrir ruta
-                  </a>
-                )}
-              </button>
-            ))
-          )}
+          {loading ? <SkeletonList /> : filteredOrders.length === 0 ? (
+            <div className="p-10 text-center"><Package className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-3 text-sm font-medium">Sin tickets activos</p></div>
+          ) : filteredOrders.map((order) => (
+            <button key={order.id} type="button" onClick={() => setSelectedOrderId(order.id)} className={`w-full border-b p-4 text-left transition hover:bg-muted/40 ${selectedOrderId === order.id ? 'bg-primary/5' : ''}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div><p className="text-sm font-black">#{order.order_number}</p><p className="mt-1 text-sm font-semibold">{order.customer_name}</p></div>
+                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${STATUS_COLORS[order.status] || 'bg-muted'}`}>{STATUS_LABELS[order.status] || order.status}</span>
+              </div>
+              <p className="mt-2 flex items-start gap-1 text-xs text-muted-foreground"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{order.delivery_address}</p>
+              {order.courier_name && <p className="mt-2 flex items-center gap-1 text-xs font-medium text-primary"><Bike className="h-3.5 w-3.5" />{order.courier_name}</p>}
+              <p className="mt-2 text-sm font-black">{formatCurrency(order.total_amount)}</p>
+            </button>
+          ))}
         </div>
       </aside>
     </div>
-  );
-}
-
-export default function NegocioMapaPage() {
-  return (
-    <MapsProvider>
-      <BusinessMapInner />
-    </MapsProvider>
   );
 }
