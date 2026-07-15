@@ -55,13 +55,11 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
   ]);
 
   if (!address) return { success: false as const, error: 'La dirección seleccionada no existe' };
-  if (address.latitude == null || address.longitude == null) {
-    return { success: false as const, error: 'Comparte la ubicación exacta de la dirección antes de confirmar' };
-  }
   if (!business?.is_active || !business.is_verified) {
     return { success: false as const, error: 'El negocio no está disponible para recibir pedidos' };
   }
 
+  const hasExactLocation = address.latitude != null && address.longitude != null;
   const productIds = data.items.map((item) => item.productId);
   const { data: products, error: productsError } = await supabase
     .from('products')
@@ -113,7 +111,10 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
       tax_amount: data.taxAmount,
       total_amount: verifiedSubtotal + data.taxAmount,
       special_instructions: data.instructions.trim() || null,
-      metadata: { created_from: 'customer_checkout_v2' },
+      metadata: {
+        created_from: 'customer_checkout_v2',
+        delivery_location_status: hasExactLocation ? 'exact' : 'address_only',
+      },
     })
     .select('id,order_number,delivery_fee,delivery_distance_km,total_amount,estimated_delivery_time')
     .single();
@@ -134,7 +135,9 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
   await supabase.from('order_tracking').insert({
     order_id: order.id,
     status: 'pending',
-    notes: 'Pedido creado por el cliente con ubicación y tarifa verificadas',
+    notes: hasExactLocation
+      ? 'Pedido creado por el cliente con ubicación y tarifa verificadas'
+      : 'Pedido creado con dirección escrita y tarifa mínima; ubicación exacta pendiente',
   });
 
   await serverAudit.logAction(
@@ -148,6 +151,7 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
       order_number: order.order_number,
       delivery_fee: order.delivery_fee,
       delivery_distance_km: order.delivery_distance_km,
+      delivery_location_status: hasExactLocation ? 'exact' : 'address_only',
     },
   );
 
