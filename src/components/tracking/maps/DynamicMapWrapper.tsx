@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, memo, type ReactNode } from 'react';
 import { useMaps } from '@/contexts/MapsContext';
 import { SkeletonMap } from '@/components/ui/skeleton';
-import { MapPin } from 'lucide-react';
+import { OpenStreetLiveMap } from '@/components/tracking/maps/OpenStreetLiveMap';
 
 export interface MapConfig {
   center: google.maps.LatLngLiteral;
@@ -12,14 +12,33 @@ export interface MapConfig {
   options?: google.maps.MapOptions;
 }
 
+export interface FallbackMapPoint {
+  id: string;
+  lat: number;
+  lng: number;
+  label: string;
+  color?: string;
+}
+
 interface MapWrapperProps {
   config: MapConfig;
   children?: (map: google.maps.Map) => ReactNode;
   className?: string;
   onLoad?: (map: google.maps.Map) => void;
+  fallbackPoints?: FallbackMapPoint[];
+  fallbackRoute?: { lat: number; lng: number }[];
+  onFallbackPointClick?: (id: string) => void;
 }
 
-function DynamicMapInner({ config, children, className = 'w-full h-full min-h-[300px]', onLoad }: MapWrapperProps) {
+function DynamicMapInner({
+  config,
+  children,
+  className = 'w-full h-full min-h-[300px]',
+  onLoad,
+  fallbackPoints = [],
+  fallbackRoute = [],
+  onFallbackPointClick,
+}: MapWrapperProps) {
   const { isReady, maps, error: mapsError, hasKey } = useMaps();
   const containerRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -40,30 +59,29 @@ function DynamicMapInner({ config, children, className = 'w-full h-full min-h-[3
         gestureHandling: 'greedy',
         ...config.options,
       });
-
       setMap(instance);
       onLoad?.(instance);
     } catch {
-      // Google Maps initialization failed — handled via render path
+      // El mapa alterno se renderiza automáticamente.
     }
   }, [isReady, maps, config, map, onLoad]);
 
   const noMapApi = isReady && maps && typeof maps.Map !== 'function';
-  const showFallback = !hasKey || mapsError || noMapApi;
+  const showFallback = !hasKey || Boolean(mapsError) || noMapApi;
 
   if (showFallback) {
+    const points = fallbackPoints.length > 0
+      ? fallbackPoints
+      : [{ id: 'center', lat: config.center.lat, lng: config.center.lng, label: 'Ubicación', color: '#2563EB' }];
     return (
-      <div className={`flex items-center justify-center rounded-2xl bg-muted/30 ${className}`}>
-        <div className="text-center p-8">
-          <MapPin className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">
-            {!hasKey ? 'Google Maps no configurado' : 'Mapa no disponible'}
-          </p>
-          <p className="text-xs text-muted-foreground/60 mt-1">
-            {mapsError ? 'Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY en .env.local' : ''}
-          </p>
-        </div>
-      </div>
+      <OpenStreetLiveMap
+        points={points}
+        route={fallbackRoute}
+        center={config.center}
+        zoom={config.zoom ?? 14}
+        className={className}
+        onPointClick={onFallbackPointClick}
+      />
     );
   }
 
