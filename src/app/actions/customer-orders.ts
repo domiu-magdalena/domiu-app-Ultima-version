@@ -63,9 +63,10 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
   const productIds = data.items.map((item) => item.productId);
   const { data: products, error: productsError } = await supabase
     .from('products')
-    .select('id,business_id,name,price,discount_price,status,is_available')
+    .select('id,business_id,name,price,discount_price,status,quantity_available')
     .in('id', productIds)
-    .eq('business_id', data.businessId);
+    .eq('business_id', data.businessId)
+    .is('deleted_at', null);
 
   if (productsError) return { success: false as const, error: productsError.message };
   if (!products || products.length !== new Set(productIds).size) {
@@ -76,9 +77,12 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
   let verifiedSubtotal = 0;
   const verifiedItems = data.items.map((item) => {
     const product = productMap.get(item.productId);
-    if (!product || product.status === 'discontinued' || product.is_available === false) {
-      throw new Error('Uno o más productos están agotados o retirados');
+    const stock = Number(product?.quantity_available ?? 0);
+
+    if (!product || product.status !== 'available' || stock < item.quantity) {
+      throw new Error(`El producto ${product?.name ?? 'seleccionado'} está agotado o no tiene inventario suficiente`);
     }
+
     const basePrice = Number(product.discount_price ?? product.price ?? item.unitPrice);
     const selectedPrice = Math.max(basePrice, Number(item.unitPrice));
     verifiedSubtotal += selectedPrice * item.quantity;
