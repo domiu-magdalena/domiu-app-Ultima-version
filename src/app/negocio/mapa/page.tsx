@@ -6,7 +6,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { businessService, type BusinessOrder } from '@/services/business';
 import { getBrowserClient } from '@/lib/db/supabase';
 import { SkeletonList } from '@/components/ui/skeleton';
-import { OpenStreetLiveMap } from '@/components/tracking/maps/OpenStreetLiveMap';
+import {
+  OpenStreetLiveMap,
+  type OpenStreetMapPoint,
+  type OpenStreetSecondaryRoute,
+} from '@/components/tracking/maps/OpenStreetLiveMap';
 
 type Coordinates = { lat: number; lng: number };
 
@@ -16,14 +20,15 @@ type MapOrder = BusinessOrder & {
 };
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'preparing', 'ready', 'assigned', 'accepted', 'picked_up', 'in_transit'];
+const COURIER_STATUSES = ['assigned', 'accepted', 'picked_up', 'in_transit'];
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendiente',
   confirmed: 'Confirmado',
   preparing: 'Preparando',
-  ready: 'Publicado',
-  assigned: 'Asignado',
-  accepted: 'Aceptado',
+  ready: 'Listo para salir',
+  assigned: 'Repartidor asignado',
+  accepted: 'Repartidor confirmado',
   picked_up: 'Recogido',
   in_transit: 'En camino',
 };
@@ -48,9 +53,22 @@ function validPoint(lat: number | null | undefined, lng: number | null | undefin
   return Number.isFinite(latitude) && Number.isFinite(longitude) ? { lat: latitude, lng: longitude } : null;
 }
 
+function routeForOrder(order: MapOrder, businessPosition: Coordinates | null) {
+  if (!order.customerPosition) return [];
+  if (order.status === 'picked_up' || order.status === 'in_transit') {
+    const origin = order.courierPosition || businessPosition;
+    return origin ? [origin, order.customerPosition] : [];
+  }
+  if (order.status === 'assigned' || order.status === 'accepted') {
+    return order.courierPosition && businessPosition ? [order.courierPosition, businessPosition] : [];
+  }
+  return businessPosition ? [businessPosition, order.customerPosition] : [];
+}
+
 export default function BusinessLiveMapPage() {
   const { profile } = useAuth();
   const [businessId, setBusinessId] = useState<string | null>(null);
+  const [businessName, setBusinessName] = useState('Mi negocio');
   const [businessPosition, setBusinessPosition] = useState<Coordinates | null>(null);
   const [orders, setOrders] = useState<MapOrder[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -68,7 +86,7 @@ export default function BusinessLiveMapPage() {
       if (!businessId) setBusinessId(id);
 
       const supabase = getBrowserClient();
-      const [{ data: businessAddress }, businessOrders] = await Promise.all([
+      const [{ data: businessAddress }, { data: businessRow }, businessOrders] = await Promise.all([
         supabase
           .from('business_addresses')
           .select('latitude,longitude')
@@ -76,37 +94,42 @@ export default function BusinessLiveMapPage() {
           .eq('is_primary', true)
           .is('deleted_at', null)
           .maybeSingle(),
+        supabase.from('businesses').select('name').eq('id', id).maybeSingle(),
         businessService.getBusinessOrders(id),
       ]);
 
       const localBusinessPosition = validPoint(businessAddress?.latitude, businessAddress?.longitude);
       setBusinessPosition(localBusinessPosition);
+      setBusinessName(businessRow?.name || 'Mi negocio');
 
       const active = businessOrders.filter((order) => ACTIVE_STATUSES.includes(order.status));
-      const courierIds = [...new Set(active.map((order) => order.courier_id).filter((value): value is string => Boolean(value)))];
-      const courierMap = new Map<string, Coordinates>();
+      const activeOrderIds = active.map((order) => order.id);
+      const courierByOrder = new Map<string, Coordinates>();
 
-      if (courierIds.length > 0) {
+      if (activeOrderIds.length > 0) {
         const { data: locations } = await supabase
           .from('driver_locations')
-          .select('driver_id,latitude,longitude,updated_at,created_at')
-          .in('driver_id', courierIds)
+          .select('order_id,latitude,longitude,updated_at,created_at')
+          .in('order_id', activeOrderIds)
           .order('updated_at', { ascending: false });
         for (const row of locations || []) {
-          const driverId = String(row.driver_id);
+          const orderId = String(row.order_id || '');
           const coordinate = validPoint(row.latitude, row.longitude);
-          if (coordinate && !courierMap.has(driverId)) courierMap.set(driverId, coordinate);
+          if (orderId && coordinate && !courierByOrder.has(orderId)) courierByOrder.set(orderId, coordinate);
         }
       }
 
       const enriched = active.map<MapOrder>((order) => ({
         ...order,
         customerPosition: validPoint(order.delivery_latitude, order.delivery_longitude),
-        courierPosition: order.courier_id ? courierMap.get(order.courier_id) || null : null,
+        courierPosition: courierByOrder.get(order.id) || null,
       }));
 
       setOrders(enriched);
-      setSelectedOrderId((current) => current || enriched[0]?.id || null);
+      setSelectedOrderId((current) => {
+        if (current && enriched.some((order) => order.id === current)) return current;
+        return enriched.find((order) => COURIER_STATUSES.includes(order.status))?.id || enriched[0]?.id || null;
+      });
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudo cargar el mapa operativo');
@@ -131,7 +154,7 @@ export default function BusinessLiveMapPage() {
       .channel(`business-live-locations-${businessId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_locations' }, () => void load())
       .subscribe();
-    const timer = window.setInterval(() => void load(), 10_000);
+    const timer = window.setInterval(() => void load(), 7_000);
     return () => {
       window.clearInterval(timer);
       void supabase.removeChannel(ordersChannel);
@@ -141,27 +164,63 @@ export default function BusinessLiveMapPage() {
 
   const selected = orders.find((order) => order.id === selectedOrderId) || null;
 
-  const mapPoints = useMemo(() => {
-    const points: { id: string; lat: number; lng: number; label: string; color: string }[] = [];
-    if (businessPosition) points.push({ id: 'business', ...businessPosition, label: 'Olma Wings and Smokehouse', color: '#F59E0B' });
+  const mapPoints = useMemo<OpenStreetMapPoint[]>(() => {
+    const points: OpenStreetMapPoint[] = [];
+    if (businessPosition) {
+      points.push({ id: 'business', ...businessPosition, label: businessName, color: '#F59E0B', kind: 'business' });
+    }
     for (const order of orders) {
-      if (order.customerPosition) points.push({ id: order.id, ...order.customerPosition, label: `${order.order_number} · ${order.customer_name}`, color: selectedOrderId === order.id ? '#2563EB' : '#10B981' });
-      if (order.courierPosition) points.push({ id: `courier-${order.id}`, ...order.courierPosition, label: `${order.courier_name || 'Repartidor'} · ${order.order_number}`, color: '#7C3AED' });
+      if (order.customerPosition) {
+        points.push({
+          id: order.id,
+          ...order.customerPosition,
+          label: `${order.order_number} · ${order.customer_name}`,
+          color: selectedOrderId === order.id ? '#2563EB' : '#10B981',
+          kind: 'customer',
+        });
+      }
+      if (order.courierPosition) {
+        points.push({
+          id: `courier-${order.id}`,
+          ...order.courierPosition,
+          label: `${order.courier_name || 'Repartidor'} · ${order.order_number}`,
+          color: '#7C3AED',
+          kind: 'courier',
+        });
+      }
     }
     return points;
-  }, [businessPosition, orders, selectedOrderId]);
+  }, [businessName, businessPosition, orders, selectedOrderId]);
 
-  const route = useMemo(() => {
-    if (!selected?.customerPosition) return [];
-    const origin = selected.courierPosition || businessPosition;
-    return origin ? [origin, selected.customerPosition] : [selected.customerPosition];
-  }, [businessPosition, selected]);
+  const route = useMemo(
+    () => (selected ? routeForOrder(selected, businessPosition) : []),
+    [businessPosition, selected],
+  );
+
+  const secondaryRoutes = useMemo<OpenStreetSecondaryRoute[]>(
+    () =>
+      orders
+        .filter((order) => order.id !== selectedOrderId)
+        .map((order) => ({
+          id: order.id,
+          points: routeForOrder(order, businessPosition),
+          color: order.status === 'in_transit' || order.status === 'picked_up' ? '#10B981' : '#7C3AED',
+        }))
+        .filter((item) => item.points.length >= 2),
+    [businessPosition, orders, selectedOrderId],
+  );
 
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return orders;
-    return orders.filter((order) => `${order.order_number} ${order.customer_name} ${order.delivery_address}`.toLowerCase().includes(term));
+    return orders.filter((order) =>
+      `${order.order_number} ${order.customer_name} ${order.delivery_address} ${order.courier_name || ''}`
+        .toLowerCase()
+        .includes(term),
+    );
   }, [orders, search]);
+
+  const followPointId = selected?.courierPosition ? `courier-${selected.id}` : selected?.customerPosition ? selected.id : 'business';
 
   return (
     <div className="flex min-h-[680px] flex-col overflow-hidden rounded-2xl border bg-card lg:h-[calc(100vh-7rem)] lg:flex-row">
@@ -169,9 +228,11 @@ export default function BusinessLiveMapPage() {
         <OpenStreetLiveMap
           points={mapPoints}
           route={route}
+          secondaryRoutes={secondaryRoutes}
           center={selected?.courierPosition || selected?.customerPosition || businessPosition || { lat: 11.2408, lng: -74.199 }}
           zoom={14}
           className="h-full min-h-[480px] w-full rounded-none"
+          followPointId={followPointId}
           onPointClick={(id) => {
             const orderId = id.startsWith('courier-') ? id.replace('courier-', '') : id;
             if (orders.some((order) => order.id === orderId)) setSelectedOrderId(orderId);
@@ -182,26 +243,26 @@ export default function BusinessLiveMapPage() {
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Actualizar
         </button>
         <div className="absolute bottom-3 left-3 z-[500] flex flex-wrap gap-2">
-          <span className="rounded-lg bg-background/95 px-2 py-1 text-[10px] shadow">🟠 Negocio</span>
-          <span className="rounded-lg bg-background/95 px-2 py-1 text-[10px] shadow">🟢 Cliente</span>
-          <span className="rounded-lg bg-background/95 px-2 py-1 text-[10px] shadow">🟣 Repartidor</span>
+          <span className="rounded-lg bg-background/95 px-2 py-1 text-[10px] shadow">🏪 Negocio</span>
+          <span className="rounded-lg bg-background/95 px-2 py-1 text-[10px] shadow">📍 Clientes</span>
+          <span className="rounded-lg bg-background/95 px-2 py-1 text-[10px] shadow">🛵 Repartidores</span>
         </div>
       </div>
 
       <aside className="w-full border-t lg:w-[390px] lg:border-l lg:border-t-0">
         <div className="border-b p-4">
-          <h2 className="font-bold">Tickets activos</h2>
-          <p className="text-xs text-muted-foreground">{orders.length} pedidos en operación</p>
+          <h2 className="font-bold">Operación en vivo</h2>
+          <p className="text-xs text-muted-foreground">{orders.length} pedidos pendientes, asignados o en ruta</p>
           <div className="relative mt-3">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar ticket, cliente o dirección..." className="h-10 w-full rounded-xl border bg-background pl-10 pr-3 text-sm" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar pedido, cliente o repartidor..." className="h-10 w-full rounded-xl border bg-background pl-10 pr-3 text-sm" />
           </div>
           {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
         </div>
 
         <div className="max-h-[520px] overflow-y-auto lg:h-[calc(100%-116px)] lg:max-h-none">
           {loading ? <SkeletonList /> : filteredOrders.length === 0 ? (
-            <div className="p-10 text-center"><Package className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-3 text-sm font-medium">Sin tickets activos</p></div>
+            <div className="p-10 text-center"><Package className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-3 text-sm font-medium">Sin pedidos operativos</p></div>
           ) : filteredOrders.map((order) => (
             <button key={order.id} type="button" onClick={() => setSelectedOrderId(order.id)} className={`w-full border-b p-4 text-left transition hover:bg-muted/40 ${selectedOrderId === order.id ? 'bg-primary/5' : ''}`}>
               <div className="flex items-start justify-between gap-2">
@@ -209,7 +270,7 @@ export default function BusinessLiveMapPage() {
                 <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${STATUS_COLORS[order.status] || 'bg-muted'}`}>{STATUS_LABELS[order.status] || order.status}</span>
               </div>
               <p className="mt-2 flex items-start gap-1 text-xs text-muted-foreground"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{order.delivery_address}</p>
-              {order.courier_name && <p className="mt-2 flex items-center gap-1 text-xs font-medium text-primary"><Bike className="h-3.5 w-3.5" />{order.courier_name}</p>}
+              {order.courier_name && <p className="mt-2 flex items-center gap-1 text-xs font-medium text-primary"><Bike className="h-3.5 w-3.5" />{order.courier_name}{order.courierPosition ? ' · GPS activo' : ' · esperando GPS'}</p>}
               <p className="mt-2 text-sm font-black">{formatCurrency(order.total_amount)}</p>
             </button>
           ))}
