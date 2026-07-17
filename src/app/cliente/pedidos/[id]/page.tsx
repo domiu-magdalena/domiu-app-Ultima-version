@@ -3,7 +3,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Bike, MessageCircle, RefreshCw, ShieldCheck, Star } from 'lucide-react';
+import {
+  ArrowLeft,
+  Banknote,
+  Bike,
+  CreditCard,
+  Landmark,
+  MessageCircle,
+  RefreshCw,
+  ShieldCheck,
+  Star,
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useChat } from '@/contexts/ChatContext';
@@ -35,10 +45,34 @@ type CourierInfo = {
 
 type TrackingMeta = {
   distanceKm: number | null;
+  durationMinutes: number | null;
   estimatedDeliveryTime: string | null;
 };
 
 const CHAT_STATUSES = ['assigned', 'accepted', 'picked_up', 'in_transit'];
+
+function paymentLabel(method?: string | null) {
+  if (method === 'cash') return 'Efectivo contra entrega';
+  if (method === 'transfer') return 'Transferencia';
+  if (method === 'credit_card') return 'Tarjeta de crédito';
+  if (method === 'debit_card') return 'Tarjeta débito';
+  if (method === 'wallet') return 'Billetera digital';
+  return 'Método no definido';
+}
+
+function paymentStatusLabel(status?: string | null) {
+  if (status === 'completed') return 'Pago completado';
+  if (status === 'pending_verification') return 'Pendiente de verificación';
+  if (status === 'failed') return 'Pago rechazado';
+  if (status === 'refunded') return 'Pago reembolsado';
+  return 'Pago pendiente';
+}
+
+function PaymentIcon({ method }: { method?: string | null }) {
+  if (method === 'cash') return <Banknote className="h-5 w-5" />;
+  if (method === 'transfer') return <Landmark className="h-5 w-5" />;
+  return <CreditCard className="h-5 w-5" />;
+}
 
 export default function ClientePedidoDetalle() {
   const params = useParams<{ id: string }>();
@@ -49,7 +83,11 @@ export default function ClientePedidoDetalle() {
 
   const [order, setOrder] = useState<OrderData | null>(null);
   const [courier, setCourier] = useState<CourierInfo | null>(null);
-  const [trackingMeta, setTrackingMeta] = useState<TrackingMeta>({ distanceKm: null, estimatedDeliveryTime: null });
+  const [trackingMeta, setTrackingMeta] = useState<TrackingMeta>({
+    distanceKm: null,
+    durationMinutes: null,
+    estimatedDeliveryTime: null,
+  });
   const [loading, setLoading] = useState(true);
   const [showChat, setShowChat] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -63,13 +101,20 @@ export default function ClientePedidoDetalle() {
       orderService.getOrderById(params.id),
       supabase
         .from('orders')
-        .select('delivery_distance_km,estimated_delivery_time')
+        .select('delivery_distance_km,route_duration_minutes,estimated_delivery_time')
         .eq('id', params.id)
         .maybeSingle(),
     ]);
     setOrder(result);
     setTrackingMeta({
-      distanceKm: metadataResult.data?.delivery_distance_km == null ? null : Number(metadataResult.data.delivery_distance_km),
+      distanceKm:
+        metadataResult.data?.delivery_distance_km == null
+          ? null
+          : Number(metadataResult.data.delivery_distance_km),
+      durationMinutes:
+        metadataResult.data?.route_duration_minutes == null
+          ? null
+          : Number(metadataResult.data.route_duration_minutes),
       estimatedDeliveryTime: metadataResult.data?.estimated_delivery_time ?? null,
     });
     setLoading(false);
@@ -100,11 +145,24 @@ export default function ClientePedidoDetalle() {
     }
     const supabase = getBrowserClient();
     void Promise.all([
-      supabase.from('profiles').select('first_name,last_name,avatar_url').eq('id', order.courier_id).single(),
-      supabase.from('drivers').select('vehicle_plate,vehicle_model,rating,completed_deliveries').eq('id', order.courier_id).single(),
+      supabase
+        .from('profiles')
+        .select('first_name,last_name,avatar_url')
+        .eq('id', order.courier_id)
+        .single(),
+      supabase
+        .from('drivers')
+        .select('vehicle_plate,vehicle_model,rating,completed_deliveries')
+        .eq('id', order.courier_id)
+        .single(),
     ]).then(([profileResult, driverResult]) => {
       setCourier({
-        name: [profileResult.data?.first_name, profileResult.data?.last_name].filter(Boolean).join(' ') || order.courier_name || 'Repartidor DomiU',
+        name:
+          [profileResult.data?.first_name, profileResult.data?.last_name]
+            .filter(Boolean)
+            .join(' ') ||
+          order.courier_name ||
+          'Repartidor DomiU',
         avatarUrl: profileResult.data?.avatar_url ?? null,
         plate: driverResult.data?.vehicle_plate ?? null,
         vehicleModel: driverResult.data?.vehicle_model ?? null,
@@ -162,12 +220,17 @@ export default function ClientePedidoDetalle() {
   };
 
   if (loading) return <SkeletonCard />;
-  if (!order) return <div className="p-12 text-center text-muted-foreground">Pedido no encontrado</div>;
+  if (!order) {
+    return <div className="p-12 text-center text-muted-foreground">Pedido no encontrado</div>;
+  }
 
-  const chatAvailable = Boolean(order.courier_id && courier && CHAT_STATUSES.includes(order.status));
+  const chatAvailable = Boolean(
+    order.courier_id && courier && CHAT_STATUSES.includes(order.status),
+  );
+  const paymentComplete = order.payment_status === 'completed';
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 pb-[calc(5rem+env(safe-area-inset-bottom))]">
       <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-2 text-sm text-muted-foreground">
         <ArrowLeft className="h-4 w-4" /> Volver
       </button>
@@ -187,6 +250,27 @@ export default function ClientePedidoDetalle() {
       </section>
 
       <OrderTimeline status={order.status} />
+
+      <section className="rounded-3xl border bg-card p-5 shadow-sm">
+        <div className="flex items-start gap-3">
+          <span className={`rounded-2xl p-3 ${paymentComplete ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'}`}>
+            <PaymentIcon method={order.payment_method} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Método de pago</p>
+            <h2 className="mt-1 font-black">{paymentLabel(order.payment_method)}</h2>
+            <p className={`mt-1 text-sm font-semibold ${paymentComplete ? 'text-success' : order.payment_status === 'failed' ? 'text-destructive' : 'text-warning'}`}>
+              {paymentStatusLabel(order.payment_status)}
+            </p>
+            {order.payment_method === 'cash' && !paymentComplete && (
+              <p className="mt-2 text-xs text-muted-foreground">El pago se marcará como completado cuando el repartidor confirme la entrega.</p>
+            )}
+            {order.payment_method === 'transfer' && order.payment_status === 'pending_verification' && (
+              <p className="mt-2 text-xs text-muted-foreground">El negocio debe verificar la transferencia antes de cerrar el pago.</p>
+            )}
+          </div>
+        </div>
+      </section>
 
       {courier && (
         <section className="rounded-3xl border bg-card p-5 shadow-sm">
@@ -227,7 +311,8 @@ export default function ClientePedidoDetalle() {
         deliveryAddress={order.delivery_address}
         deliveryLat={order.delivery_lat}
         deliveryLng={order.delivery_lng}
-        storedDistanceKm={trackingMeta.distanceKm}
+        storedDistanceKm={trackingMeta.distanceKm ?? order.route_distance_km}
+        storedDurationMinutes={trackingMeta.durationMinutes ?? order.route_duration_minutes}
         estimatedDeliveryTime={trackingMeta.estimatedDeliveryTime}
       />
 
