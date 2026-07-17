@@ -1,15 +1,16 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { ChatProvider } from '@/contexts/ChatContext';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { RefreshCw } from 'lucide-react';
+import { MapPin, RefreshCw } from 'lucide-react';
 import { BottomNavigation } from '@/components/ui/bottom-navigation';
 import { Footer } from '@/components/ui/footer';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { getBrowserClient } from '@/lib/db/supabase';
 
 const navItems = [
   { label: 'Inicio', href: '/cliente', icon: <span className="text-lg">🏠</span> },
@@ -19,23 +20,69 @@ const navItems = [
   { label: 'Perfil', href: '/cliente/perfil', icon: <span className="text-lg">👤</span> },
 ];
 
+const ADDRESS_ONBOARDING_PATH = '/cliente/configuracion/direcciones';
+
 export default function ClienteLayout({ children }: { children: React.ReactNode }) {
   const { isLoading, profile, error, retrySession } = useAuth();
   const { itemCount } = useCart();
   const router = useRouter();
+  const pathname = usePathname();
+  const [checkingAddress, setCheckingAddress] = useState(true);
 
   useEffect(() => {
     if (!isLoading && !profile && !error) router.replace('/login');
   }, [error, isLoading, profile, router]);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (isLoading || !profile?.id) {
+      if (!isLoading) setCheckingAddress(false);
+      return;
+    }
+
+    let active = true;
+    const checkExactAddress = async () => {
+      setCheckingAddress(true);
+      try {
+        const supabase = getBrowserClient();
+        const { data, error: addressError } = await supabase
+          .from('addresses')
+          .select('id')
+          .eq('user_id', profile.id)
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .is('deleted_at', null)
+          .limit(1)
+          .maybeSingle();
+
+        if (!active) return;
+        if (addressError) {
+          console.error('[CustomerOnboarding] No se pudo validar la dirección:', addressError);
+          return;
+        }
+        if (!data && !pathname.startsWith(ADDRESS_ONBOARDING_PATH)) {
+          router.replace(`${ADDRESS_ONBOARDING_PATH}?onboarding=1`);
+        }
+      } finally {
+        if (active) setCheckingAddress(false);
+      }
+    };
+
+    void checkExactAddress();
+    return () => {
+      active = false;
+    };
+  }, [isLoading, pathname, profile?.id, router]);
+
+  if (isLoading || (profile && checkingAddress && !pathname.startsWith(ADDRESS_ONBOARDING_PATH))) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-background px-6">
         <div className="w-full max-w-sm space-y-4 text-center">
-          <div className="mx-auto h-14 w-14 animate-pulse rounded-2xl bg-primary/15" />
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+            <MapPin className="h-7 w-7 animate-pulse" />
+          </div>
           <div className="mx-auto h-5 w-40 animate-pulse rounded bg-muted" />
           <div className="mx-auto h-3 w-56 animate-pulse rounded bg-muted" />
-          <p className="text-xs text-muted-foreground">Preparando DomiU…</p>
+          <p className="text-xs text-muted-foreground">Verificando tu ubicación de entrega…</p>
         </div>
       </div>
     );
