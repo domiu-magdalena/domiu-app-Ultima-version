@@ -24,22 +24,34 @@ const itemSchema = z.object({
 
 const createSchema = quoteSchema.extend({
   paymentMethod: paymentMethodSchema,
+  paymentReference: z.string().trim().max(120).optional(),
   items: z.array(itemSchema).min(1).max(100),
   subtotal: z.number().min(0),
   taxAmount: z.number().min(0).default(0),
   instructions: z.string().max(1000).default(''),
 });
 
+const proofSchema = z.object({
+  orderId: z.string().uuid(),
+  proofPath: z.string().min(1).max(500),
+});
+
 export async function quoteCustomerDeliveryAction(input: z.infer<typeof quoteSchema>) {
   const parsed = quoteSchema.safeParse(input);
   if (!parsed.success) {
-    return { success: false as const, error: parsed.error.issues.map((issue) => issue.message).join(', ') };
+    return {
+      success: false as const,
+      error: parsed.error.issues.map((issue) => issue.message).join(', '),
+    };
   }
 
   const auth = await requireAuth();
   if (auth.error) return { success: false as const, error: auth.error.message };
   if (auth.session.profile.role !== 'customer') {
-    return { success: false as const, error: 'Solo una cuenta de cliente puede cotizar un domicilio' };
+    return {
+      success: false as const,
+      error: 'Solo una cuenta de cliente puede cotizar un domicilio',
+    };
   }
 
   try {
@@ -60,7 +72,10 @@ export async function quoteCustomerDeliveryAction(input: z.infer<typeof quoteSch
   } catch (cause) {
     return {
       success: false as const,
-      error: cause instanceof Error ? cause.message : 'No se pudo calcular la ruta del domicilio',
+      error:
+        cause instanceof Error
+          ? cause.message
+          : 'No se pudo calcular la ruta del domicilio',
     };
   }
 }
@@ -68,18 +83,31 @@ export async function quoteCustomerDeliveryAction(input: z.infer<typeof quoteSch
 export async function createCustomerOrderAction(input: z.infer<typeof createSchema>) {
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) {
-    return { success: false as const, error: parsed.error.issues.map((issue) => issue.message).join(', ') };
+    return {
+      success: false as const,
+      error: parsed.error.issues.map((issue) => issue.message).join(', '),
+    };
   }
 
   const auth = await requireAuth();
   if (auth.error) return { success: false as const, error: auth.error.message };
   if (auth.session.profile.role !== 'customer') {
-    return { success: false as const, error: 'Solo una cuenta de cliente puede crear este pedido' };
+    return {
+      success: false as const,
+      error: 'Solo una cuenta de cliente puede crear este pedido',
+    };
   }
 
   const supabase = getServiceClient();
   const customerId = auth.session.user.id;
   const data = parsed.data;
+
+  if (data.paymentMethod === 'transfer' && !data.paymentReference?.trim()) {
+    return {
+      success: false as const,
+      error: 'Escribe la referencia o número de comprobante de la transferencia',
+    };
+  }
 
   try {
     const { data: business } = await supabase
@@ -90,7 +118,10 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
       .maybeSingle();
 
     if (!business?.is_active || !business.is_verified) {
-      return { success: false as const, error: 'El negocio no está disponible para recibir pedidos' };
+      return {
+        success: false as const,
+        error: 'El negocio no está disponible para recibir pedidos',
+      };
     }
 
     const quote = await getVerifiedDeliveryQuote(
@@ -110,7 +141,10 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
 
     if (productsError) return { success: false as const, error: productsError.message };
     if (!products || products.length !== new Set(productIds).size) {
-      return { success: false as const, error: 'Uno o más productos ya no están disponibles' };
+      return {
+        success: false as const,
+        error: 'Uno o más productos ya no están disponibles',
+      };
     }
 
     const productMap = new Map(products.map((product) => [product.id, product]));
@@ -119,7 +153,9 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
       const product = productMap.get(item.productId);
       const stock = Number(product?.quantity_available ?? 0);
       if (!product || product.status !== 'available' || stock < item.quantity) {
-        throw new Error(`El producto ${product?.name ?? 'seleccionado'} está agotado o no tiene inventario suficiente`);
+        throw new Error(
+          `El producto ${product?.name ?? 'seleccionado'} está agotado o no tiene inventario suficiente`,
+        );
       }
 
       const basePrice = Number(product.discount_price ?? product.price ?? item.unitPrice);
@@ -139,7 +175,8 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
       .toString(36)
       .slice(2, 6)
       .toUpperCase()}`;
-    const initialPaymentStatus = data.paymentMethod === 'transfer' ? 'pending_verification' : 'pending';
+    const initialPaymentStatus =
+      data.paymentMethod === 'transfer' ? 'pending_verification' : 'pending';
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -152,6 +189,8 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
         status: 'pending',
         payment_method: data.paymentMethod,
         payment_status: initialPaymentStatus,
+        payment_reference:
+          data.paymentMethod === 'transfer' ? data.paymentReference?.trim() || null : null,
         subtotal: verifiedSubtotal,
         delivery_fee: quote.deliveryFee,
         tax_amount: data.taxAmount,
@@ -177,13 +216,19 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
           delivery_duration_minutes: quote.durationMinutes,
           route_verified_on_server: true,
           payment_method_selected_by_customer: data.paymentMethod,
+          payment_reference_provided: Boolean(data.paymentReference?.trim()),
         },
       })
-      .select('id,order_number,delivery_fee,delivery_distance_km,route_duration_minutes,total_amount,estimated_delivery_time,payment_method,payment_status')
+      .select(
+        'id,order_number,delivery_fee,delivery_distance_km,route_duration_minutes,total_amount,estimated_delivery_time,payment_method,payment_status',
+      )
       .single();
 
     if (orderError || !order) {
-      return { success: false as const, error: orderError?.message || 'No se pudo crear el pedido' };
+      return {
+        success: false as const,
+        error: orderError?.message || 'No se pudo crear el pedido',
+      };
     }
 
     const { error: itemsError } = await supabase.from('order_items').insert(
@@ -198,7 +243,7 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
     await supabase.from('order_tracking').insert({
       order_id: order.id,
       status: 'pending',
-      notes: `Pedido creado con ruta verificada y pago ${data.paymentMethod === 'cash' ? 'en efectivo' : 'por transferencia'}`,
+      notes: `Pedido creado con ruta verificada y pago ${data.paymentMethod === 'cash' ? 'en efectivo' : 'por transferencia pendiente de validación'}`,
     });
 
     await serverAudit.logAction(
@@ -238,4 +283,65 @@ export async function createCustomerOrderAction(input: z.infer<typeof createSche
       error: cause instanceof Error ? cause.message : 'No se pudo crear el pedido',
     };
   }
+}
+
+export async function attachTransferProofAction(input: z.infer<typeof proofSchema>) {
+  const parsed = proofSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false as const,
+      error: parsed.error.issues.map((issue) => issue.message).join(', '),
+    };
+  }
+
+  const auth = await requireAuth();
+  if (auth.error) return { success: false as const, error: auth.error.message };
+  if (auth.session.profile.role !== 'customer') {
+    return { success: false as const, error: 'Solo el cliente puede adjuntar este comprobante' };
+  }
+
+  const customerId = auth.session.user.id;
+  const expectedPrefix = `${customerId}/${parsed.data.orderId}/`;
+  if (!parsed.data.proofPath.startsWith(expectedPrefix)) {
+    return { success: false as const, error: 'La ruta del comprobante no es válida' };
+  }
+
+  const supabase = getServiceClient();
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id,customer_id,payment_method,payment_status')
+    .eq('id', parsed.data.orderId)
+    .eq('customer_id', customerId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (!order) return { success: false as const, error: 'Pedido no encontrado' };
+  if (order.payment_method !== 'transfer') {
+    return { success: false as const, error: 'Este pedido no utiliza transferencia' };
+  }
+  if (['completed', 'refunded'].includes(order.payment_status)) {
+    return { success: false as const, error: 'El pago ya fue cerrado' };
+  }
+
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      payment_proof_url: parsed.data.proofPath,
+      payment_status: 'pending_verification',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', order.id);
+  if (error) return { success: false as const, error: error.message };
+
+  await serverAudit.logAction(
+    customerId,
+    auth.session.user.email,
+    'customer',
+    'attach_payment_proof',
+    'orders',
+    order.id,
+    { proof_path: parsed.data.proofPath },
+  );
+
+  return { success: true as const };
 }
