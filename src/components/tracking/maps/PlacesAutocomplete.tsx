@@ -4,12 +4,14 @@ import React, { useCallback, useEffect, useRef, useState, memo } from 'react';
 import { useMaps } from '@/contexts/MapsContext';
 import { AlertTriangle, Loader2, Search } from 'lucide-react';
 
-interface PlaceResult {
+export interface PlaceResult {
   lat: number;
   lng: number;
   formattedAddress: string;
+  placeId?: string;
   city?: string;
   state?: string;
+  neighborhood?: string;
   country?: string;
   postalCode?: string;
 }
@@ -20,6 +22,27 @@ interface PlacesAutocompleteProps {
   placeholder?: string;
   defaultValue?: string;
   className?: string;
+}
+
+function parseComponents(
+  components: google.maps.GeocoderAddressComponent[] | undefined,
+  result: PlaceResult,
+) {
+  for (const component of components || []) {
+    if (component.types.includes('locality')) result.city = component.long_name;
+    if (!result.city && component.types.includes('administrative_area_level_2')) result.city = component.long_name;
+    if (component.types.includes('administrative_area_level_1')) result.state = component.long_name;
+    if (
+      component.types.includes('neighborhood') ||
+      component.types.includes('sublocality') ||
+      component.types.includes('sublocality_level_1')
+    ) {
+      result.neighborhood = component.long_name;
+    }
+    if (component.types.includes('country')) result.country = component.long_name;
+    if (component.types.includes('postal_code')) result.postalCode = component.long_name;
+  }
+  return result;
 }
 
 function PlacesAutocompleteInner({
@@ -43,29 +66,28 @@ function PlacesAutocompleteInner({
   useEffect(() => {
     if (!isReady || !inputRef.current || autocompleteRef.current || !window.google?.maps?.places) return;
 
+    const santaMartaBounds = new google.maps.LatLngBounds(
+      { lat: 11.05, lng: -74.35 },
+      { lat: 11.35, lng: -73.95 },
+    );
     autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
       types: ['address'],
       componentRestrictions: { country: 'co' },
-      fields: ['address_components', 'formatted_address', 'geometry'],
+      fields: ['address_components', 'formatted_address', 'geometry', 'place_id'],
+      bounds: santaMartaBounds,
+      strictBounds: false,
     });
 
     listenerRef.current = autocompleteRef.current.addListener('place_changed', () => {
       const place = autocompleteRef.current?.getPlace();
       if (!place?.geometry?.location) return;
 
-      const result: PlaceResult = {
+      const result = parseComponents(place.address_components, {
         lat: place.geometry.location.lat(),
         lng: place.geometry.location.lng(),
         formattedAddress: place.formatted_address || inputRef.current?.value || '',
-      };
-
-      for (const comp of place.address_components || []) {
-        if (comp.types.includes('locality')) result.city = comp.long_name;
-        if (!result.city && comp.types.includes('administrative_area_level_2')) result.city = comp.long_name;
-        if (comp.types.includes('administrative_area_level_1')) result.state = comp.long_name;
-        if (comp.types.includes('country')) result.country = comp.long_name;
-        if (comp.types.includes('postal_code')) result.postalCode = comp.long_name;
-      }
+        placeId: place.place_id || undefined,
+      });
 
       setValue(result.formattedAddress);
       onValueChange?.(result.formattedAddress);
@@ -84,22 +106,20 @@ function PlacesAutocompleteInner({
     setLoading(true);
     try {
       const geocoder = new google.maps.Geocoder();
-      const response = await geocoder.geocode({ address: value, region: 'co' });
+      const response = await geocoder.geocode({
+        address: value,
+        region: 'co',
+        componentRestrictions: { country: 'CO' },
+      });
       const first = response.results?.[0];
       if (!first) return;
 
-      const result: PlaceResult = {
+      const result = parseComponents(first.address_components, {
         lat: first.geometry.location.lat(),
         lng: first.geometry.location.lng(),
         formattedAddress: first.formatted_address,
-      };
-      for (const comp of first.address_components || []) {
-        if (comp.types.includes('locality')) result.city = comp.long_name;
-        if (!result.city && comp.types.includes('administrative_area_level_2')) result.city = comp.long_name;
-        if (comp.types.includes('administrative_area_level_1')) result.state = comp.long_name;
-        if (comp.types.includes('country')) result.country = comp.long_name;
-        if (comp.types.includes('postal_code')) result.postalCode = comp.long_name;
-      }
+        placeId: first.place_id || undefined,
+      });
       setValue(result.formattedAddress);
       onValueChange?.(result.formattedAddress);
       onPlaceSelected(result);
@@ -122,6 +142,8 @@ function PlacesAutocompleteInner({
             onValueChange?.(nextValue);
           }}
           placeholder={placeholder}
+          autoComplete="street-address"
+          inputMode="text"
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();
@@ -137,7 +159,7 @@ function PlacesAutocompleteInner({
         <div className="flex items-start gap-2 rounded-xl border border-warning/20 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <span>
-            {error || 'Google Maps no está disponible.'} Puedes escribir la dirección y usar el botón de ubicación GPS para guardar las coordenadas exactas.
+            {error || 'Google Maps no está disponible.'} Puedes escribir la dirección y usar el GPS para capturar coordenadas exactas.
           </span>
         </div>
       )}
