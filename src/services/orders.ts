@@ -29,16 +29,22 @@ export interface OrderData {
   order_type: string | null;
   payment_status?: string | null;
   payment_method?: string | null;
+  payment_reference?: string | null;
+  payment_proof_url?: string | null;
   subtotal: number;
   delivery_fee: number;
   tax_amount: number;
   total_amount: number;
+  pickup_address_id?: string | null;
   pickup_address: string;
   pickup_lat: number | null;
   pickup_lng: number | null;
   delivery_address: string;
   delivery_lat: number | null;
   delivery_lng: number | null;
+  route_distance_km?: number | null;
+  route_duration_minutes?: number | null;
+  route_source?: string | null;
   special_instructions: string | null;
   items: OrderItemData[];
   created_at: string;
@@ -74,17 +80,42 @@ function formatAddress(parts: Array<string | null | undefined>, fallback: string
   return address || fallback;
 }
 
+type ExtendedOrder = Order & {
+  pickup_address_id?: string | null;
+  pickup_address?: string | null;
+  pickup_lat?: number | null;
+  pickup_lng?: number | null;
+  delivery_address?: string | null;
+  delivery_lat?: number | null;
+  delivery_lng?: number | null;
+  payment_status?: string | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
+  payment_proof_url?: string | null;
+  route_distance_km?: number | null;
+  route_duration_minutes?: number | null;
+  route_source?: string | null;
+};
+
 async function buildOrderData(order: Order): Promise<OrderData> {
   const supabase = await getClient();
-  const row = order as Order & {
-    pickup_address?: string | null;
-    pickup_lat?: number | null;
-    pickup_lng?: number | null;
-    payment_status?: string | null;
-    payment_method?: string | null;
-  };
+  const row = order as ExtendedOrder;
 
-  const [profileResult, bizResult, itemsResult, addrResult, courierResult, bizAddressResult] =
+  const pickupQuery = row.pickup_address_id
+    ? supabase
+        .from('business_addresses')
+        .select('street_address,formatted_address,city,state_province,latitude,longitude')
+        .eq('id', row.pickup_address_id)
+        .maybeSingle()
+    : supabase
+        .from('business_addresses')
+        .select('street_address,formatted_address,city,state_province,latitude,longitude')
+        .eq('business_id', order.business_id)
+        .eq('is_primary', true)
+        .is('deleted_at', null)
+        .maybeSingle();
+
+  const [profileResult, bizResult, itemsResult, addrResult, courierResult, pickupResult] =
     await Promise.all([
       supabase
         .from('profiles')
@@ -95,9 +126,9 @@ async function buildOrderData(order: Order): Promise<OrderData> {
       supabase.from('order_items').select('*, products(name)').eq('order_id', order.id),
       supabase
         .from('addresses')
-        .select('street_address,city,state_province,latitude,longitude')
+        .select('street_address,formatted_address,city,state_province,latitude,longitude')
         .eq('id', order.delivery_address_id)
-        .single(),
+        .maybeSingle(),
       order.courier_id
         ? supabase
             .from('profiles')
@@ -105,12 +136,7 @@ async function buildOrderData(order: Order): Promise<OrderData> {
             .eq('id', order.courier_id)
             .single()
         : Promise.resolve({ data: null }),
-      supabase
-        .from('business_addresses')
-        .select('street_address,city,state_province,latitude,longitude')
-        .eq('business_id', order.business_id)
-        .eq('is_primary', true)
-        .maybeSingle(),
+      pickupQuery,
     ]);
 
   const customerName = profileResult.data
@@ -120,23 +146,46 @@ async function buildOrderData(order: Order): Promise<OrderData> {
     ? [courierResult.data.first_name, courierResult.data.last_name].filter(Boolean).join(' ')
     : null;
 
-  const deliveryAddress = addrResult.data
-    ? formatAddress(
+  const fallbackDeliveryAddress = addrResult.data
+    ? String(addrResult.data.formatted_address || '').trim() ||
+      formatAddress(
         [addrResult.data.street_address, addrResult.data.city, addrResult.data.state_province],
         'Dirección de entrega no disponible',
       )
     : 'Dirección de entrega no disponible';
 
-  const businessAddress = bizAddressResult.data
-    ? formatAddress(
-        [
-          bizAddressResult.data.street_address,
-          bizAddressResult.data.city,
-          bizAddressResult.data.state_province,
-        ],
+  const fallbackPickupAddress = pickupResult.data
+    ? String(pickupResult.data.formatted_address || '').trim() ||
+      formatAddress(
+        [pickupResult.data.street_address, pickupResult.data.city, pickupResult.data.state_province],
         'Dirección del negocio no disponible',
       )
     : 'Dirección del negocio no disponible';
+
+  const pickupLat =
+    row.pickup_lat == null
+      ? pickupResult.data?.latitude == null
+        ? null
+        : Number(pickupResult.data.latitude)
+      : Number(row.pickup_lat);
+  const pickupLng =
+    row.pickup_lng == null
+      ? pickupResult.data?.longitude == null
+        ? null
+        : Number(pickupResult.data.longitude)
+      : Number(row.pickup_lng);
+  const deliveryLat =
+    row.delivery_lat == null
+      ? addrResult.data?.latitude == null
+        ? null
+        : Number(addrResult.data.latitude)
+      : Number(row.delivery_lat);
+  const deliveryLng =
+    row.delivery_lng == null
+      ? addrResult.data?.longitude == null
+        ? null
+        : Number(addrResult.data.longitude)
+      : Number(row.delivery_lng);
 
   return {
     id: order.id,
@@ -152,28 +201,24 @@ async function buildOrderData(order: Order): Promise<OrderData> {
     order_type: order.order_type ?? null,
     payment_status: row.payment_status ?? null,
     payment_method: row.payment_method ?? null,
+    payment_reference: row.payment_reference ?? null,
+    payment_proof_url: row.payment_proof_url ?? null,
     subtotal: Number(order.subtotal),
     delivery_fee: Number(order.delivery_fee),
     tax_amount: Number(order.tax_amount),
     total_amount: Number(order.total_amount),
-    pickup_address: row.pickup_address || businessAddress,
-    pickup_lat:
-      row.pickup_lat == null
-        ? bizAddressResult.data?.latitude == null
-          ? null
-          : Number(bizAddressResult.data.latitude)
-        : Number(row.pickup_lat),
-    pickup_lng:
-      row.pickup_lng == null
-        ? bizAddressResult.data?.longitude == null
-          ? null
-          : Number(bizAddressResult.data.longitude)
-        : Number(row.pickup_lng),
-    delivery_address: deliveryAddress,
-    delivery_lat:
-      addrResult.data?.latitude == null ? null : Number(addrResult.data.latitude),
-    delivery_lng:
-      addrResult.data?.longitude == null ? null : Number(addrResult.data.longitude),
+    pickup_address_id: row.pickup_address_id ?? null,
+    pickup_address: String(row.pickup_address || '').trim() || fallbackPickupAddress,
+    pickup_lat: pickupLat,
+    pickup_lng: pickupLng,
+    delivery_address: String(row.delivery_address || '').trim() || fallbackDeliveryAddress,
+    delivery_lat: deliveryLat,
+    delivery_lng: deliveryLng,
+    route_distance_km:
+      row.route_distance_km == null ? null : Number(row.route_distance_km),
+    route_duration_minutes:
+      row.route_duration_minutes == null ? null : Number(row.route_duration_minutes),
+    route_source: row.route_source ?? null,
     special_instructions: order.special_instructions,
     items: (itemsResult.data ?? []).map((item: any) => ({
       product_id: item.product_id,
@@ -196,102 +241,8 @@ async function fetchOrderWithDetails(orderId: string) {
 }
 
 export const orderService = {
-  createOrder: async (input: {
-    customerId: string;
-    customerName: string;
-    businessId: string;
-    businessName: string;
-    items: CreateOrderItemInput[];
-    subtotal: number;
-    deliveryFee: number;
-    taxAmount: number;
-    totalAmount: number;
-    deliveryAddress: string;
-    instructions: string;
-  }): Promise<OrderData> => {
-    const supabase = await getClient();
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', input.customerId)
-      .single();
-    if (!profile) throw new Error('Usuario no encontrado');
-
-    let { data: address } = await supabase
-      .from('addresses')
-      .select('id')
-      .eq('user_id', input.customerId)
-      .eq('is_primary', true)
-      .maybeSingle();
-
-    if (!address) {
-      const result = await supabase
-        .from('addresses')
-        .insert({
-          user_id: input.customerId,
-          type: 'home',
-          street_address: input.deliveryAddress,
-          city: 'Santa Marta',
-          state_province: 'Magdalena',
-          country: 'Colombia',
-          is_primary: true,
-        })
-        .select('id')
-        .single();
-      address = result.data;
-    }
-
-    if (!address) throw new Error('No se pudo crear la dirección');
-
-    const orderNumber = `DOM-${Date.now().toString(36).toUpperCase()}-${Math.random()
-      .toString(36)
-      .slice(2, 6)
-      .toUpperCase()}`;
-
-    const { data: order, error } = await supabase
-      .from('orders')
-      .insert({
-        order_number: orderNumber,
-        customer_id: input.customerId,
-        business_id: input.businessId,
-        delivery_address_id: address.id,
-        status: 'pending',
-        payment_status: 'pending',
-        subtotal: input.subtotal,
-        delivery_fee: input.deliveryFee,
-        tax_amount: input.taxAmount,
-        total_amount: input.totalAmount,
-        special_instructions: input.instructions || null,
-      })
-      .select()
-      .single();
-
-    if (error || !order) throw new Error(error?.message ?? 'Error al crear orden');
-
-    const { error: itemsError } = await supabase.from('order_items').insert(
-      input.items.map((item) => ({
-        order_id: order.id,
-        product_id: item.productId,
-        quantity: item.quantity,
-        unit_price: item.unitPrice,
-        item_total: item.unitPrice * item.quantity,
-        variant_selections: item.customization ?? null,
-        special_instructions: item.specialInstructions || null,
-      })) as any,
-    );
-
-    if (itemsError) {
-      await supabase.from('orders').delete().eq('id', order.id);
-      throw new Error(itemsError.message);
-    }
-
-    await supabase.from('order_tracking').insert({
-      order_id: order.id,
-      status: 'pending',
-      notes: 'Orden creada',
-    });
-
-    return (await fetchOrderWithDetails(order.id)) as OrderData;
+  createOrder: async (): Promise<OrderData> => {
+    throw new Error('La creación antigua de pedidos fue desactivada. Usa el checkout verificado.');
   },
 
   getCustomerOrders: async (customerId: string) => {
@@ -330,9 +281,7 @@ export const orderService = {
       .from('orders')
       .select('*')
       .is('courier_id', null)
-      .or(
-        'and(status.in.(confirmed,ready)),and(status.eq.pending,order_type.eq.manual_delivery)',
-      )
+      .or('and(status.in.(confirmed,ready)),and(status.eq.pending,order_type.eq.manual_delivery)')
       .order('created_at', { ascending: false });
     return Promise.all((data ?? []).map((order) => buildOrderData(order as Order)));
   },
