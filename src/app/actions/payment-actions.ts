@@ -29,7 +29,7 @@ export async function verifyTransferPaymentAction(input: z.infer<typeof verifySc
   const supabase = getServiceClient();
   const { data: order } = await supabase
     .from('orders')
-    .select('id,business_id,customer_id,order_number,payment_method,payment_status,payment_proof_url,total_amount')
+    .select('id,business_id,customer_id,order_number,payment_method,payment_status,payment_proof_url,total_amount,metadata')
     .eq('id', parsed.data.orderId)
     .is('deleted_at', null)
     .maybeSingle();
@@ -58,11 +58,16 @@ export async function verifyTransferPaymentAction(input: z.infer<typeof verifySc
 
   const nextStatus = parsed.data.decision === 'approve' ? 'completed' : 'failed';
   const now = new Date().toISOString();
+  const existingMetadata =
+    order.metadata && typeof order.metadata === 'object'
+      ? (order.metadata as Record<string, unknown>)
+      : {};
   const { error: orderError } = await supabase
     .from('orders')
     .update({
       payment_status: nextStatus,
       metadata: {
+        ...existingMetadata,
         payment_reviewed_at: now,
         payment_reviewed_by: auth.session.user.id,
         payment_decision: parsed.data.decision,
@@ -74,6 +79,15 @@ export async function verifyTransferPaymentAction(input: z.infer<typeof verifySc
     .eq('id', order.id);
   if (orderError) return { success: false as const, error: orderError.message };
 
+  const { data: transaction } = await supabase
+    .from('payment_transactions')
+    .select('metadata')
+    .eq('order_id', order.id)
+    .maybeSingle();
+  const transactionMetadata =
+    transaction?.metadata && typeof transaction.metadata === 'object'
+      ? (transaction.metadata as Record<string, unknown>)
+      : {};
   const { error: transactionError } = await supabase
     .from('payment_transactions')
     .update({
@@ -81,6 +95,7 @@ export async function verifyTransferPaymentAction(input: z.infer<typeof verifySc
       verified_by: auth.session.user.id,
       verified_at: now,
       metadata: {
+        ...transactionMetadata,
         decision: parsed.data.decision,
         reason: parsed.data.reason?.trim() || null,
         reviewer_role: auth.session.profile.role,
@@ -93,8 +108,12 @@ export async function verifyTransferPaymentAction(input: z.infer<typeof verifySc
   await supabase.from('notifications').insert({
     recipient_id: order.customer_id,
     sender_id: auth.session.user.id,
-    notification_type: parsed.data.decision === 'approve' ? 'payment_success' : 'payment_failed',
-    title: parsed.data.decision === 'approve' ? 'Transferencia aprobada' : 'Transferencia rechazada',
+    notification_type:
+      parsed.data.decision === 'approve' ? 'payment_received' : 'payment_failed',
+    title:
+      parsed.data.decision === 'approve'
+        ? 'Transferencia aprobada'
+        : 'Transferencia rechazada',
     message:
       parsed.data.decision === 'approve'
         ? `El pago del pedido #${order.order_number} fue verificado.`
@@ -103,7 +122,10 @@ export async function verifyTransferPaymentAction(input: z.infer<typeof verifySc
     reference_id: order.id,
     reference_type: 'payment',
     channels: ['in_app'],
-    metadata: { payment_status: nextStatus, reason: parsed.data.reason?.trim() || null },
+    metadata: {
+      payment_status: nextStatus,
+      reason: parsed.data.reason?.trim() || null,
+    },
   });
 
   await serverAudit.logAction(
