@@ -86,7 +86,17 @@ const CUISINE_MAP: Record<string, { icon: string; id: string }> = {
 function mapBusinessToUI(biz: any): MarketplaceBusiness {
   const cuisineInfo = biz.cuisine_type ? CUISINE_MAP[biz.cuisine_type] : undefined;
   const catalogStatus = (biz.metadata?.catalog_status ?? 'live') as CatalogStatus;
-  const acceptingOrders = Boolean(biz.metadata?.accepting_orders ?? catalogStatus === 'live');
+  const legacyAcceptingOrders = Boolean(biz.metadata?.accepting_orders ?? catalogStatus === 'live');
+  const hasOperationalColumns = typeof biz.is_accepting_orders === 'boolean' || typeof biz.operations_status === 'string';
+  const acceptingOrders = hasOperationalColumns
+    ? Boolean(biz.is_accepting_orders && biz.operations_status === 'open')
+    : legacyAcceptingOrders;
+  const isOpen = Boolean(
+    biz.is_active &&
+    biz.is_verified &&
+    catalogStatus === 'live' &&
+    acceptingOrders,
+  );
 
   return {
     id: biz.id,
@@ -101,9 +111,9 @@ function mapBusinessToUI(biz: any): MarketplaceBusiness {
     review_count: Number(biz.total_ratings ?? 0),
     delivery_time: biz.metadata?.delivery_time ?? '20-35 min',
     delivery_fee: biz.metadata?.delivery_fee ?? 'Calculado por distancia',
-    is_open: Boolean(biz.is_active && acceptingOrders),
+    is_open: isOpen,
     is_featured: Boolean(biz.is_verified),
-    accepting_orders: acceptingOrders,
+    accepting_orders: isOpen,
     catalog_status: catalogStatus,
     source_label: biz.metadata?.source_name ?? undefined,
     business_type: biz.business_type ?? 'restaurant',
