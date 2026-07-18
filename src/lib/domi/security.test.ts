@@ -8,7 +8,11 @@ import {
   sanitizeDomiClientContext,
 } from './security';
 
-describe('Domi phase 1 security', () => {
+const PRODUCT_A = '11111111-1111-4111-8111-111111111111';
+const PRODUCT_B = '22222222-2222-4222-8222-222222222222';
+const BUSINESS = '33333333-3333-4333-8333-333333333333';
+
+describe('Domi security and client context', () => {
   it('normaliza roles administrativos y comerciales', () => {
     expect(normalizeDomiRole('super_admin')).toBe('admin');
     expect(normalizeDomiRole('admin_financiero')).toBe('admin');
@@ -31,6 +35,34 @@ describe('Domi phase 1 security', () => {
       .toBe('/repartidor/ganancias');
     expect(sanitizeDomiClientContext('merchant', { path: '/negocio/pedidos' }).path)
       .toBe('/negocio/pedidos');
+  });
+
+  it('sanea, combina y limita cantidades del carrito del cliente', () => {
+    const context = sanitizeDomiClientContext('customer', {
+      cart: {
+        businessId: BUSINESS,
+        items: [
+          { productId: PRODUCT_A, quantity: 2 },
+          { productId: PRODUCT_A, quantity: 98 },
+          { productId: PRODUCT_B, quantity: 1 },
+          { productId: 'producto-invalido', quantity: 5 },
+        ],
+      },
+    });
+
+    expect(context.cart).toEqual({
+      businessId: BUSINESS,
+      items: [
+        { productId: PRODUCT_A, quantity: 99 },
+        { productId: PRODUCT_B, quantity: 1 },
+      ],
+    });
+  });
+
+  it('elimina el carrito del contexto de perfiles no clientes', () => {
+    expect(sanitizeDomiClientContext('courier', {
+      cart: { businessId: BUSINESS, items: [{ productId: PRODUCT_A, quantity: 1 }] },
+    }).cart).toBeNull();
   });
 
   it('bloquea prompt injection', () => {
