@@ -163,22 +163,93 @@
 }
 
 @layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
 
   html {
     @apply font-sans;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
     background: #1A1D21;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scroll-padding-top: 5rem;
   }
 
   body {
     @apply bg-background text-foreground;
+    width: 100%;
+    max-width: 100%;
     min-height: 100dvh;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
     background-image:
       radial-gradient(circle at 10% -10%, rgb(255 196 0 / 0.07), transparent 28rem),
       radial-gradient(circle at 100% 0%, rgb(255 255 255 / 0.025), transparent 26rem);
     background-attachment: fixed;
+  }
+
+  main,
+  header,
+  footer,
+  nav,
+  aside,
+  section,
+  article,
+  form {
+    min-width: 0;
+  }
+
+  .flex > *,
+  .grid > * {
+    min-width: 0;
+  }
+
+  img,
+  picture,
+  video {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  svg,
+  canvas {
+    max-width: 100%;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role='button'] {
+    touch-action: manipulation;
+  }
+
+  pre,
+  code,
+  kbd,
+  samp {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   h1,
@@ -188,6 +259,15 @@
   h5,
   h6 {
     font-family: var(--font-montserrat), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    overflow-wrap: anywhere;
+  }
+
+  p,
+  li,
+  dd,
+  dt,
+  span {
+    overflow-wrap: anywhere;
   }
 
   ::selection {
@@ -205,6 +285,25 @@
 
   .domiu-brand-glow {
     box-shadow: 0 0 0 1px rgb(255 196 0 / 0.12), 0 12px 36px -18px rgb(255 196 0 / 0.5);
+  }
+
+  .mobile-scroll-x {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-safe-bottom {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .mobile-page {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
   }
 }
 
@@ -230,6 +329,53 @@
   }
   .text-caption {
     @apply text-sm leading-normal text-muted-foreground;
+  }
+}
+
+@media (max-width: 767px) {
+  body {
+    background-attachment: scroll;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  [role='dialog'],
+  dialog {
+    width: calc(100vw - 1rem);
+    max-width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
+
+  .overflow-x-auto,
+  [class*='overflow-x-auto'] {
+    max-width: 100%;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    font-size: 0.8125rem;
+  }
+}
+
+@media (max-width: 359px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

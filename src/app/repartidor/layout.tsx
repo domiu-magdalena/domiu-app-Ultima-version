@@ -37,13 +37,13 @@ export default function RepartidorLayout({ children }: { children: React.ReactNo
   if (profile.role !== 'courier') return null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] w-full min-w-0 max-w-full overflow-x-clip bg-background">
       <CourierProvider courierId={profile.id}>
         <CourierDispatchAlarm />
         <CourierSidebar />
-        <div className="transition-all duration-300 lg:pl-72 pb-16 lg:pb-0">
+        <div className="min-w-0 max-w-full overflow-x-clip pb-[calc(5rem+env(safe-area-inset-bottom))] transition-all duration-300 lg:pl-72 lg:pb-0">
           <CourierTopbar />
-          <main className="p-4 sm:p-6">
+          <main className="min-w-0 max-w-full overflow-x-clip p-3 sm:p-5 lg:p-6">
             <ErrorBoundary name="Layout-children">
               {children}
             </ErrorBoundary>
