@@ -15,6 +15,17 @@ export default function LoginPage() {
   const [formData, setFormData] = useState<LoginCredentials>({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get('error');
+    if (reason === 'session_expired') {
+      setSessionNotice('Tu sesión anterior venció o quedó dañada. Ya la limpiamos; inicia sesión nuevamente.');
+    } else if (reason === 'configuration') {
+      setSessionNotice('La aplicación está terminando de configurar el acceso. Intenta iniciar sesión nuevamente.');
+    }
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated && profile?.role) {
@@ -32,18 +43,24 @@ export default function LoginPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (submitting) return;
     setFormError(null);
+    setSessionNotice(null);
     if (!formData.email) return setFormError('Ingresa tu correo electrónico');
     if (!formData.password) return setFormError('Ingresa tu contraseña');
+
+    setSubmitting(true);
     try {
       const sessionProfile = await login(formData);
       router.replace(getDashboardPathForRole(sessionProfile.role));
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const displayError = formError || authError;
+  const displayError = formError || sessionNotice || authError;
 
   return (
     <main className="min-h-[100dvh] bg-[#F7F8FA] text-[#17191F] [--background:#F7F8FA] [--foreground:#17191F] [--primary:#FFD400] [--primary-foreground:#17191F] [--muted:#EEF0F3] [--muted-foreground:#68707D] [--border:#DDE1E7]">
@@ -70,26 +87,26 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <section className="flex items-center justify-center px-5 py-10 sm:px-10">
-          <div className="w-full max-w-md rounded-[2rem] border border-[#E3E6EB] bg-white p-7 shadow-[0_24px_70px_-40px_rgba(16,24,40,.35)] sm:p-9">
-            <div className="mb-7 lg:hidden"><DomiUMark className="h-20 w-28" /></div>
+        <section className="flex items-center justify-center px-4 py-7 sm:px-10 sm:py-10">
+          <div className="w-full max-w-md rounded-[1.5rem] border border-[#E3E6EB] bg-white p-5 shadow-[0_24px_70px_-40px_rgba(16,24,40,.35)] min-[380px]:p-7 sm:rounded-[2rem] sm:p-9">
+            <div className="mb-5 lg:hidden"><DomiUMark className="h-16 w-24 min-[380px]:h-20 min-[380px]:w-28" /></div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#927200]">Acceso seguro</p>
-            <h2 className="mt-2 text-3xl font-black">Iniciar sesión</h2>
+            <h2 className="mt-2 text-2xl font-black min-[380px]:text-3xl">Iniciar sesión</h2>
             <p className="mt-2 text-sm font-medium text-[#68707D]">¿No tienes cuenta? <Link href="/register" className="font-black text-[#806500] hover:underline">Regístrate gratis</Link></p>
 
-            {displayError && <p className="mt-6 rounded-xl border border-[#F7B4AE] bg-[#FFF1F0] p-3 text-sm font-semibold text-[#B42318]">{displayError}</p>}
+            {displayError && <p className="mt-5 rounded-xl border border-[#F7B4AE] bg-[#FFF1F0] p-3 text-sm font-semibold text-[#B42318]">{displayError}</p>}
 
-            <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+            <form onSubmit={handleSubmit} className="mt-6 space-y-5">
               <label className="block">
                 <span className="mb-2 block text-sm font-black">Correo electrónico</span>
-                <span className="relative block"><Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#89909A]" /><input name="email" type="email" autoComplete="email" required value={formData.email} onChange={handleChange} placeholder="tu@email.com" className="h-12 w-full rounded-xl border border-[#DDE1E7] bg-[#F8F9FA] pl-12 pr-4 text-sm font-semibold outline-none focus:border-[#FFD400] focus:bg-white focus:ring-2 focus:ring-[#FFD400]/20" /></span>
+                <span className="relative block"><Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#89909A]" /><input name="email" type="email" autoComplete="email" inputMode="email" required value={formData.email} onChange={handleChange} placeholder="tu@email.com" className="h-12 w-full rounded-xl border border-[#DDE1E7] bg-[#F8F9FA] pl-12 pr-4 text-base font-semibold outline-none focus:border-[#FFD400] focus:bg-white focus:ring-2 focus:ring-[#FFD400]/20" /></span>
               </label>
               <label className="block">
                 <span className="mb-2 block text-sm font-black">Contraseña</span>
-                <span className="relative block"><Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#89909A]" /><input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={formData.password} onChange={handleChange} placeholder="••••••••" className="h-12 w-full rounded-xl border border-[#DDE1E7] bg-[#F8F9FA] pl-12 pr-12 text-sm font-semibold outline-none focus:border-[#FFD400] focus:bg-white focus:ring-2 focus:ring-[#FFD400]/20" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7C838D]" aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>{showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button></span>
+                <span className="relative block"><Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#89909A]" /><input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={formData.password} onChange={handleChange} placeholder="••••••••" className="h-12 w-full rounded-xl border border-[#DDE1E7] bg-[#F8F9FA] pl-12 pr-12 text-base font-semibold outline-none focus:border-[#FFD400] focus:bg-white focus:ring-2 focus:ring-[#FFD400]/20" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-[#7C838D]" aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>{showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button></span>
               </label>
-              <div className="flex items-center justify-between gap-4 text-xs"><label className="flex items-center gap-2 font-semibold text-[#68707D]"><input type="checkbox" defaultChecked className="accent-[#D8AB00]" /> Recordarme</label><Link href="/forgot-password" className="font-black text-[#806500] hover:underline">¿Olvidaste tu contraseña?</Link></div>
-              <button type="submit" disabled={isLoading} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#FFD400] text-sm font-black shadow-lg shadow-[#FFD400]/25 disabled:opacity-50">{isLoading ? 'Iniciando sesión…' : <>Iniciar sesión <ArrowRight className="h-4 w-4" /></>}</button>
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs"><label className="flex items-center gap-2 font-semibold text-[#68707D]"><input type="checkbox" defaultChecked className="h-4 w-4 accent-[#D8AB00]" /> Recordarme</label><Link href="/forgot-password" className="font-black text-[#806500] hover:underline">¿Olvidaste tu contraseña?</Link></div>
+              <button type="submit" disabled={submitting || isLoading} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#FFD400] text-sm font-black shadow-lg shadow-[#FFD400]/25 disabled:opacity-50">{submitting ? 'Iniciando sesión…' : <>Iniciar sesión <ArrowRight className="h-4 w-4" /></>}</button>
             </form>
 
             <p className="mt-7 text-center text-xs font-medium text-[#7A818C]">Al continuar aceptas nuestros <Link href="/terminos" className="font-bold text-[#806500]">Términos</Link> y <Link href="/privacidad" className="font-bold text-[#806500]">Política de privacidad</Link>.</p>
