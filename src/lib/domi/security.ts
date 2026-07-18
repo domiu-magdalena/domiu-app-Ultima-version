@@ -155,7 +155,7 @@ export function detectMemoryCandidate(message: string): DomiMemoryCandidate | nu
 
 export function isMemoryConfirmation(message: string) {
   const normalized = message.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return /^(si|sí|confirmo|de acuerdo|guardalo|recuerdalo|puedes guardarlo)[.!\s]*$/.test(normalized);
+  return /^(si(?:\s*,?\s*(?:guardalo|recuerdalo|puedes guardarlo))?|confirmo|de acuerdo|guardalo|recuerdalo|puedes guardarlo)[.!\s]*$/.test(normalized);
 }
 
 export function isMemoryRejection(message: string) {
