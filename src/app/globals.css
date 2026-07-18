@@ -43,25 +43,27 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-
   --color-input-bg: var(--input-bg);
-  --color-domiu-yellow: #FFC400;
-  --color-domiu-white: #FFFFFF;
-  --color-domiu-dark: #1A1D21;
-  --color-domiu-graphite: #2C3138;
-  --color-domiu-gray: #8A9099;
-  --color-domiu-success: #10B981;
-  --color-domiu-warning: #F59E0B;
-  --color-domiu-danger: #EF4444;
 
-  /* Alias heredados para evitar regresiones en componentes existentes. */
-  --color-domiu-blue: #FFC400;
-  --color-domiu-blue-light: #FFD84D;
-  --color-domiu-card: #2C3138;
-  --color-domiu-input-bg: #24282E;
-  --color-domiu-border: #3A4048;
+  --color-domiu-yellow: #FFD600;
+  --color-domiu-yellow-light: #FFF36A;
+  --color-domiu-orange: #FF9F1C;
+  --color-domiu-white: #FFFFFF;
+  --color-domiu-dark: #090B0E;
+  --color-domiu-graphite: #171B21;
+  --color-domiu-gray: #A7ADB7;
+  --color-domiu-success: #14E29A;
+  --color-domiu-warning: #FFB800;
+  --color-domiu-danger: #FF4D5E;
+
+  /* Alias heredados para mantener compatibilidad visual. */
+  --color-domiu-blue: #FFD600;
+  --color-domiu-blue-light: #FFF36A;
+  --color-domiu-card: #171B21;
+  --color-domiu-input-bg: #11151A;
+  --color-domiu-border: #343B46;
   --color-domiu-text: #FFFFFF;
-  --color-domiu-muted: #8A9099;
+  --color-domiu-muted: #A7ADB7;
   --color-domiu-light: #FFFFFF;
 
   --radius-sm: calc(var(--radius) * 0.5);
@@ -72,94 +74,57 @@
   --radius-3xl: calc(var(--radius) * 2.25);
   --radius-4xl: calc(var(--radius) * 3);
 
-  --shadow-card: 0 10px 30px -18px rgb(0 0 0 / 0.72), 0 1px 0 rgb(255 196 0 / 0.04);
-  --shadow-dropdown: 0 18px 45px -20px rgb(0 0 0 / 0.82);
-  --shadow-modal: 0 30px 80px -24px rgb(0 0 0 / 0.9);
-  --shadow-drawer: -8px 0 32px -18px rgb(0 0 0 / 0.86);
+  --shadow-card: 0 18px 46px -24px rgb(0 0 0 / 0.92), 0 0 0 1px rgb(255 214 0 / 0.06);
+  --shadow-dropdown: 0 22px 55px -22px rgb(0 0 0 / 0.94);
+  --shadow-modal: 0 34px 90px -24px rgb(0 0 0 / 0.96);
+  --shadow-drawer: -10px 0 38px -18px rgb(0 0 0 / 0.92);
 
   --animate-fade-in: fade-in 0.2s ease-out;
   --animate-slide-up: slide-up 0.25s ease-out;
   --animate-slide-down: slide-down 0.25s ease-out;
   --animate-scale-in: scale-in 0.2s ease-out;
+  --animate-domiu-pulse: domiu-pulse 2.8s ease-in-out infinite;
 }
 
-:root {
-  color-scheme: dark;
-  --background: #1A1D21;
-  --foreground: #FFFFFF;
-  --card: #2C3138;
-  --card-foreground: #FFFFFF;
-  --popover: #2C3138;
-  --popover-foreground: #FFFFFF;
-  --primary: #FFC400;
-  --primary-foreground: #1A1D21;
-  --secondary: #24282E;
-  --secondary-foreground: #FFFFFF;
-  --muted: #24282E;
-  --muted-foreground: #8A9099;
-  --accent: #353B43;
-  --accent-foreground: #FFFFFF;
-  --destructive: #EF4444;
-  --border: #3A4048;
-  --input: #3A4048;
-  --input-bg: #24282E;
-  --ring: #FFC400;
-  --success: #10B981;
-  --warning: #FFC400;
-  --info: #FFFFFF;
-  --chart-1: #FFC400;
-  --chart-2: #10B981;
-  --chart-3: #FFFFFF;
-  --chart-4: #EF4444;
-  --chart-5: #8A9099;
-  --radius: 0.85rem;
-  --sidebar: #1A1D21;
-  --sidebar-foreground: #FFFFFF;
-  --sidebar-primary: #FFC400;
-  --sidebar-primary-foreground: #1A1D21;
-  --sidebar-accent: #2C3138;
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #3A4048;
-  --sidebar-ring: #FFC400;
-}
-
+:root,
 .dark {
   color-scheme: dark;
-  --background: #1A1D21;
+  --background: #090B0E;
   --foreground: #FFFFFF;
-  --card: #2C3138;
+  --card: #171B21;
   --card-foreground: #FFFFFF;
-  --popover: #2C3138;
+  --popover: #171B21;
   --popover-foreground: #FFFFFF;
-  --primary: #FFC400;
-  --primary-foreground: #1A1D21;
-  --secondary: #24282E;
+  --primary: #FFD600;
+  --primary-foreground: #090B0E;
+  --secondary: #11151A;
   --secondary-foreground: #FFFFFF;
-  --muted: #24282E;
-  --muted-foreground: #8A9099;
-  --accent: #353B43;
+  --muted: #151A20;
+  --muted-foreground: #A7ADB7;
+  --accent: #242B34;
   --accent-foreground: #FFFFFF;
-  --destructive: #EF4444;
-  --border: #3A4048;
-  --input: #3A4048;
-  --input-bg: #24282E;
-  --ring: #FFC400;
-  --success: #10B981;
-  --warning: #FFC400;
-  --info: #FFFFFF;
-  --chart-1: #FFC400;
-  --chart-2: #10B981;
-  --chart-3: #FFFFFF;
-  --chart-4: #EF4444;
-  --chart-5: #8A9099;
-  --sidebar: #1A1D21;
+  --destructive: #FF4D5E;
+  --border: #343B46;
+  --input: #343B46;
+  --input-bg: #11151A;
+  --ring: #FFF36A;
+  --success: #14E29A;
+  --warning: #FFB800;
+  --info: #59D9FF;
+  --chart-1: #FFD600;
+  --chart-2: #14E29A;
+  --chart-3: #59D9FF;
+  --chart-4: #FF4D5E;
+  --chart-5: #FF9F1C;
+  --radius: 0.9rem;
+  --sidebar: #090B0E;
   --sidebar-foreground: #FFFFFF;
-  --sidebar-primary: #FFC400;
-  --sidebar-primary-foreground: #1A1D21;
-  --sidebar-accent: #2C3138;
+  --sidebar-primary: #FFD600;
+  --sidebar-primary-foreground: #090B0E;
+  --sidebar-accent: #171B21;
   --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #3A4048;
-  --sidebar-ring: #FFC400;
+  --sidebar-border: #343B46;
+  --sidebar-ring: #FFF36A;
 }
 
 @layer base {
@@ -169,15 +134,17 @@
 
   html {
     @apply font-sans;
-    background: #1A1D21;
+    background: #090B0E;
   }
 
   body {
     @apply bg-background text-foreground;
     min-height: 100dvh;
     background-image:
-      radial-gradient(circle at 10% -10%, rgb(255 196 0 / 0.07), transparent 28rem),
-      radial-gradient(circle at 100% 0%, rgb(255 255 255 / 0.025), transparent 26rem);
+      radial-gradient(circle at 7% -5%, rgb(255 214 0 / 0.20), transparent 31rem),
+      radial-gradient(circle at 98% 3%, rgb(255 159 28 / 0.13), transparent 29rem),
+      radial-gradient(circle at 50% 110%, rgb(89 217 255 / 0.055), transparent 34rem),
+      linear-gradient(180deg, #090B0E 0%, #0D1116 52%, #090B0E 100%);
     background-attachment: fixed;
   }
 
@@ -190,21 +157,77 @@
     font-family: var(--font-montserrat), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   }
 
+  a,
+  button,
+  input,
+  textarea,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   ::selection {
-    background: #FFC400;
-    color: #1A1D21;
+    background: #FFD600;
+    color: #090B0E;
   }
 }
 
 @layer components {
   .domiu-brand-surface {
-    background: linear-gradient(145deg, #2C3138 0%, #1A1D21 100%);
-    border: 1px solid rgb(255 196 0 / 0.16);
-    box-shadow: 0 24px 60px -34px rgb(0 0 0 / 0.92);
+    background:
+      linear-gradient(145deg, rgb(31 37 45 / 0.98) 0%, rgb(14 17 22 / 0.98) 100%);
+    border: 1px solid rgb(255 214 0 / 0.24);
+    box-shadow:
+      0 28px 70px -36px rgb(0 0 0 / 0.96),
+      inset 0 1px 0 rgb(255 255 255 / 0.055),
+      0 0 34px -24px rgb(255 214 0 / 0.78);
   }
 
   .domiu-brand-glow {
-    box-shadow: 0 0 0 1px rgb(255 196 0 / 0.12), 0 12px 36px -18px rgb(255 196 0 / 0.5);
+    box-shadow:
+      0 0 0 1px rgb(255 244 106 / 0.34),
+      0 12px 34px -11px rgb(255 214 0 / 0.78),
+      0 0 28px -16px rgb(255 159 28 / 0.74);
+    transition: transform 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+  }
+
+  .domiu-vibrant-card {
+    background:
+      linear-gradient(145deg, rgb(31 37 45 / 0.98), rgb(15 18 23 / 0.98));
+    border: 1px solid rgb(255 214 0 / 0.16);
+    box-shadow: 0 20px 52px -30px rgb(0 0 0 / 0.94);
+  }
+
+  .domiu-vibrant-gradient {
+    background-image: linear-gradient(135deg, #FFF36A 0%, #FFD600 48%, #FF9F1C 100%);
+    color: #090B0E;
+  }
+
+  .domiu-logo-shine {
+    filter: saturate(1.16) contrast(1.08) drop-shadow(0 0 16px rgb(255 214 0 / 0.28));
+  }
+
+  .bg-primary {
+    background-image: linear-gradient(135deg, #FFF36A 0%, #FFD600 52%, #FFB000 100%);
+  }
+
+  .text-primary {
+    text-shadow: 0 0 18px rgb(255 214 0 / 0.18);
+  }
+}
+
+@media (hover: hover) {
+  .domiu-brand-glow:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.07) saturate(1.12);
+    box-shadow:
+      0 0 0 1px rgb(255 244 106 / 0.46),
+      0 17px 40px -12px rgb(255 214 0 / 0.88),
+      0 0 34px -16px rgb(255 159 28 / 0.82);
+  }
+
+  .domiu-vibrant-card:hover {
+    border-color: rgb(255 214 0 / 0.34);
+    box-shadow: 0 24px 58px -28px rgb(255 214 0 / 0.20);
   }
 }
 
@@ -213,21 +236,26 @@
     @apply text-4xl font-bold leading-tight tracking-tight sm:text-5xl;
     font-family: var(--font-montserrat), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   }
+
   .text-h1 {
     @apply text-3xl font-semibold leading-tight tracking-tight;
     font-family: var(--font-montserrat), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   }
+
   .text-h2 {
     @apply text-2xl font-semibold leading-snug tracking-tight;
     font-family: var(--font-montserrat), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   }
+
   .text-h3 {
     @apply text-xl font-medium leading-snug tracking-tight;
     font-family: var(--font-montserrat), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   }
+
   .text-body {
     @apply text-base leading-relaxed;
   }
+
   .text-caption {
     @apply text-sm leading-normal text-muted-foreground;
   }
@@ -251,4 +279,9 @@
 @keyframes scale-in {
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes domiu-pulse {
+  0%, 100% { filter: brightness(1) saturate(1); }
+  50% { filter: brightness(1.08) saturate(1.18); }
 }
