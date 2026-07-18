@@ -54,6 +54,7 @@ export interface MarketplaceProduct {
   image_url: string | null;
   is_available: boolean;
   category_name?: string;
+  category_order?: number;
   metadata?: MarketplaceProductMetadata;
 }
 
@@ -63,11 +64,11 @@ const CUISINE_MAP: Record<string, { icon: string; id: string }> = {
 
 function mapBusinessToUI(biz: any): MarketplaceBusiness {
   const cuisineInfo = biz.cuisine_type ? CUISINE_MAP[biz.cuisine_type] : undefined;
-  return { id: biz.id, slug: biz.slug, name: biz.name, description: biz.description ?? '', logo_url: biz.logo_url, banner_url: biz.banner_url, category_id: cuisineInfo?.id ?? 'cat-other', category_name: biz.cuisine_type ?? 'Otros', rating: biz.rating, review_count: biz.total_ratings, delivery_time: biz.metadata?.delivery_time ?? '20-35 min', delivery_fee: biz.metadata?.delivery_fee ?? '$2.50', is_open: biz.is_active, is_featured: biz.is_verified || false, business_type: biz.business_type ?? 'restaurant', promotion: biz.promotion || undefined };
+  return { id: biz.id, slug: biz.slug, name: biz.name, description: biz.description ?? '', logo_url: biz.logo_url, banner_url: biz.banner_url, category_id: cuisineInfo?.id ?? 'cat-other', category_name: biz.cuisine_type ?? 'Otros', rating: biz.rating, review_count: biz.total_ratings, delivery_time: biz.metadata?.delivery_time ?? '20-35 min', delivery_fee: biz.metadata?.delivery_fee ?? 'Calculado por distancia', is_open: biz.is_active, is_featured: biz.is_verified || false, business_type: biz.business_type ?? 'restaurant', promotion: biz.promotion || undefined };
 }
 
 function mapProductToUI(prod: any): MarketplaceProduct {
-  return { id: prod.id, business_id: prod.business_id, name: prod.name, description: prod.description ?? '', price: Number(prod.discount_price ?? prod.price), image_url: prod.image_url ?? null, is_available: prod.status === 'available', category_name: prod.categories?.name ?? undefined, metadata: (prod.metadata ?? {}) as MarketplaceProductMetadata };
+  return { id: prod.id, business_id: prod.business_id, name: prod.name, description: prod.description ?? '', price: Number(prod.discount_price ?? prod.price), image_url: prod.image_url ?? null, is_available: prod.status === 'available', category_name: prod.categories?.name ?? undefined, category_order: Number(prod.categories?.display_order ?? 999), metadata: (prod.metadata ?? {}) as MarketplaceProductMetadata };
 }
 
 async function getClient() { return getBrowserClient(); }
@@ -86,9 +87,13 @@ export const marketplaceService = {
   getBusinessBySlug: async (slug: string) => { const supabase = await getClient(); const { data } = await supabase.from('businesses').select('*').eq('slug', slug).single(); return data ? mapBusinessToUI(data) : null; },
   getBusinessesByType: async (type: string, limit = 6) => { const supabase = await getClient(); const { data } = await supabase.from('businesses').select('*').eq('business_type', type).eq('is_active', true).order('rating', { ascending: false }).limit(limit); return (data ?? []).map(mapBusinessToUI); },
   getBusinessById: async (id: string) => { const supabase = await getClient(); const { data } = await supabase.from('businesses').select('*').eq('id', id).single(); return data ? mapBusinessToUI(data) : null; },
-  getProducts: async (businessId: string): Promise<MarketplaceProduct[]> => { const supabase = await getClient(); const { data } = await supabase.from('products').select('*, categories(name)').eq('business_id', businessId).eq('status', 'available').order('name'); return (data ?? []).map(mapProductToUI); },
-  getProductById: async (id: string) => { const supabase = await getClient(); const { data } = await supabase.from('products').select('*, categories(name)').eq('id', id).single(); return data ? mapProductToUI(data) : null; },
-  search: async (query: string) => { const q = query.toLowerCase().trim(); if (!q) return { businesses: [], products: [] }; const supabase = await getClient(); const [bizResult, prodResult] = await Promise.all([supabase.from('businesses').select('*').ilike('name', `%${q}%`).eq('is_active', true).limit(10), supabase.from('products').select('*, categories(name)').ilike('name', `%${q}%`).eq('status', 'available').limit(20)]); return { businesses: (bizResult.data ?? []).map(mapBusinessToUI), products: (prodResult.data ?? []).map(mapProductToUI) }; },
+  getProducts: async (businessId: string): Promise<MarketplaceProduct[]> => {
+    const supabase = await getClient();
+    const { data } = await supabase.from('products').select('*, categories(name,display_order)').eq('business_id', businessId).eq('status', 'available').is('deleted_at', null);
+    return (data ?? []).map(mapProductToUI).sort((a, b) => (a.category_order ?? 999) - (b.category_order ?? 999) || a.name.localeCompare(b.name, 'es'));
+  },
+  getProductById: async (id: string) => { const supabase = await getClient(); const { data } = await supabase.from('products').select('*, categories(name,display_order)').eq('id', id).single(); return data ? mapProductToUI(data) : null; },
+  search: async (query: string) => { const q = query.toLowerCase().trim(); if (!q) return { businesses: [], products: [] }; const supabase = await getClient(); const [bizResult, prodResult] = await Promise.all([supabase.from('businesses').select('*').ilike('name', `%${q}%`).eq('is_active', true).limit(10), supabase.from('products').select('*, categories(name,display_order)').ilike('name', `%${q}%`).eq('status', 'available').limit(20)]); return { businesses: (bizResult.data ?? []).map(mapBusinessToUI), products: (prodResult.data ?? []).map(mapProductToUI) }; },
   getBusinessesByCategory: async (categoryId: string) => marketplaceService.getBusinesses({ categoryId }),
   getFeaturedBusinesses: async () => marketplaceService.getBusinesses({ featured: true }),
   getRecommendedBusinesses: async () => { const supabase = await getClient(); const { data } = await supabase.from('businesses').select('*').eq('is_active', true).order('rating', { ascending: false }).limit(4); return (data ?? []).map(mapBusinessToUI); },

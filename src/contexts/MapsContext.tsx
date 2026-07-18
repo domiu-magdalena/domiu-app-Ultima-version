@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { loadGoogleMaps, hasApiKey, isMapsLoaded } from '@/lib/maps/loader';
 
 interface MapsContextValue {
@@ -26,23 +26,47 @@ export function MapsProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    if (!hasApiKey()) {
-      setTimeout(() => setState(prev => ({ ...prev, error: 'API key de Google Maps no configurada', isReady: false })));
-      return;
-    }
+    let active = true;
+    const configured = hasApiKey();
 
-    if (isMapsLoaded() && window.google?.maps) {
-      setTimeout(() => setState(prev => ({ ...prev, isReady: true, maps: window.google.maps })));
-      return;
-    }
-
-    loadGoogleMaps()
-      .then(() => {
-        setState(prev => ({ ...prev, isReady: true, maps: window.google?.maps ?? null, error: null }));
-      })
-      .catch(err => {
-        setState(prev => ({ ...prev, error: err.message, isReady: false }));
+    if (!configured) {
+      setState({
+        isReady: false,
+        hasKey: false,
+        error: 'La API key de Google Maps no está configurada.',
+        maps: null,
       });
+      return () => {
+        active = false;
+      };
+    }
+
+    const initialize = async () => {
+      try {
+        if (!isMapsLoaded()) await loadGoogleMaps();
+        if (!active) return;
+        if (!window.google?.maps) throw new Error('Google Maps no quedó disponible en el navegador.');
+        setState({
+          isReady: true,
+          hasKey: true,
+          error: null,
+          maps: window.google.maps,
+        });
+      } catch (cause) {
+        if (!active) return;
+        setState({
+          isReady: false,
+          hasKey: true,
+          error: cause instanceof Error ? cause.message : 'No se pudo iniciar Google Maps.',
+          maps: null,
+        });
+      }
+    };
+
+    void initialize();
+    return () => {
+      active = false;
+    };
   }, []);
 
   return <MapsContext.Provider value={state}>{children}</MapsContext.Provider>;

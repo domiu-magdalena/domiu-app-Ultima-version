@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Package, ClipboardList, Users, BarChart3, Settings,
-  Star, LogOut, ChevronLeft, Store, Globe, Menu, X,
+  Star, LogOut, ChevronLeft, Store, Globe, Menu, X, MapPinned, CreditCard,
 } from 'lucide-react';
 
 const sidebarItems = [
@@ -16,6 +16,8 @@ const sidebarItems = [
   { label: 'Pedidos', href: '/negocio/pedidos', icon: ClipboardList },
   { label: 'Clientes', href: '/negocio/clientes', icon: Users },
   { label: 'Mapa en vivo', href: '/negocio/mapa', icon: Globe },
+  { label: 'Locales', href: '/negocio/configuracion/ubicacion', icon: MapPinned },
+  { label: 'Métodos de pago', href: '/negocio/configuracion/pagos', icon: CreditCard },
   { label: 'Reportes', href: '/negocio/reportes', icon: BarChart3 },
   { label: 'Reseñas', href: '/negocio/resenas', icon: Star },
   { label: 'Configuración', href: '/negocio/configuracion', icon: Settings },
