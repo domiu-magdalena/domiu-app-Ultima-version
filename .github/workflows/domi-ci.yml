@@ -1,0 +1,56 @@
+name: Domi CI
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/app/api/domi/**'
+      - 'src/components/domi/**'
+      - 'src/lib/domi/**'
+      - 'vitest.config.mts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/domi-ci.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'src/app/api/domi/**'
+      - 'src/components/domi/**'
+      - 'src/lib/domi/**'
+      - 'vitest.config.mts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/domi-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: domi-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Probar seguridad y contexto
+        run: npx vitest run src/lib/domi/security.test.ts --reporter=verbose
+
+      - name: Probar planificador de herramientas
+        run: npx vitest run src/lib/domi/tools/planner.test.ts --reporter=verbose
+
+      - name: Compilar y validar TypeScript
+        run: npm run build
