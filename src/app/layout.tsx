@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Montserrat, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import './brand-vivid.css';
 import { RootProviders } from '@/components/providers/RootProviders';
 import { ErrorBoundary, PageError } from '@/components/error-boundary';
 
@@ -56,12 +57,12 @@ export const metadata: Metadata = {
       'La plataforma local que conecta clientes, comercios y repartidores en Magdalena.',
   },
   robots: { index: true, follow: true },
-  icons: { icon: '/favicon.svg', apple: '/apple-icon.png' },
+  icons: { icon: '/icon', apple: '/apple-icon' },
   manifest: '/manifest.json',
   other: {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-status-bar-style': 'black-translucent',
-    'theme-color': '#1A1D21',
+    'theme-color': '#FFD900',
   },
 };
 
