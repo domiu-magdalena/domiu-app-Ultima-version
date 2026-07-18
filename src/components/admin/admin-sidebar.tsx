@@ -11,7 +11,8 @@ import { DomiULogo, DomiUMark } from '@/components/brand/DomiULogo';
 import {
   LayoutDashboard, Users, Store, Truck, ClipboardList, BarChart3, Settings,
   MessageSquare, DollarSign, Gift, MapPin, LogOut, ChevronLeft, Search,
-  Sparkles, Shield, Activity, Globe, Menu, X, Package, PlusCircle, FileText, LifeBuoy,
+  Sparkles, Shield, Activity, Globe, Menu, X, Package, PlusCircle, FileText,
+  LifeBuoy, FileSpreadsheet,
 } from 'lucide-react';
 
 const sidebarItems = [
@@ -26,6 +27,7 @@ const sidebarItems = [
   { label: 'Crear Pedido', href: '/admin/pedidos/crear', icon: Package },
   { label: 'Mapa', href: '/admin/mapa', icon: Globe },
   { label: 'Finanzas', href: '/admin/finanzas', icon: DollarSign },
+  { label: 'Liquidaciones', href: '/admin/liquidaciones', icon: FileSpreadsheet },
   { label: 'Cobertura', href: '/admin/cobertura', icon: MapPin },
   { label: 'Promociones', href: '/admin/promociones', icon: Gift },
   { label: 'Reportes', href: '/admin/reportes', icon: BarChart3 },
@@ -50,6 +52,7 @@ export function AdminSidebar() {
     Repartidores: 'courier.read',
     Pedidos: 'orders.read',
     Finanzas: 'wallet.read',
+    Liquidaciones: 'wallet.read',
     Wallets: 'wallet.read',
     Reportes: 'reports.read',
     Configuración: 'settings.update',
