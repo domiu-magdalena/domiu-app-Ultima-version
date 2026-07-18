@@ -17,7 +17,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export function DomiAssistant() {
-  const { profile, loading } = useAuth();
+  const { profile, isLoading } = useAuth();
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string>();
   const [message, setMessage] = useState('');
@@ -30,7 +30,7 @@ export function DomiAssistant() {
     if (open) endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, open]);
 
-  if (loading || !profile) return null;
+  if (isLoading || !profile) return null;
 
   const send = async () => {
     const text = message.trim();
