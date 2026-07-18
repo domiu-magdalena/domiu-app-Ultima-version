@@ -20,9 +20,17 @@ import {
   markMemoryCandidate,
   writeDomiAudit,
 } from '@/lib/domi/server-security';
+import { executeDomiCustomerTool } from '@/lib/domi/tools/customer-read';
+import { planDomiCustomerTool } from '@/lib/domi/tools/planner';
+import type { DomiNavigationLink } from '@/lib/domi/tools/types';
 
 export const runtime = 'nodejs';
 export const maxDuration = 15;
+
+const cartItemSchema = z.object({
+  productId: z.string().uuid(),
+  quantity: z.number().int().min(1).max(99),
+}).strict();
 
 const clientContextSchema = z.object({
   path: z.string().max(240).optional(),
@@ -30,6 +38,10 @@ const clientContextSchema = z.object({
   screen: z.string().max(80).optional(),
   locale: z.string().max(24).optional(),
   timezone: z.string().max(64).optional(),
+  cart: z.object({
+    businessId: z.string().uuid().nullable().optional(),
+    items: z.array(cartItemSchema).max(25).optional(),
+  }).strict().nullable().optional(),
 }).strict();
 
 const requestSchema = z.object({
@@ -40,7 +52,7 @@ const requestSchema = z.object({
 }).strict();
 
 const ROLE_INTRO: Record<string, string> = {
-  customer: 'Puedo ayudarte a pedir, seguir tus pedidos y descubrir productos dentro de tu cuenta.',
+  customer: 'Puedo ayudarte a buscar productos, verificar tu carrito y consultar exclusivamente tus pedidos.',
   merchant: 'Puedo ayudarte con jornadas, pedidos, catálogo, inventario y métricas de tu comercio.',
   courier: 'Puedo ayudarte con jornadas, pedidos asignados, rutas, ganancias y liquidaciones.',
   admin: 'Puedo ayudarte con la operación, pedidos, comercios, repartidores, reportes, finanzas y auditoría.',
@@ -53,10 +65,12 @@ interface DomiAssistantResponse {
   requiresTool: boolean;
   tool: string | null;
   toolArguments: Record<string, unknown> | null;
+  toolData: Record<string, unknown> | null;
   requiresConfirmation: boolean;
   riskLevel: DomiRiskLevel;
   memoryCandidate: DomiMemoryCandidate | null;
   suggestedActions: string[];
+  navigation: DomiNavigationLink[];
   escalateToHuman: boolean;
 }
 
@@ -77,18 +91,24 @@ function assistantPayload(args: {
   requiresConfirmation?: boolean;
   memoryCandidate?: DomiMemoryCandidate | null;
   suggestedActions?: string[];
+  navigation?: DomiNavigationLink[];
+  tool?: string | null;
+  toolArguments?: Record<string, unknown> | null;
+  toolData?: Record<string, unknown> | null;
 }): DomiAssistantResponse {
   return {
     message: args.message,
     intent: args.intent,
     role: args.context.role,
-    requiresTool: false,
-    tool: null,
-    toolArguments: null,
+    requiresTool: Boolean(args.tool),
+    tool: args.tool || null,
+    toolArguments: args.toolArguments || null,
+    toolData: args.toolData || null,
     requiresConfirmation: Boolean(args.requiresConfirmation),
     riskLevel: args.riskLevel || 'low',
     memoryCandidate: args.memoryCandidate || null,
     suggestedActions: args.suggestedActions || [],
+    navigation: args.navigation || [],
     escalateToHuman: false,
   };
 }
@@ -159,15 +179,17 @@ async function insertAssistantMessage(args: {
   conversationId: string;
   assistant: DomiAssistantResponse;
   memoryState?: 'pending' | 'saved' | 'cancelled';
+  mode?: 'knowledge' | 'memory' | 'security' | 'tool';
 }) {
+  const mode = args.mode || (args.assistant.tool ? 'tool' : 'knowledge');
   const { error } = await args.supabase.from('domi_messages').insert({
     conversation_id: args.conversationId,
     user_id: args.context.userId,
     role: 'assistant',
     content: args.assistant.message,
-    model: 'domi-secure-knowledge-v2',
+    model: mode === 'tool' ? 'domi-secure-tools-v1' : 'domi-secure-knowledge-v2',
     metadata: {
-      mode: 'knowledge',
+      mode,
       requestId: args.context.requestId,
       sessionId: args.context.sessionId,
       response: args.assistant,
@@ -176,6 +198,18 @@ async function insertAssistantMessage(args: {
     },
   });
   if (error) throw new Error('assistant_message_write_failed');
+}
+
+async function touchConversation(
+  supabase: ReturnType<typeof getServiceClient>,
+  conversationId: string,
+  userId: string,
+) {
+  await supabase
+    .from('domi_conversations')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', conversationId)
+    .eq('user_id', userId);
 }
 
 export async function POST(request: NextRequest) {
@@ -244,13 +278,14 @@ export async function POST(request: NextRequest) {
     const duplicate = await findIdempotentDomiResponse(supabase, context.userId, context.requestId);
     if (duplicate) {
       const previousResponse = duplicate.metadata.response as DomiAssistantResponse | undefined;
+      const previousMode = typeof duplicate.metadata.mode === 'string' ? duplicate.metadata.mode : 'knowledge';
       return NextResponse.json(
         {
           conversationId: duplicate.conversationId,
           answer: duplicate.answer,
           assistant: previousResponse || assistantPayload({ message: duplicate.answer, intent, context }),
-          mode: 'knowledge',
-          model: 'domi-secure-knowledge-v2',
+          mode: previousMode,
+          model: previousMode === 'tool' ? 'domi-secure-tools-v1' : 'domi-secure-knowledge-v2',
           requestId: context.requestId,
           idempotent: true,
         },
@@ -357,7 +392,7 @@ export async function POST(request: NextRequest) {
         riskLevel: security.riskLevel,
         suggestedActions: ['Continuar con una función permitida para tu perfil'],
       });
-      await insertAssistantMessage({ supabase, context, conversationId, assistant });
+      await insertAssistantMessage({ supabase, context, conversationId, assistant, mode: 'security' });
       await writeDomiAudit({
         supabase,
         context,
@@ -391,7 +426,7 @@ export async function POST(request: NextRequest) {
         context,
         suggestedActions: ['Preguntar qué recuerda Domi'],
       });
-      await insertAssistantMessage({ supabase, context, conversationId, assistant, memoryState: 'saved' });
+      await insertAssistantMessage({ supabase, context, conversationId, assistant, memoryState: 'saved', mode: 'memory' });
       await writeDomiAudit({
         supabase,
         context,
@@ -414,7 +449,7 @@ export async function POST(request: NextRequest) {
         intent: 'memory_cancelled',
         context,
       });
-      await insertAssistantMessage({ supabase, context, conversationId, assistant, memoryState: 'cancelled' });
+      await insertAssistantMessage({ supabase, context, conversationId, assistant, memoryState: 'cancelled', mode: 'memory' });
       await writeDomiAudit({
         supabase,
         context,
@@ -439,7 +474,7 @@ export async function POST(request: NextRequest) {
         context,
         suggestedActions: ['Preguntar qué recuerda Domi'],
       });
-      await insertAssistantMessage({ supabase, context, conversationId, assistant, memoryState: 'saved' });
+      await insertAssistantMessage({ supabase, context, conversationId, assistant, memoryState: 'saved', mode: 'memory' });
       await writeDomiAudit({
         supabase,
         context,
@@ -465,7 +500,7 @@ export async function POST(request: NextRequest) {
         memoryCandidate,
         suggestedActions: ['Sí, recuérdalo', 'No lo guardes'],
       });
-      await insertAssistantMessage({ supabase, context, conversationId, assistant, memoryState: 'pending' });
+      await insertAssistantMessage({ supabase, context, conversationId, assistant, memoryState: 'pending', mode: 'memory' });
       await writeDomiAudit({
         supabase,
         context,
@@ -478,6 +513,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { conversationId, answer: assistant.message, assistant, mode: 'memory', model: 'domi-secure-knowledge-v2', requestId: context.requestId },
         { headers: responseHeaders(context.requestId) },
+      );
+    }
+
+    const toolPlan = planDomiCustomerTool(context, parsed.data.message);
+    if (toolPlan) {
+      intent = toolPlan.intent;
+      const toolResult = await executeDomiCustomerTool(supabase, context, toolPlan);
+      const assistant = assistantPayload({
+        message: toolResult.message,
+        intent,
+        context,
+        tool: toolResult.name,
+        toolArguments: toolPlan.arguments,
+        toolData: toolResult.data,
+        suggestedActions: toolResult.suggestedActions,
+        navigation: toolResult.navigation,
+      });
+      await insertAssistantMessage({ supabase, context, conversationId, assistant, mode: 'tool' });
+      await touchConversation(supabase, conversationId, context.userId);
+      await writeDomiAudit({
+        supabase,
+        context,
+        result: toolResult.success ? 'success' : 'blocked',
+        intent,
+        messageLength,
+        conversationId,
+        reason: toolResult.success ? null : 'tool_denied',
+        durationMs: Date.now() - startedAt,
+        toolName: toolResult.name,
+        toolRecordCount: toolResult.recordCount,
+        toolSuccess: toolResult.success,
+      });
+      return NextResponse.json(
+        {
+          conversationId,
+          answer: assistant.message,
+          assistant,
+          mode: 'tool',
+          model: 'domi-secure-tools-v1',
+          requestId: context.requestId,
+        },
+        { headers: responseHeaders(context.requestId, { 'X-Domi-Tool': toolResult.name }) },
       );
     }
 
@@ -504,15 +581,11 @@ export async function POST(request: NextRequest) {
           ? ['Revisar pedidos', 'Consultar inventario']
           : context.role === 'courier'
             ? ['Revisar pedidos asignados', 'Consultar ganancias']
-            : ['Buscar productos', 'Consultar mis pedidos'],
+            : ['Buscar productos', 'Consultar mis pedidos', 'Consultar mi carrito'],
     });
 
-    await insertAssistantMessage({ supabase, context, conversationId, assistant });
-    await supabase
-      .from('domi_conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', conversationId)
-      .eq('user_id', context.userId);
+    await insertAssistantMessage({ supabase, context, conversationId, assistant, mode: 'knowledge' });
+    await touchConversation(supabase, conversationId, context.userId);
     await writeDomiAudit({
       supabase,
       context,
