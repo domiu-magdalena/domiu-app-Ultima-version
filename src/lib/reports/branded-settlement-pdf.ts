@@ -2,6 +2,11 @@
 
 import { DOMIU_OFFICIAL_LOGO_DATA_URI } from '@/lib/brand-assets';
 
+export interface BrandedSettlementPdfMetric {
+  label: string;
+  value: string;
+}
+
 export interface BrandedSettlementPdfData {
   documentNumber: string;
   participantName: string;
@@ -9,18 +14,13 @@ export interface BrandedSettlementPdfData {
   periodLabel: string;
   generatedAt: string;
   statusLabel: string;
-  onlineHours: string;
-  deliveredOrders: number;
-  grossDeliveryValue: number;
-  platformCommission: number;
-  netEarnings: number;
+  metrics: BrandedSettlementPdfMetric[];
   companyOwes: number;
   participantOwes: number;
   netBalance: number;
 }
 
 const PAGE_WIDTH = 595;
-const PAGE_HEIGHT = 842;
 
 function ascii(value: unknown) {
   return String(value ?? '')
@@ -33,7 +33,7 @@ function ascii(value: unknown) {
     .replace(/\)/g, '\\)');
 }
 
-function formatCOP(value: number) {
+export function pdfCurrency(value: number) {
   return `$ ${Math.round(Number(value || 0)).toLocaleString('es-CO')} COP`;
 }
 
@@ -105,10 +105,19 @@ function metricCard(x: number, y: number, label: string, value: string) {
 
 function buildContent(data: BrandedSettlementPdfData) {
   const balanceMessage = data.netBalance > 0
-    ? `DomiU debe pagar al participante ${formatCOP(data.netBalance)}`
+    ? `DomiU debe pagar al participante ${pdfCurrency(data.netBalance)}`
     : data.netBalance < 0
-      ? `El participante debe entregar a DomiU ${formatCOP(Math.abs(data.netBalance))}`
+      ? `El participante debe entregar a DomiU ${pdfCurrency(Math.abs(data.netBalance))}`
       : 'Liquidacion conciliada: saldo en cero';
+  const fallbackMetrics: BrandedSettlementPdfMetric[] = Array.from({ length: 8 }, (_, index) => ({
+    label: `Indicador ${index + 1}`,
+    value: '0',
+  }));
+  const metrics = fallbackMetrics.map((fallback, index) => data.metrics[index] || fallback);
+  const positions = [
+    [36, 500], [305, 500], [36, 423], [305, 423],
+    [36, 346], [305, 346], [36, 269], [305, 269],
+  ];
 
   return [
     filledRect(0, 720, PAGE_WIDTH, 122, '0.075 0.082 0.098'),
@@ -129,14 +138,7 @@ function buildContent(data: BrandedSettlementPdfData) {
     text('F2', 16, 51, 595, data.participantName),
     text('F1', 9, 340, 605, data.periodLabel, '0.25 0.27 0.31'),
 
-    metricCard(36, 500, 'Horas en linea', data.onlineHours),
-    metricCard(305, 500, 'Domicilios realizados', String(data.deliveredOrders)),
-    metricCard(36, 423, 'Valor bruto de domicilios', formatCOP(data.grossDeliveryValue)),
-    metricCard(305, 423, 'Comision DomiU', formatCOP(data.platformCommission)),
-    metricCard(36, 346, 'Ganancia neta', formatCOP(data.netEarnings)),
-    metricCard(305, 346, 'DomiU debe pagar', formatCOP(data.companyOwes)),
-    metricCard(36, 269, 'Participante debe a DomiU', formatCOP(data.participantOwes)),
-    metricCard(305, 269, 'Saldo neto', formatCOP(data.netBalance)),
+    ...metrics.map((metric, index) => metricCard(positions[index][0], positions[index][1], metric.label, metric.value)),
 
     filledRect(36, 190, 523, 54, data.netBalance < 0 ? '1 0.91 0.88' : '0.91 0.98 0.94'),
     strokedRect(36, 190, 523, 54, data.netBalance < 0 ? '0.92 0.30 0.22' : '0.10 0.64 0.38'),
@@ -144,8 +146,8 @@ function buildContent(data: BrandedSettlementPdfData) {
     text('F2', 12, 51, 201, balanceMessage, data.netBalance < 0 ? '0.68 0.12 0.08' : '0.05 0.42 0.23'),
 
     text('F2', 10, 36, 144, 'Trazabilidad y validacion'),
-    text('F1', 8.5, 36, 127, 'Este documento fue generado por DomiU Magdalena a partir de pedidos entregados,', '0.42 0.45 0.50'),
-    text('F1', 8.5, 36, 114, 'jornadas registradas y movimientos del libro financiero. Valores expresados en COP.', '0.42 0.45 0.50'),
+    text('F1', 8.5, 36, 127, 'Documento generado por DomiU Magdalena a partir de pedidos, jornadas y movimientos', '0.42 0.45 0.50'),
+    text('F1', 8.5, 36, 114, 'del libro financiero. Todos los valores monetarios estan expresados en pesos COP.', '0.42 0.45 0.50'),
     filledRect(36, 75, 523, 1, '0.88 0.90 0.93'),
     text('F2', 8.5, 36, 56, 'DomiU Magdalena', '0.12 0.13 0.15'),
     text('F1', 8, 136, 56, 'Pide facil, recibe rapido | Documento de uso administrativo', '0.45 0.48 0.53'),
