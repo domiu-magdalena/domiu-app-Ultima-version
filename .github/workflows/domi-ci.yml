@@ -7,6 +7,7 @@ on:
       - 'src/app/api/domi/**'
       - 'src/components/domi/**'
       - 'src/lib/domi/**'
+      - 'vitest.config.mts'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/domi-ci.yml'
@@ -16,6 +17,7 @@ on:
       - 'src/app/api/domi/**'
       - 'src/components/domi/**'
       - 'src/lib/domi/**'
+      - 'vitest.config.mts'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/domi-ci.yml'
@@ -50,8 +52,5 @@ jobs:
       - name: Probar planificador de herramientas
         run: npx vitest run src/lib/domi/tools/planner.test.ts --reporter=verbose
 
-      - name: Validar TypeScript
-        run: npx tsc --noEmit
-
-      - name: Compilar aplicación
+      - name: Compilar y validar TypeScript
         run: npm run build
