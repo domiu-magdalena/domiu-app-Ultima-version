@@ -4,11 +4,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bot, Loader2, MessageCircle, Send, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCart } from '@/contexts/CartContext';
+
+interface DomiNavigationLink {
+  label: string;
+  href: string;
+}
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   suggestedActions?: string[];
+  navigation?: DomiNavigationLink[];
 }
 
 interface MobileViewport {
@@ -32,7 +39,10 @@ const ROLE_LABEL: Record<string, string> = {
   admin_soporte: 'Asistente de soporte',
 };
 
-function browserContext() {
+function browserContext(cart: {
+  businessId: string | null;
+  items: Array<{ product: { id: string }; quantity: number }>;
+}) {
   const path = window.location.pathname;
   const parts = path.split('/').filter(Boolean);
   return {
@@ -41,11 +51,33 @@ function browserContext() {
     screen: parts.slice(1).join('/') || 'principal',
     locale: navigator.language || 'es-CO',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Bogota',
+    cart: {
+      businessId: cart.businessId,
+      items: cart.items.slice(0, 25).map((item) => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+      })),
+    },
   };
+}
+
+function safeNavigation(value: unknown): DomiNavigationLink[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const candidate = item as { label?: unknown; href?: unknown };
+      if (typeof candidate.label !== 'string' || typeof candidate.href !== 'string') return null;
+      if (!candidate.href.startsWith('/cliente')) return null;
+      return { label: candidate.label.slice(0, 60), href: candidate.href.slice(0, 240) };
+    })
+    .filter((item): item is DomiNavigationLink => Boolean(item))
+    .slice(0, 4);
 }
 
 export function DomiAssistant() {
   const { profile, isLoading } = useAuth();
+  const cart = useCart();
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [interfaceBlocked, setInterfaceBlocked] = useState(false);
@@ -145,13 +177,17 @@ export function DomiAssistant() {
           message: text,
           conversationId,
           ...(requestId ? { requestId } : {}),
-          context: browserContext(),
+          context: browserContext(cart),
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Domi no pudo responder');
       setConversationId(data.conversationId);
-      const assistant = data.assistant as { message?: string; suggestedActions?: string[] } | undefined;
+      const assistant = data.assistant as {
+        message?: string;
+        suggestedActions?: string[];
+        navigation?: unknown;
+      } | undefined;
       setMessages((current) => [
         ...current,
         {
@@ -160,6 +196,7 @@ export function DomiAssistant() {
           suggestedActions: Array.isArray(assistant?.suggestedActions)
             ? assistant.suggestedActions.slice(0, 3).map(String)
             : [],
+          navigation: safeNavigation(assistant?.navigation),
         },
       ]);
     } catch (cause) {
@@ -214,7 +251,7 @@ export function DomiAssistant() {
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#FFD400] text-[#17191F]"><Bot className="h-6 w-6" /></span>
               <div className="min-w-0 flex-1">
                 <h2 className="font-black">Domi</h2>
-                <p className="truncate text-[11px] text-white/65">{ROLE_LABEL[profile.role] || 'Asistente DomiU'} · contexto protegido</p>
+                <p className="truncate text-[11px] text-white/65">{ROLE_LABEL[profile.role] || 'Asistente DomiU'} · herramientas protegidas</p>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl hover:bg-white/10" aria-label="Cerrar"><X className="h-5 w-5" /></button>
             </header>
@@ -223,12 +260,30 @@ export function DomiAssistant() {
               {messages.length === 0 && (
                 <div className="rounded-2xl border bg-white p-4 shadow-sm">
                   <div className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-[#B38C00]" /><strong className="text-sm">Hola, {profile.first_name || 'bienvenido'}</strong></div>
-                  <p className="mt-2 text-sm leading-relaxed text-[#69717D]">Puedo orientarte según tu perfil y la pantalla donde estás. Las acciones sensibles siempre requieren autorización.</p>
+                  <p className="mt-2 text-sm leading-relaxed text-[#69717D]">
+                    {profile.role === 'customer'
+                      ? 'Puedo buscar productos y negocios, verificar tu carrito y consultar únicamente tus pedidos.'
+                      : 'Puedo orientarte según tu perfil y la pantalla donde estás. Las acciones sensibles siempre requieren autorización.'}
+                  </p>
                 </div>
               )}
               {messages.map((item, index) => (
                 <div key={`${item.role}-${index}`} className={item.role === 'user' ? 'ml-8 rounded-2xl rounded-br-md bg-[#FFD400] px-4 py-3 text-sm font-medium text-[#17191F]' : 'mr-6 rounded-2xl rounded-bl-md border bg-white px-4 py-3 text-sm leading-relaxed text-[#30353C] shadow-sm'}>
                   <p>{item.content}</p>
+                  {item.role === 'assistant' && item.navigation && item.navigation.length > 0 && (
+                    <div className="mt-3 grid gap-2">
+                      {item.navigation.map((link) => (
+                        <a
+                          key={`${link.href}-${link.label}`}
+                          href={link.href}
+                          className="flex min-h-10 items-center justify-between rounded-xl bg-[#17191F] px-3 py-2 text-xs font-bold text-white transition hover:bg-black"
+                        >
+                          <span>{link.label}</span>
+                          <span aria-hidden>→</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                   {item.role === 'assistant' && item.suggestedActions && item.suggestedActions.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {item.suggestedActions.map((action) => (
@@ -246,7 +301,7 @@ export function DomiAssistant() {
                   )}
                 </div>
               ))}
-              {sending && <div className="mr-6 flex items-center gap-2 rounded-2xl border bg-white px-4 py-3 text-sm text-[#69717D]"><Loader2 className="h-4 w-4 animate-spin" />Domi está validando tu contexto…</div>}
+              {sending && <div className="mr-6 flex items-center gap-2 rounded-2xl border bg-white px-4 py-3 text-sm text-[#69717D]"><Loader2 className="h-4 w-4 animate-spin" />Domi está consultando información autorizada…</div>}
               {error && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</p>}
               <div ref={endRef} className="h-px" />
             </div>
@@ -271,7 +326,7 @@ export function DomiAssistant() {
                 />
                 <button type="button" onClick={() => void send()} disabled={!message.trim() || sending} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#17191F] text-white disabled:opacity-40" aria-label="Enviar"><Send className="h-4 w-4" /></button>
               </div>
-              {!viewport.keyboardOpen && <p className="mt-2 text-center text-[9px] text-[#8B929C]">Domi valida sesión, rol y contexto. No comparte información entre cuentas.</p>}
+              {!viewport.keyboardOpen && <p className="mt-2 text-center text-[9px] text-[#8B929C]">Domi valida datos y precios en el servidor. No comparte información entre cuentas.</p>}
             </footer>
           </section>
         </div>
