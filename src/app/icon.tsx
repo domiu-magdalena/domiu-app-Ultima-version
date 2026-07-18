@@ -1,5 +1,4 @@
 import { ImageResponse } from 'next/og';
-import { DOMIU_OFFICIAL_LOGO_DATA_URI } from '@/lib/brand-assets';
 
 export const size = { width: 32, height: 32 };
 export const contentType = 'image/png';
@@ -12,21 +11,18 @@ export default function Icon() {
           width: '100%',
           height: '100%',
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           justifyContent: 'center',
-          overflow: 'hidden',
-          background: 'linear-gradient(145deg, #FFFDF0 0%, #FFE55C 100%)',
+          background: 'linear-gradient(145deg, #FFF000 0%, #FFD900 55%, #FF9D00 100%)',
           borderRadius: 7,
-          padding: 2,
+          color: '#111317',
+          fontSize: 15,
+          fontWeight: 900,
+          fontStyle: 'italic',
+          letterSpacing: -1,
         }}
       >
-        <img
-          src={DOMIU_OFFICIAL_LOGO_DATA_URI}
-          width="32"
-          height="32"
-          alt="DomiU"
-          style={{ width: 32, height: 32, objectFit: 'cover', objectPosition: 'top center' }}
-        />
+        DU
       </div>
     ),
     size,
