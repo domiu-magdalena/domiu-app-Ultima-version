@@ -3,7 +3,8 @@
 
 -- PostgreSQL no permite utilizar un valor agregado con ALTER TYPE antes de
 -- confirmar la transacción. Para mantener esta migración completamente
--- atómica, se reconstruye el enum conservando todos sus valores anteriores.
+-- atómica, se reconstruye el enum conservando sus valores y declarando los
+-- tipos posteriores que forman parte del esquema actual.
 DROP FUNCTION IF EXISTS create_notification(UUID, notification_type, VARCHAR, TEXT, UUID, VARCHAR, VARCHAR, JSONB);
 
 ALTER TABLE notifications
@@ -37,7 +38,11 @@ CREATE TYPE notification_type AS ENUM (
   'new_order_available',
   'new_registration',
   'incident',
-  'report'
+  'report',
+  'manual_order_created',
+  'order_assigned',
+  'admin_alert',
+  'order_update'
 );
 
 ALTER TABLE notifications
