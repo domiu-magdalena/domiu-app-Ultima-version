@@ -10,15 +10,34 @@ export type DomiToolName =
   | 'merchant.inventory_summary'
   | 'merchant.sales_summary'
   | 'merchant.reviews_summary'
+  | 'merchant.update_order_status'
+  | 'merchant.update_product'
   | 'courier.available_orders'
   | 'courier.assignments'
   | 'courier.earnings_summary'
   | 'courier.delivery_history'
+  | 'courier.accept_order'
+  | 'courier.update_order_status'
   | 'admin.platform_metrics'
   | 'admin.order_summary'
   | 'admin.business_summary'
   | 'admin.courier_summary'
-  | 'admin.audit_summary';
+  | 'admin.audit_summary'
+  | 'memory.list'
+  | 'memory.set_enabled'
+  | 'memory.delete_all'
+  | 'support.create_ticket'
+  | 'action.confirm'
+  | 'action.cancel';
+
+export type DomiConfirmedActionName =
+  | 'merchant.update_order_status'
+  | 'merchant.update_product'
+  | 'courier.accept_order'
+  | 'courier.update_order_status'
+  | 'memory.set_enabled'
+  | 'memory.delete_all'
+  | 'support.create_ticket';
 
 export interface DomiToolPlan {
   name: DomiToolName;
@@ -31,6 +50,14 @@ export interface DomiNavigationLink {
   href: string;
 }
 
+export interface DomiPendingActionView {
+  id: string;
+  actionName: DomiConfirmedActionName;
+  summary: string;
+  riskLevel: DomiRiskLevel;
+  expiresAt: string;
+}
+
 export interface DomiToolResult {
   name: DomiToolName;
   success: boolean;
@@ -39,11 +66,15 @@ export interface DomiToolResult {
   recordCount: number;
   suggestedActions: string[];
   navigation: DomiNavigationLink[];
+  requiresConfirmation?: boolean;
+  riskLevel?: DomiRiskLevel;
+  escalateToHuman?: boolean;
 }
 
 export interface DomiToolExecutionInput {
   context: DomiServerContext;
   plan: DomiToolPlan;
+  conversationId?: string | null;
 }
 
 export interface DomiToolDefinition {
