@@ -5,6 +5,7 @@ import { getServiceClient } from '@/lib/db/supabase';
 import { memoryKey, type DomiMemoryCandidate, type DomiRiskLevel } from '@/lib/domi/security';
 import type { DomiServerContext } from '@/lib/domi/server-context';
 import type { DomiNavigationLink } from '@/lib/domi/tools/types';
+import type { DomiClientCommand } from '@/lib/domi/agent/types';
 
 const cartItemSchema = z.object({
   productId: z.string().uuid(),
@@ -38,6 +39,7 @@ export interface DomiAssistantResponse {
   tool: string | null;
   toolArguments: Record<string, unknown> | null;
   toolData: Record<string, unknown> | null;
+  clientCommands: DomiClientCommand[];
   requiresConfirmation: boolean;
   riskLevel: DomiRiskLevel;
   memoryCandidate: DomiMemoryCandidate | null;
@@ -74,6 +76,7 @@ export function buildDomiAssistantPayload(args: {
   tool?: string | null;
   toolArguments?: Record<string, unknown> | null;
   toolData?: Record<string, unknown> | null;
+  clientCommands?: DomiClientCommand[];
   escalateToHuman?: boolean;
 }): DomiAssistantResponse {
   return {
@@ -84,6 +87,7 @@ export function buildDomiAssistantPayload(args: {
     tool: args.tool || null,
     toolArguments: args.toolArguments || null,
     toolData: args.toolData || null,
+    clientCommands: args.clientCommands || [],
     requiresConfirmation: Boolean(args.requiresConfirmation),
     riskLevel: args.riskLevel || 'low',
     memoryCandidate: args.memoryCandidate || null,
@@ -155,6 +159,7 @@ export async function saveDomiMemory(
 
 export function domiModelForAssistant(assistant: DomiAssistantResponse, mode: string) {
   if (assistant.requiresConfirmation || assistant.tool?.startsWith('action.')) return 'domi-secure-actions-v1';
+  if (assistant.tool?.startsWith('agent.')) return 'domi-complete-agent-v1';
   if (mode === 'tool') return 'domi-secure-tools-v2';
   return 'domi-secure-knowledge-v2';
 }
