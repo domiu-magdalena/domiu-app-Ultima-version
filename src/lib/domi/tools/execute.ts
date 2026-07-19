@@ -2,7 +2,7 @@ import 'server-only';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DomiServerContext } from '@/lib/domi/server-context';
-import { executeDomiCustomerTool } from '@/lib/domi/tools/customer-read';
+import { executeDomiCustomerTool as executeDomiCustomerReadTool } from '@/lib/domi/tools/customer-read-base';
 import { canExecuteDomiTool, withDomiToolTimeout } from '@/lib/domi/tools/registry';
 import { executeDomiRoleReadTool } from '@/lib/domi/tools/role-read';
 import type { DomiToolPlan, DomiToolResult } from '@/lib/domi/tools/types';
@@ -30,7 +30,7 @@ export async function executeDomiTool(
 
   return withDomiToolTimeout(plan.name, async () => {
     if (plan.name.startsWith('customer.')) {
-      return executeDomiCustomerTool(supabase, context, plan);
+      return executeDomiCustomerReadTool(supabase, context, plan);
     }
 
     return executeDomiRoleReadTool(supabase, context, plan);
