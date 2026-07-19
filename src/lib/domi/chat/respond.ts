@@ -8,6 +8,7 @@ import type { DomiToolResult } from '@/lib/domi/tools/types';
 import { getDomiUserSettings } from '@/lib/domi/user-settings';
 import { processDomiMemory } from '@/lib/domi/chat/memory';
 import type { PreparedDomiChat } from '@/lib/domi/chat/session';
+import { runDomiConversationOrchestrator } from '@/lib/domi/agent/conversation-orchestrator';
 import {
   buildDomiAssistantPayload,
   buildDomiKnowledgeAnswer,
@@ -18,12 +19,18 @@ import {
   type DomiAssistantResponse,
 } from '@/lib/domi/chat/protocol';
 
+interface AuditToolResult {
+  name: string;
+  success: boolean;
+  recordCount: number;
+}
+
 async function persist(args: {
   prepared: PreparedDomiChat;
   assistant: DomiAssistantResponse;
   mode: 'knowledge' | 'memory' | 'tool';
   memoryState?: 'pending' | 'saved' | 'cancelled';
-  toolResult?: DomiToolResult;
+  toolResult?: DomiToolResult | AuditToolResult;
 }) {
   const { prepared } = args;
   await insertDomiAssistantMessage({
@@ -109,6 +116,49 @@ export async function respondToDomiChat(prepared: PreparedDomiChat) {
       });
     }
 
+    const advanced = await runDomiConversationOrchestrator({
+      supabase: prepared.supabase,
+      context: prepared.context,
+      settings,
+      conversationId: prepared.conversationId,
+      message: prepared.message,
+    });
+    if (advanced) {
+      const assistant = buildDomiAssistantPayload({
+        message: advanced.message,
+        intent: advanced.intent,
+        context: prepared.context,
+        tool: advanced.tool,
+        toolArguments: { message: prepared.message },
+        toolData: {
+          ...advanced.data,
+          clientCommands: advanced.clientCommands || advanced.data.clientCommands || [],
+        },
+        clientCommands: advanced.clientCommands,
+        suggestedActions: advanced.suggestedActions,
+        navigation: advanced.navigation,
+        requiresConfirmation: advanced.requiresConfirmation,
+        riskLevel: advanced.riskLevel,
+        escalateToHuman: advanced.escalateToHuman,
+      });
+      await persist({
+        prepared,
+        assistant,
+        mode: 'tool',
+        toolResult: {
+          name: advanced.tool,
+          success: true,
+          recordCount: advanced.recordCount,
+        },
+      });
+      return response({
+        prepared,
+        assistant,
+        mode: 'tool',
+        headers: { 'X-Domi-Tool': advanced.tool },
+      });
+    }
+
     const toolPlan = planDomiCustomerTool(prepared.context, prepared.message);
     if (toolPlan) {
       const toolResult = await executeDomiCustomerTool(
@@ -162,12 +212,12 @@ export async function respondToDomiChat(prepared: PreparedDomiChat) {
     );
     const suggestedActions = settings.proactiveEnabled
       ? prepared.context.role === 'admin'
-        ? ['Revisar pedidos', 'Consultar liquidaciones']
+        ? ['Revisar pedidos', 'Evaluar Domi']
         : prepared.context.role === 'merchant'
           ? ['Revisar pedidos', 'Consultar inventario']
           : prepared.context.role === 'courier'
             ? ['Revisar pedidos asignados', 'Consultar ganancias']
-            : ['Buscar productos', 'Consultar mis pedidos', 'Consultar mi carrito']
+            : ['Recomiéndame algo con $30.000', 'Consultar mis pedidos', 'Ver promociones']
       : [];
     const assistant = buildDomiAssistantPayload({
       message: answer,
@@ -190,6 +240,8 @@ export async function respondToDomiChat(prepared: PreparedDomiChat) {
           tenantType: prepared.context.tenantType,
           memoryEnabled: settings.memoryEnabled,
           proactiveEnabled: settings.proactiveEnabled,
+          voiceEnabled: settings.voiceEnabled,
+          learningEnabled: settings.learningEnabled,
         },
       },
     });
