@@ -42,16 +42,7 @@ export async function GET() {
   }
 
   const supabase = getServiceClient();
-  const [
-    conversations,
-    messages,
-    evaluations,
-    positive,
-    negative,
-    pending,
-    candidates,
-    recentEvaluations,
-  ] = await Promise.all([
+  const [conversations, messages, evaluations, positive, negative, pending, candidates, recentEvaluations] = await Promise.all([
     supabase.from('domi_conversations').select('*', { count: 'exact', head: true }),
     supabase.from('domi_messages').select('*', { count: 'exact', head: true }),
     supabase.from('domi_evaluations').select('*', { count: 'exact', head: true }),
@@ -123,17 +114,18 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString();
   if (parsed.data.action === 'approve' || parsed.data.action === 'reject') {
-    const status = parsed.data.action === 'approve' ? 'approved' : 'rejected';
+    const reviewRequest = parsed.data;
+    const status = reviewRequest.action === 'approve' ? 'approved' : 'rejected';
     const { error } = await supabase
       .from('domi_learning_candidates')
       .update({
         status,
         reviewer_id: admin.session.user.id,
         reviewed_at: now,
-        review_notes: parsed.data.notes || null,
+        review_notes: reviewRequest.notes || null,
         updated_at: now,
       })
-      .eq('id', parsed.data.candidateId)
+      .eq('id', reviewRequest.candidateId)
       .eq('status', 'pending');
     if (error) {
       return NextResponse.json({ error: 'No se pudo guardar la revisión.' }, { status: 500, headers });
@@ -141,13 +133,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, status }, { headers });
   }
 
+  if (!('articleTitle' in parsed.data)) {
+    return NextResponse.json({ error: 'La operación de publicación no es válida.' }, { status: 400, headers });
+  }
+  const deployRequest = parsed.data;
   if (candidate.status !== 'approved') {
     return NextResponse.json({ error: 'El candidato debe aprobarse antes de publicarlo.' }, { status: 409, headers });
   }
   if (candidate.candidate_type === 'preference_pattern') {
     return NextResponse.json({ error: 'Las preferencias privadas nunca se publican como conocimiento global.' }, { status: 403, headers });
   }
-  if (unsafeKnowledge(`${parsed.data.articleTitle} ${parsed.data.articleContent}`)) {
+  if (unsafeKnowledge(`${deployRequest.articleTitle} ${deployRequest.articleContent}`)) {
     return NextResponse.json({ error: 'El artículo contiene información sensible no permitida.' }, { status: 400, headers });
   }
 
@@ -155,9 +151,9 @@ export async function POST(request: NextRequest) {
     .from('domi_knowledge_articles')
     .insert({
       audience_role: candidate.audience_role || null,
-      title: parsed.data.articleTitle,
-      content: parsed.data.articleContent,
-      tags: parsed.data.tags,
+      title: deployRequest.articleTitle,
+      content: deployRequest.articleContent,
+      tags: deployRequest.tags,
       is_active: true,
       version: 'supervised-1.0',
       created_by: admin.session.user.id,
@@ -177,7 +173,7 @@ export async function POST(request: NextRequest) {
       reviewed_at: now,
       updated_at: now,
     })
-    .eq('id', parsed.data.candidateId)
+    .eq('id', deployRequest.candidateId)
     .eq('status', 'approved');
   if (deployError) {
     await supabase.from('domi_knowledge_articles').delete().eq('id', article.id);
