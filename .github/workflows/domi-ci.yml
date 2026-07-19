@@ -38,7 +38,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 20
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
@@ -55,7 +55,7 @@ jobs:
       - name: Probar seguridad y contexto
         run: npx vitest run src/lib/domi/security.test.ts --reporter=verbose
 
-      - name: Probar planificación multirrol
+      - name: Probar planificación multirrol y acciones
         run: npx vitest run src/lib/domi/tools/planner.test.ts --reporter=verbose
 
       - name: Probar registro de herramientas
@@ -63,6 +63,12 @@ jobs:
 
       - name: Probar aislamiento por tenant y perfil
         run: npx vitest run src/lib/domi/tools/role-read.test.ts --reporter=verbose
+
+      - name: Probar confirmación e idempotencia de acciones
+        run: npx vitest run src/lib/domi/actions.test.ts --reporter=verbose
+
+      - name: Probar arquitectura modular y memoria controlable
+        run: npx vitest run src/lib/domi/chat/architecture.test.ts --reporter=verbose
 
       - name: Probar conversaciones persistentes
         run: npx vitest run src/lib/domi/conversations.test.ts --reporter=verbose
