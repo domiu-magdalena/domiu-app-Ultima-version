@@ -38,7 +38,7 @@ function hasPermission(context: Pick<DomiServerContext, 'permissions'>, permissi
   return context.permissions.includes(permission);
 }
 
-export function planDomiCustomerTool(
+function planCustomerTool(
   context: Pick<DomiServerContext, 'role' | 'permissions'>,
   message: string,
 ): DomiToolPlan | null {
@@ -276,7 +276,7 @@ export function planDomiTool(
 ): DomiToolPlan | null {
   switch (context.role) {
     case 'customer':
-      return planDomiCustomerTool(context, message);
+      return planCustomerTool(context, message);
     case 'merchant':
       return planDomiMerchantTool(context, message);
     case 'courier':
@@ -287,3 +287,6 @@ export function planDomiTool(
       return null;
   }
 }
+
+// Alias conservado para que la ruta existente use el planificador multirrol sin una migración destructiva.
+export const planDomiCustomerTool = planDomiTool;
