@@ -16,6 +16,7 @@ import {
 
 const sidebarItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+  { label: 'Domi IA', href: '/admin/domi', icon: Sparkles, featured: true },
   { label: 'Pedidos', href: '/admin/pedidos', icon: ClipboardList },
   { label: 'Crear Pedido', href: '/admin/pedidos/crear', icon: Package },
   { label: 'Liquidación', href: '/admin/liquidaciones', icon: Scale, featured: true },
@@ -92,6 +93,7 @@ export function AdminSidebar() {
     Auditoría: 'audit.read',
     Seguridad: 'security.read',
     Dashboard: '',
+    'Domi IA': '',
     Cobertura: '',
     Promociones: '',
     Reseñas: '',
