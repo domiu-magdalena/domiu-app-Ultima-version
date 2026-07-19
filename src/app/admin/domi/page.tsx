@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   BrainCircuit,
   CheckCircle2,
@@ -72,12 +72,20 @@ function dateLabel(value: string) {
     : new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
+function MetricCard({ label, value, icon }: { label: string; value: string | number; icon: ReactNode }) {
+  return (
+    <article className="rounded-2xl border border-[#3A4048] bg-[#2C3138] p-4 shadow-lg">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-bold text-[#D4D7DC]">{label}</span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#FFC400] text-[#1A1D21]">{icon}</span>
+      </div>
+      <strong className="mt-3 block text-2xl font-black text-white">{value}</strong>
+    </article>
+  );
+}
+
 export default function DomiEvaluationPage() {
-  const [data, setData] = useState<PanelResponse>({
-    metrics: EMPTY_METRICS,
-    candidates: [],
-    evaluations: [],
-  });
+  const [data, setData] = useState<PanelResponse>({ metrics: EMPTY_METRICS, candidates: [], evaluations: [] });
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -89,8 +97,7 @@ export default function DomiEvaluationPage() {
     setLoading(true);
     setError('');
     try {
-      const response = await requestDomiJson<PanelResponse>('/api/admin/domi');
-      setData(response);
+      setData(await requestDomiJson<PanelResponse>('/api/admin/domi'));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudo cargar el panel de Domi.');
     } finally {
@@ -98,18 +105,10 @@ export default function DomiEvaluationPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  const pending = useMemo(
-    () => data.candidates.filter((candidate) => candidate.status === 'pending'),
-    [data.candidates],
-  );
-  const approved = useMemo(
-    () => data.candidates.filter((candidate) => candidate.status === 'approved'),
-    [data.candidates],
-  );
+  const pending = useMemo(() => data.candidates.filter((candidate) => candidate.status === 'pending'), [data.candidates]);
+  const approved = useMemo(() => data.candidates.filter((candidate) => candidate.status === 'approved'), [data.candidates]);
 
   const review = async (candidateId: string, action: 'approve' | 'reject') => {
     setBusyId(candidateId);
@@ -126,12 +125,6 @@ export default function DomiEvaluationPage() {
     } finally {
       setBusyId(null);
     }
-  };
-
-  const openDeploy = (candidate: Candidate) => {
-    setSelected(candidate);
-    setArticleTitle(candidate.title.replace(/Corrección propuesta por un usuario/i, 'Guía verificada de Domi'));
-    setArticleContent('');
   };
 
   const deploy = async () => {
@@ -162,182 +155,109 @@ export default function DomiEvaluationPage() {
   };
 
   return (
-    <main className="mobile-page min-h-screen bg-[#1A1D21] p-4 text-white sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="flex flex-col gap-4 border-b border-[#3A4048] pb-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#FFC400]">
-              <ShieldCheck className="h-4 w-4" /> Supervisión humana
-            </div>
-            <h1 className="mt-2 text-3xl font-black text-white">Evaluación y aprendizaje de Domi</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#D4D7DC]">
-              Revisa calidad, comentarios y candidatos. Domi nunca publica conocimiento global sin aprobación y redacción administrativa explícita.
-            </p>
+    <div className="mobile-page min-h-full text-white">
+      <header className="flex flex-col gap-4 border-b border-[#3A4048] pb-6 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#FFC400]">
+            <ShieldCheck className="h-4 w-4" /> Supervisión humana
           </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#FFC400] px-4 text-sm font-black text-[#1A1D21] disabled:opacity-60"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Actualizar
-          </button>
-        </header>
-
-        {error && (
-          <p role="alert" className="mt-4 rounded-xl border border-red-500/45 bg-red-950/40 p-3 text-sm font-semibold text-red-200">
-            {error}
+          <h1 className="mt-2 text-3xl font-black text-white">Evaluación y aprendizaje de Domi</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#D4D7DC]">
+            Revisa calidad, comentarios y candidatos. Ningún aprendizaje se publica globalmente sin aprobación y redacción administrativa.
           </p>
-        )}
+        </div>
+        <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#FFC400] px-4 text-sm font-black text-[#1A1D21] disabled:opacity-60">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Actualizar
+        </button>
+      </header>
 
-        <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ['Conversaciones', data.metrics.conversations, MessageSquareText],
-            ['Mensajes', data.metrics.messages, Sparkles],
-            ['Satisfacción', data.metrics.satisfaction === null ? 'Sin datos' : `${data.metrics.satisfaction}%`, ThumbsUp],
-            ['Pendientes', data.metrics.pendingCandidates, BrainCircuit],
-          ].map(([label, value, Icon]) => (
-            <article key={String(label)} className="rounded-2xl border border-[#3A4048] bg-[#2C3138] p-4 shadow-lg">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-bold text-[#D4D7DC]">{String(label)}</span>
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#FFC400] text-[#1A1D21]">
-                  <Icon className="h-4 w-4" />
-                </span>
-              </div>
-              <strong className="mt-3 block text-2xl font-black text-white">{String(value)}</strong>
-            </article>
-          ))}
-        </section>
+      {error && <p role="alert" className="mt-4 rounded-xl border border-red-500/45 bg-red-950/40 p-3 text-sm font-semibold text-red-200">{error}</p>}
 
-        <section className="mt-8 grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-black text-white">Candidatos pendientes</h2>
-              <span className="rounded-full bg-[#FFC400] px-3 py-1 text-xs font-black text-[#1A1D21]">{pending.length}</span>
-            </div>
-            <div className="mt-3 space-y-3">
-              {!loading && pending.length === 0 && (
-                <div className="rounded-2xl border border-[#3A4048] bg-[#2C3138] p-6 text-center text-sm text-[#D4D7DC]">
-                  No hay candidatos pendientes.
+      <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Conversaciones" value={data.metrics.conversations} icon={<MessageSquareText className="h-4 w-4" />} />
+        <MetricCard label="Mensajes" value={data.metrics.messages} icon={<Sparkles className="h-4 w-4" />} />
+        <MetricCard label="Satisfacción" value={data.metrics.satisfaction === null ? 'Sin datos' : `${data.metrics.satisfaction}%`} icon={<ThumbsUp className="h-4 w-4" />} />
+        <MetricCard label="Pendientes" value={data.metrics.pendingCandidates} icon={<BrainCircuit className="h-4 w-4" />} />
+      </section>
+
+      <section className="mt-8 grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xl font-black">Candidatos pendientes</h2>
+            <span className="rounded-full bg-[#FFC400] px-3 py-1 text-xs font-black text-[#1A1D21]">{pending.length}</span>
+          </div>
+          <div className="mt-3 space-y-3">
+            {!loading && pending.length === 0 && <div className="rounded-2xl border border-[#3A4048] bg-[#2C3138] p-6 text-center text-sm text-[#D4D7DC]">No hay candidatos pendientes.</div>}
+            {pending.map((candidate) => (
+              <article key={candidate.id} className="rounded-2xl border border-[#3A4048] bg-[#2C3138] p-5">
+                <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase">
+                  <span className="rounded-full bg-[#1A1D21] px-2 py-1 text-[#FFC400]">{candidate.candidate_type}</span>
+                  <span className="rounded-full bg-[#1A1D21] px-2 py-1 text-white">{candidate.audience_role || 'global'}</span>
+                  <span className="rounded-full bg-[#1A1D21] px-2 py-1 text-[#D4D7DC]">riesgo {candidate.risk_level}</span>
                 </div>
-              )}
-              {pending.map((candidate) => (
-                <article key={candidate.id} className="rounded-2xl border border-[#3A4048] bg-[#2C3138] p-5">
-                  <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wide">
-                    <span className="rounded-full bg-[#1A1D21] px-2 py-1 text-[#FFC400]">{candidate.candidate_type}</span>
-                    <span className="rounded-full bg-[#1A1D21] px-2 py-1 text-white">{candidate.audience_role || 'global'}</span>
-                    <span className="rounded-full bg-[#1A1D21] px-2 py-1 text-[#D4D7DC]">riesgo {candidate.risk_level}</span>
-                  </div>
-                  <h3 className="mt-3 text-base font-black text-white">{candidate.title}</h3>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#F2F3F5]">{candidate.content}</p>
-                  <p className="mt-3 text-[10px] text-[#B7BCC3]">Creado {dateLabel(candidate.created_at)}</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={busyId === candidate.id}
-                      onClick={() => void review(candidate.id, 'approve')}
-                      className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#FFC400] px-3 text-xs font-black text-[#1A1D21] disabled:opacity-50"
-                    >
-                      <CheckCircle2 className="h-4 w-4" /> Aprobar para redacción
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busyId === candidate.id}
-                      onClick={() => void review(candidate.id, 'reject')}
-                      className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-red-400/50 px-3 text-xs font-bold text-red-200 disabled:opacity-50"
-                    >
-                      <XCircle className="h-4 w-4" /> Rechazar
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            <div className="mt-8 flex items-center justify-between gap-3">
-              <h2 className="text-xl font-black text-white">Aprobados, pendientes de publicación</h2>
-              <span className="rounded-full border border-[#FFC400]/50 px-3 py-1 text-xs font-black text-[#FFC400]">{approved.length}</span>
-            </div>
-            <div className="mt-3 space-y-3">
-              {approved.map((candidate) => (
-                <article key={candidate.id} className="rounded-2xl border border-[#FFC400]/25 bg-[#2C3138] p-5">
-                  <h3 className="font-black text-white">{candidate.title}</h3>
-                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[#D4D7DC]">{candidate.content}</p>
-                  {candidate.candidate_type === 'preference_pattern' ? (
-                    <p className="mt-3 text-xs font-bold text-[#FFC400]">Las preferencias privadas no pueden publicarse globalmente.</p>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => openDeploy(candidate)}
-                      className="mt-4 min-h-10 rounded-xl bg-[#FFC400] px-3 text-xs font-black text-[#1A1D21]"
-                    >
-                      Redactar y publicar conocimiento
-                    </button>
-                  )}
-                </article>
-              ))}
-            </div>
+                <h3 className="mt-3 font-black">{candidate.title}</h3>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#F2F3F5]">{candidate.content}</p>
+                <p className="mt-3 text-[10px] text-[#B7BCC3]">Creado {dateLabel(candidate.created_at)}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" disabled={busyId === candidate.id} onClick={() => void review(candidate.id, 'approve')} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#FFC400] px-3 text-xs font-black text-[#1A1D21] disabled:opacity-50"><CheckCircle2 className="h-4 w-4" /> Aprobar</button>
+                  <button type="button" disabled={busyId === candidate.id} onClick={() => void review(candidate.id, 'reject')} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-red-400/50 px-3 text-xs font-bold text-red-200 disabled:opacity-50"><XCircle className="h-4 w-4" /> Rechazar</button>
+                </div>
+              </article>
+            ))}
           </div>
 
-          <aside>
-            <h2 className="text-xl font-black text-white">Evaluaciones recientes</h2>
-            <div className="mt-3 space-y-3">
-              {data.evaluations.map((evaluation) => (
-                <article key={evaluation.id} className="rounded-2xl border border-[#3A4048] bg-[#2C3138] p-4">
-                  <div className="flex items-center gap-2">
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${evaluation.rating === 1 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
-                      {evaluation.rating === 1 ? <ThumbsUp className="h-4 w-4" /> : <ThumbsDown className="h-4 w-4" />}
-                    </span>
-                    <div>
-                      <p className="text-xs font-black text-white">{evaluation.category}</p>
-                      <p className="text-[10px] text-[#B7BCC3]">{dateLabel(evaluation.created_at)}</p>
-                    </div>
-                  </div>
-                  {evaluation.comment && <p className="mt-3 text-sm leading-relaxed text-[#F2F3F5]">{evaluation.comment}</p>}
-                </article>
-              ))}
-              {!loading && data.evaluations.length === 0 && (
-                <div className="rounded-2xl border border-[#3A4048] bg-[#2C3138] p-5 text-sm text-[#D4D7DC]">Todavía no hay evaluaciones.</div>
-              )}
-            </div>
-          </aside>
-        </section>
-      </div>
+          <div className="mt-8 flex items-center justify-between gap-3">
+            <h2 className="text-xl font-black">Aprobados para redacción</h2>
+            <span className="rounded-full border border-[#FFC400]/50 px-3 py-1 text-xs font-black text-[#FFC400]">{approved.length}</span>
+          </div>
+          <div className="mt-3 space-y-3">
+            {approved.map((candidate) => (
+              <article key={candidate.id} className="rounded-2xl border border-[#FFC400]/25 bg-[#2C3138] p-5">
+                <h3 className="font-black">{candidate.title}</h3>
+                <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[#D4D7DC]">{candidate.content}</p>
+                {candidate.candidate_type === 'preference_pattern'
+                  ? <p className="mt-3 text-xs font-bold text-[#FFC400]">Las preferencias privadas no pueden publicarse globalmente.</p>
+                  : <button type="button" onClick={() => { setSelected(candidate); setArticleTitle(candidate.title); setArticleContent(''); }} className="mt-4 min-h-10 rounded-xl bg-[#FFC400] px-3 text-xs font-black text-[#1A1D21]">Redactar y publicar</button>}
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <aside>
+          <h2 className="text-xl font-black">Evaluaciones recientes</h2>
+          <div className="mt-3 space-y-3">
+            {data.evaluations.map((evaluation) => (
+              <article key={evaluation.id} className="rounded-2xl border border-[#3A4048] bg-[#2C3138] p-4">
+                <div className="flex items-center gap-2">
+                  <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${evaluation.rating === 1 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
+                    {evaluation.rating === 1 ? <ThumbsUp className="h-4 w-4" /> : <ThumbsDown className="h-4 w-4" />}
+                  </span>
+                  <div><p className="text-xs font-black">{evaluation.category}</p><p className="text-[10px] text-[#B7BCC3]">{dateLabel(evaluation.created_at)}</p></div>
+                </div>
+                {evaluation.comment && <p className="mt-3 text-sm leading-relaxed text-[#F2F3F5]">{evaluation.comment}</p>}
+              </article>
+            ))}
+            {!loading && data.evaluations.length === 0 && <div className="rounded-2xl border border-[#3A4048] bg-[#2C3138] p-5 text-sm text-[#D4D7DC]">Todavía no hay evaluaciones.</div>}
+          </div>
+        </aside>
+      </section>
 
       {selected && (
         <div className="fixed inset-0 z-[1800] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-6">
-          <section className="w-full max-w-2xl rounded-t-3xl border border-[#3A4048] bg-[#2C3138] p-5 text-white shadow-2xl sm:rounded-3xl">
+          <section className="w-full max-w-2xl rounded-t-3xl border border-[#3A4048] bg-[#2C3138] p-5 shadow-2xl sm:rounded-3xl">
             <h2 className="text-xl font-black">Redacción administrativa final</h2>
-            <p className="mt-2 text-sm leading-relaxed text-[#D4D7DC]">No copies datos privados. Escribe una regla general verificada que Domi pueda usar para el rol correspondiente.</p>
+            <p className="mt-2 text-sm text-[#D4D7DC]">Escribe una regla general verificada. No copies datos privados del usuario.</p>
             <label className="mt-4 block text-xs font-black text-[#FFC400]">Título</label>
-            <input
-              value={articleTitle}
-              onChange={(event) => setArticleTitle(event.target.value.slice(0, 180))}
-              className="mt-2 min-h-11 w-full rounded-xl border border-[#3A4048] bg-[#1A1D21] px-3 text-sm text-white outline-none focus:border-[#FFC400]"
-            />
+            <input value={articleTitle} onChange={(event) => setArticleTitle(event.target.value.slice(0, 180))} className="mt-2 min-h-11 w-full rounded-xl border border-[#3A4048] bg-[#1A1D21] px-3 text-sm text-white outline-none focus:border-[#FFC400]" />
             <label className="mt-4 block text-xs font-black text-[#FFC400]">Contenido verificado</label>
-            <textarea
-              value={articleContent}
-              onChange={(event) => setArticleContent(event.target.value.slice(0, 6000))}
-              rows={8}
-              className="mt-2 w-full resize-y rounded-xl border border-[#3A4048] bg-[#1A1D21] p-3 text-sm leading-relaxed text-white outline-none focus:border-[#FFC400]"
-              placeholder="Describe la regla, procedimiento o corrección general confirmada."
-            />
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <button type="button" onClick={() => setSelected(null)} className="min-h-11 rounded-xl border border-[#8A9099] px-4 text-sm font-bold text-white">Cancelar</button>
-              <button
-                type="button"
-                onClick={() => void deploy()}
-                disabled={articleTitle.trim().length < 5 || articleContent.trim().length < 20 || busyId === selected.id}
-                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#FFC400] px-4 text-sm font-black text-[#1A1D21] disabled:opacity-50"
-              >
-                {busyId === selected.id && <Loader2 className="h-4 w-4 animate-spin" />}
-                Publicar conocimiento supervisado
-              </button>
+            <textarea value={articleContent} onChange={(event) => setArticleContent(event.target.value.slice(0, 6000))} rows={8} className="mt-2 w-full resize-y rounded-xl border border-[#3A4048] bg-[#1A1D21] p-3 text-sm text-white outline-none focus:border-[#FFC400]" placeholder="Describe el procedimiento o corrección confirmada." />
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setSelected(null)} className="min-h-11 rounded-xl border border-[#8A9099] px-4 text-sm font-bold">Cancelar</button>
+              <button type="button" onClick={() => void deploy()} disabled={articleTitle.trim().length < 5 || articleContent.trim().length < 20 || busyId === selected.id} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#FFC400] px-4 text-sm font-black text-[#1A1D21] disabled:opacity-50">{busyId === selected.id && <Loader2 className="h-4 w-4 animate-spin" />} Publicar</button>
             </div>
           </section>
         </div>
       )}
-    </main>
+    </div>
   );
 }
