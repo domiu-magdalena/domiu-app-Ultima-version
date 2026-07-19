@@ -5,8 +5,11 @@ on:
     branches: [master]
     paths:
       - 'src/app/api/domi/**'
+      - 'src/app/api/admin/domi/**'
+      - 'src/app/admin/domi/**'
       - 'src/components/domi/**'
       - 'src/components/providers/RootProviders.tsx'
+      - 'src/contexts/CartContext.tsx'
       - 'src/lib/domi/**'
       - 'src/test/domi-**'
       - 'supabase/migrations/**domi**'
@@ -18,8 +21,11 @@ on:
     branches: [master]
     paths:
       - 'src/app/api/domi/**'
+      - 'src/app/api/admin/domi/**'
+      - 'src/app/admin/domi/**'
       - 'src/components/domi/**'
       - 'src/components/providers/RootProviders.tsx'
+      - 'src/contexts/CartContext.tsx'
       - 'src/lib/domi/**'
       - 'src/test/domi-**'
       - 'supabase/migrations/**domi**'
@@ -38,7 +44,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
@@ -69,6 +75,12 @@ jobs:
 
       - name: Probar arquitectura modular y memoria controlable
         run: npx vitest run src/lib/domi/chat/architecture.test.ts --reporter=verbose
+
+      - name: Probar intenciones avanzadas y presupuesto
+        run: npx vitest run src/lib/domi/agent/intent-classifier.test.ts --reporter=verbose
+
+      - name: Probar agente completo y límites sensibles
+        run: npx vitest run src/lib/domi/agent/complete-agent.test.ts --reporter=verbose
 
       - name: Probar conversaciones persistentes
         run: npx vitest run src/lib/domi/conversations.test.ts --reporter=verbose
