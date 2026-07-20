@@ -25,6 +25,8 @@ export type DomiToolName =
   | 'admin.audit_summary'
   | 'memory.list'
   | 'memory.set_enabled'
+  | 'memory.delete_specific'
+  | 'memory.correct_specific'
   | 'memory.delete_all'
   | 'support.create_ticket'
   | 'action.confirm'
@@ -36,6 +38,8 @@ export type DomiConfirmedActionName =
   | 'courier.accept_order'
   | 'courier.update_order_status'
   | 'memory.set_enabled'
+  | 'memory.delete_specific'
+  | 'memory.correct_specific'
   | 'memory.delete_all'
   | 'support.create_ticket';
 
