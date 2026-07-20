@@ -6,7 +6,14 @@ function read(path: string) {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
 }
 
-const migration = read('supabase/migrations/20260719172000_domi_complete_agent.sql');
+const migration = [
+  '20260719233834_domi_complete_agent_settings.sql',
+  '20260719233853_domi_complete_agent_order_drafts.sql',
+  '20260719233911_domi_complete_agent_learning.sql',
+  '20260719233932_domi_complete_agent_evaluations.sql',
+  '20260719233950_domi_complete_agent_proactive.sql',
+  '20260719234008_domi_complete_agent_voice.sql',
+].map((file) => read(`supabase/migrations/${file}`)).join('\n');
 const orchestrator = read('src/lib/domi/agent/conversation-orchestrator.ts');
 const recommendations = read('src/lib/domi/agent/recommendation-engine.ts');
 const drafts = read('src/lib/domi/agent/order-draft-service.ts');
