@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { businessService, type BusinessOrder } from '@/services/business';
+import Link from 'next/link';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { OrderCustomizationDetails } from '@/components/business/order-customization-details';
 import { BusinessPaymentVerification } from '@/components/business/BusinessPaymentVerification';
-import { getBrowserClient } from '@/lib/db/supabase';
+import {
+  getBusinessOrdersForPanelAction,
+  updateBusinessOrderStatusAction,
+} from '@/app/actions/order-panel';
+import type { BusinessPanelOrder } from '@/lib/orders/order-panel-types';
 import {
   ClipboardList,
   Clock3,
@@ -14,6 +17,7 @@ import {
   Mail,
   MapPin,
   Package,
+  PackagePlus,
   Phone,
   RefreshCw,
   Send,
@@ -38,6 +42,17 @@ const STATUS_ACTION: Record<string, { next: string; label: string }> = {
   pending: { next: 'confirmed', label: 'Confirmar pedido' },
   confirmed: { next: 'preparing', label: 'Iniciar preparación' },
   preparing: { next: 'ready', label: 'Marcar listo y publicar' },
+};
+
+const SALES_CHANNEL_LABEL: Record<string, string> = {
+  app: 'Aplicación',
+  whatsapp: 'WhatsApp',
+  phone: 'Llamada',
+  in_person: 'Presencial',
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  direct_message: 'Mensaje directo',
+  other: 'Otro',
 };
 
 const formatCurrency = (value: number) =>
@@ -79,86 +94,44 @@ const getPaymentMethodLabel = (value: string | null | undefined) =>
   paymentMethodLabel[String(value || '')] || value || 'Método no definido';
 
 export default function NegocioPedidos() {
-  const { profile } = useAuth();
-  const [businessId, setBusinessId] = useState<string | null>(null);
-  const [orders, setOrders] = useState<BusinessOrder[]>([]);
+  const [orders, setOrders] = useState<BusinessPanelOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  const loadOrders = useCallback(
-    async (showSpinner = false) => {
-      if (!profile?.id) return;
-      if (showSpinner) setRefreshing(true);
-      try {
-        const id = businessId || (await businessService.getBusinessId(profile.id));
-        if (!id) {
-          setOrders([]);
-          setError('No se encontró un negocio asociado a esta cuenta.');
-          return;
-        }
-        if (!businessId) setBusinessId(id);
-        const result = await businessService.getBusinessOrders(id);
-        setOrders(result);
-        setError('');
-      } catch (cause) {
-        const message =
-          cause instanceof Error ? cause.message : 'No se pudieron cargar los pedidos.';
-        setError(message);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [businessId, profile?.id],
-  );
+  const loadOrders = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setRefreshing(true);
+    try {
+      const result = await getBusinessOrdersForPanelAction();
+      if (!result.success) throw new Error(result.error || 'No se pudieron cargar los pedidos.');
+      setOrders(result.orders);
+      setError('');
+    } catch (cause) {
+      const message =
+        cause instanceof Error ? cause.message : 'No se pudieron cargar los pedidos.';
+      setError(message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     void loadOrders();
+    const timer = window.setInterval(() => void loadOrders(), 15_000);
+    return () => window.clearInterval(timer);
   }, [loadOrders]);
 
-  useEffect(() => {
-    if (!businessId) return;
-    const supabase = getBrowserClient();
-    const channel = supabase
-      .channel(`business-orders-${businessId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `business_id=eq.${businessId}`,
-        },
-        () => void loadOrders(),
-      )
-      .subscribe();
-    const paymentChannel = supabase
-      .channel(`business-payments-${businessId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'payment_transactions' },
-        () => void loadOrders(),
-      )
-      .subscribe();
-
-    const timer = window.setInterval(() => void loadOrders(), 15_000);
-    return () => {
-      window.clearInterval(timer);
-      void supabase.removeChannel(channel);
-      void supabase.removeChannel(paymentChannel);
-    };
-  }, [businessId, loadOrders]);
-
-  const changeStatus = async (order: BusinessOrder, status: string) => {
+  const changeStatus = async (order: BusinessPanelOrder, status: string) => {
     setUpdating(order.id);
     try {
-      await businessService.updateOrderStatus(order.id, status);
+      const result = await updateBusinessOrderStatusAction(order.id, status);
+      if (!result.success) throw new Error(result.error || 'No se pudo actualizar el pedido');
       await loadOrders();
       if (status === 'ready') {
-        toast.success(`Pedido #${order.order_number} publicado para los repartidores`);
+        toast.success(`Pedido #${order.orderNumber} publicado para los repartidores`);
       } else {
         toast.success('Estado actualizado correctamente');
       }
@@ -177,17 +150,25 @@ export default function NegocioPedidos() {
         <div>
           <h1 className="text-2xl font-bold">Pedidos</h1>
           <p className="text-sm text-muted-foreground">
-            Los pedidos nuevos aparecen en tiempo real con ticket, pago, cliente, dirección y productos.
+            Pedidos de la aplicación y pedidos manuales con cliente, dirección, pago y productos.
           </p>
         </div>
-        <button
-          onClick={() => void loadOrders(true)}
-          disabled={refreshing}
-          className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          Actualizar
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/negocio/pedidos/crear"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
+          >
+            <PackagePlus className="h-4 w-4" /> Crear pedido manual
+          </Link>
+          <button
+            onClick={() => void loadOrders(true)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -216,7 +197,7 @@ export default function NegocioPedidos() {
                   columnOrders.map((order) => {
                     const action = STATUS_ACTION[order.status];
                     const isSelected = selected === order.id;
-                    const paymentCompleted = order.payment_status === 'completed';
+                    const paymentCompleted = order.paymentStatus === 'completed';
                     return (
                       <article key={order.id} className="rounded-xl border bg-background p-3 shadow-sm">
                         <button
@@ -227,25 +208,35 @@ export default function NegocioPedidos() {
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Ticket</p>
-                              <strong className="text-sm">#{order.order_number}</strong>
+                              <strong className="text-sm">#{order.orderNumber}</strong>
                             </div>
-                            <strong className="text-sm">{formatCurrency(order.total_amount)}</strong>
+                            <strong className="text-sm">{formatCurrency(order.totalAmount)}</strong>
                           </div>
-                          <p className="mt-2 text-sm font-medium">{order.customer_name}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium">{order.customerName}</p>
+                            {order.createdManually && (
+                              <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold text-warning">
+                                Manual · {SALES_CHANNEL_LABEL[order.salesChannel] || order.salesChannel}
+                              </span>
+                            )}
+                            {order.customerKind === 'guest' && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold">Invitado</span>
+                            )}
+                          </div>
                           <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock3 className="h-3 w-3" /> {formatDateTime(order.created_at)}
+                            <Clock3 className="h-3 w-3" /> {formatDateTime(order.createdAt)}
                           </div>
                           <div className="mt-2 flex items-center justify-between gap-2 text-xs">
                             <span className="rounded-full bg-muted px-2 py-1">
                               {order.items.reduce((total, item) => total + item.quantity, 0)} productos
                             </span>
-                            <span className={paymentCompleted ? 'font-bold text-success' : order.payment_status === 'failed' ? 'font-bold text-destructive' : 'font-bold text-warning'}>
-                              {getPaymentLabel(order.payment_status)}
+                            <span className={paymentCompleted ? 'font-bold text-success' : order.paymentStatus === 'failed' ? 'font-bold text-destructive' : 'font-bold text-warning'}>
+                              {getPaymentLabel(order.paymentStatus)}
                             </span>
                           </div>
                         </button>
 
-                        {order.status === 'ready' && !order.courier_id && (
+                        {order.status === 'ready' && !order.courierId && order.deliveryType === 'delivery' && (
                           <div className="mt-3 flex items-center gap-2 rounded-lg bg-primary/10 p-2 text-xs font-medium text-primary">
                             <Send className="h-3.5 w-3.5" /> Publicado: esperando que un repartidor lo tome
                           </div>
@@ -262,14 +253,14 @@ export default function NegocioPedidos() {
                               {updating === order.id ? 'Actualizando…' : action.label}
                             </button>
                           )}
-                          {order.status === 'pending' && (
+                          {['pending', 'confirmed', 'preparing', 'ready'].includes(order.status) && (
                             <button
                               type="button"
                               disabled={updating === order.id}
                               onClick={() => void changeStatus(order, 'cancelled')}
                               className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive disabled:opacity-50"
                             >
-                              Rechazar
+                              Cancelar
                             </button>
                           )}
                         </div>
@@ -277,13 +268,14 @@ export default function NegocioPedidos() {
                         {isSelected && (
                           <div className="mt-3 space-y-3 border-t pt-3">
                             <div className="space-y-1 text-xs text-muted-foreground">
-                              <p><User className="mr-1 inline h-3 w-3" />{order.customer_name}</p>
-                              {order.customer_email && <p><Mail className="mr-1 inline h-3 w-3" />{order.customer_email}</p>}
-                              <p><Phone className="mr-1 inline h-3 w-3" />{order.customer_phone || 'Teléfono no registrado'}</p>
-                              <p><MapPin className="mr-1 inline h-3 w-3" />{order.delivery_address}</p>
-                              {order.delivery_instructions && <p>Referencia: {order.delivery_instructions}</p>}
-                              <p><CreditCard className="mr-1 inline h-3 w-3" />{getPaymentMethodLabel(order.payment_method)} · {getPaymentLabel(order.payment_status)}</p>
-                              {order.courier_name && <p>Repartidor: {order.courier_name}</p>}
+                              <p><User className="mr-1 inline h-3 w-3" />{order.customerName}</p>
+                              {order.customerEmail && <p><Mail className="mr-1 inline h-3 w-3" />{order.customerEmail}</p>}
+                              <p><Phone className="mr-1 inline h-3 w-3" />{order.customerPhone || 'Teléfono no registrado'}</p>
+                              <p><MapPin className="mr-1 inline h-3 w-3" />{order.deliveryAddress}</p>
+                              {order.deliveryInstructions && <p>Referencia: {order.deliveryInstructions}</p>}
+                              <p><CreditCard className="mr-1 inline h-3 w-3" />{getPaymentMethodLabel(order.paymentMethod)} · {getPaymentLabel(order.paymentStatus)}</p>
+                              {order.outstandingAmount > 0 && <p>Saldo pendiente: {formatCurrency(order.outstandingAmount)}</p>}
+                              {order.courierName && <p>Repartidor: {order.courierName}</p>}
                             </div>
 
                             <BusinessPaymentVerification orderId={order.id} onUpdated={() => void loadOrders()} />
@@ -292,20 +284,20 @@ export default function NegocioPedidos() {
                               {order.items.map((item) => (
                                 <div key={item.id} className="text-xs">
                                   <div className="flex justify-between gap-2 font-medium">
-                                    <span>{item.quantity}x {item.name}</span>
-                                    <span>{formatCurrency(item.item_total)}</span>
+                                    <span>{item.quantity}x {item.name}{item.isCustomItem ? ' · personalizado' : ''}</span>
+                                    <span>{formatCurrency(item.itemTotal)}</span>
                                   </div>
-                                  {item.special_instructions && (
-                                    <p className="mt-1 text-muted-foreground">Nota: {item.special_instructions}</p>
+                                  {item.specialInstructions && (
+                                    <p className="mt-1 text-muted-foreground">Nota: {item.specialInstructions}</p>
                                   )}
                                 </div>
                               ))}
                             </div>
 
-                            {order.special_instructions && (
+                            {order.specialInstructions && (
                               <p className="text-xs text-muted-foreground">
                                 <Package className="mr-1 inline h-3 w-3" />
-                                Instrucción general: {order.special_instructions}
+                                Instrucción general: {order.specialInstructions}
                               </p>
                             )}
                             <OrderCustomizationDetails orderId={order.id} />
