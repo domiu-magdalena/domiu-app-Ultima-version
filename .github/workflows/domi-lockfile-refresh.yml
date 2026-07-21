@@ -33,7 +33,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Regenerar lockfile
+      - name: Regenerar lockfile final
         run: npm install --package-lock-only --ignore-scripts
 
       - name: Versionar lockfile cuando cambie
