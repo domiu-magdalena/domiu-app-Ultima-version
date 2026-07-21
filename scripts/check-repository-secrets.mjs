@@ -5,10 +5,14 @@ const trackedFiles = execFileSync('git', ['ls-files', '-z'], {
   encoding: 'utf8',
 }).split('\0').filter(Boolean);
 
-const allowedEnvironmentFiles = new Set(['.env.example']);
+function isEnvironmentTemplate(file) {
+  const name = file.split('/').at(-1) || '';
+  return name.startsWith('.env') && name.endsWith('.example');
+}
+
 const environmentFiles = trackedFiles.filter((file) => {
   const name = file.split('/').at(-1) || '';
-  return name.startsWith('.env') && !allowedEnvironmentFiles.has(name);
+  return name.startsWith('.env') && !isEnvironmentTemplate(file);
 });
 
 if (environmentFiles.length > 0) {
@@ -24,7 +28,7 @@ const ignoredPaths = /^(docs\/|public\/|\.next\/|node_modules\/)/;
 const findings = [];
 
 for (const file of trackedFiles) {
-  if (ignoredExtensions.test(file) || ignoredPaths.test(file)) continue;
+  if (isEnvironmentTemplate(file) || ignoredExtensions.test(file) || ignoredPaths.test(file)) continue;
   let stats;
   try {
     stats = statSync(file);
