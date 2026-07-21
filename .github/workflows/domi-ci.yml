@@ -19,8 +19,7 @@ on:
       - 'src/components/providers/RootProviders.tsx'
       - 'src/contexts/CartContext.tsx'
       - 'src/lib/domi/**'
-      - 'src/lib/orders/manual-order-**'
-      - 'src/lib/orders/order-panel-types.ts'
+      - 'src/lib/orders/**'
       - 'src/lib/auth/**'
       - 'src/lib/http/**'
       - 'src/lib/db/supabase.ts'
@@ -58,8 +57,7 @@ on:
       - 'src/components/providers/RootProviders.tsx'
       - 'src/contexts/CartContext.tsx'
       - 'src/lib/domi/**'
-      - 'src/lib/orders/manual-order-**'
-      - 'src/lib/orders/order-panel-types.ts'
+      - 'src/lib/orders/**'
       - 'src/lib/auth/**'
       - 'src/lib/http/**'
       - 'src/lib/db/supabase.ts'
@@ -175,8 +173,8 @@ jobs:
           if ((allCounts.high ?? 0) > 0 || (allCounts.critical ?? 0) > 0) process.exit(1);
           NODE
 
-      - name: Probar dominio de pedidos manuales
-        run: npx vitest run src/lib/orders/manual-order-domain.test.ts --reporter=verbose
+      - name: Probar dominio y tarifas de pedidos manuales
+        run: npx vitest run src/lib/orders/__tests__/manual-order-domain.test.ts src/lib/orders/__tests__/delivery-pricing.test.ts --reporter=verbose
 
       - name: Probar seguridad y contexto
         run: npx vitest run src/lib/domi/security.test.ts --reporter=verbose
