@@ -3,6 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const JSON_BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
 function normalizedOrigin(value?: string | null) {
   if (!value) return null;
@@ -37,13 +38,16 @@ export interface MutationRequestValidation {
 }
 
 export function validateMutationRequest(request: NextRequest): MutationRequestValidation {
-  if (SAFE_METHODS.has(request.method.toUpperCase())) {
+  const method = request.method.toUpperCase();
+  if (SAFE_METHODS.has(method)) {
     return { ok: true, reason: 'safe_method' };
   }
 
-  const contentType = request.headers.get('content-type')?.toLowerCase() || '';
-  if (!contentType.startsWith('application/json')) {
-    return { ok: false, reason: 'invalid_content_type' };
+  if (JSON_BODY_METHODS.has(method)) {
+    const contentType = request.headers.get('content-type')?.toLowerCase() || '';
+    if (!contentType.startsWith('application/json')) {
+      return { ok: false, reason: 'invalid_content_type' };
+    }
   }
 
   const allowed = trustedOrigins(request);
