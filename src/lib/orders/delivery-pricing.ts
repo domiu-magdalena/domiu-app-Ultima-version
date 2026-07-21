@@ -1,5 +1,6 @@
 export interface DeliveryPricingConfig {
   baseFee: number;
+  baseDistanceKm: number;
   pricePerKm: number;
   minimumFee: number;
   rounding: number;
@@ -22,7 +23,8 @@ export interface DeliveryPriceResult {
 }
 
 const DEFAULT_CONFIG: DeliveryPricingConfig = {
-  baseFee: 3000,
+  baseFee: 5000,
+  baseDistanceKm: 2,
   pricePerKm: 1200,
   minimumFee: 5000,
   rounding: 500,
@@ -70,7 +72,8 @@ export function calculateDeliveryPrice(
     );
   }
 
-  const rawPrice = cfg.baseFee + distanceKm * cfg.pricePerKm;
+  const billableDistance = Math.max(distanceKm - cfg.baseDistanceKm, 0);
+  const rawPrice = cfg.baseFee + billableDistance * cfg.pricePerKm;
   const roundedPrice = roundPrice(rawPrice, cfg.rounding);
   let finalPrice = Math.max(roundedPrice, cfg.minimumFee);
 
@@ -79,10 +82,12 @@ export function calculateDeliveryPrice(
     finalPrice += cfg.nightSurcharge!;
   }
 
-  const durationMinutes = Math.round((distanceKm / 30) * 60);
+  const durationMinutes = Math.max(5, Math.ceil(distanceKm * 4));
 
   if (rawPrice < cfg.minimumFee) {
-    warnings.push(`El precio calculado ($${rawPrice.toLocaleString('es-CO')}) está por debajo de la tarifa mínima`);
+    warnings.push(
+      `El precio calculado ($${rawPrice.toLocaleString('es-CO')}) está por debajo de la tarifa mínima`,
+    );
   }
 
   return {
@@ -102,14 +107,17 @@ export function calculateDeliveryPrice(
 
 export function validateManualPrice(price: number): { valid: boolean; error?: string } {
   if (price === undefined || price === null) return { valid: true };
-  if (typeof price !== 'number' || isNaN(price)) {
+  if (typeof price !== 'number' || Number.isNaN(price)) {
     return { valid: false, error: 'El precio debe ser un número válido' };
   }
   if (price < 0) {
     return { valid: false, error: 'El precio no puede ser negativo' };
   }
   if (price > 500000) {
-    return { valid: false, error: 'El precio parece demasiado alto (> $500,000). Verifica.' };
+    return {
+      valid: false,
+      error: 'El precio parece demasiado alto (> $500,000). Verifica.',
+    };
   }
   return { valid: true };
 }
