@@ -174,10 +174,10 @@ export async function getManualOrderCouriersAction(
         'id,vehicle_type,vehicle_plate,status,is_active,is_available,is_verified,rating',
       )
       .eq('is_active', true)
+      .eq('is_available', true)
       .eq('is_verified', true)
+      .eq('status', 'available')
       .is('deleted_at', null)
-      .in('status', ['available', 'busy'])
-      .order('is_available', { ascending: false })
       .order('rating', { ascending: false });
     if (driversError) throw driversError;
 
@@ -210,8 +210,8 @@ export async function getManualOrderCouriersAction(
             phone: String(profile?.phone || ''),
             vehicleType: String(driver.vehicle_type || 'No informado'),
             vehiclePlate: String(driver.vehicle_plate || ''),
-            status: String(driver.status || 'unknown'),
-            isAvailable: Boolean(driver.is_available),
+            status: String(driver.status || 'available'),
+            isAvailable: true,
             rating: asNumber(driver.rating),
           };
         }),
