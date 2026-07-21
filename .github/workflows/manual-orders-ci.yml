@@ -1,0 +1,93 @@
+name: Manual Orders CI
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/app/api/manual-orders/**'
+      - 'src/app/admin/pedidos/**'
+      - 'src/app/negocio/pedidos/**'
+      - 'src/components/manual-orders/**'
+      - 'src/components/business/business-sidebar.tsx'
+      - 'src/lib/manual-orders/**'
+      - 'src/services/admin-orders.ts'
+      - 'src/services/business-orders.ts'
+      - 'src/test/manual-orders-*.test.ts'
+      - 'supabase/migrations/**manual_order**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.mts'
+      - '.github/workflows/manual-orders-ci.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'src/app/api/manual-orders/**'
+      - 'src/app/admin/pedidos/**'
+      - 'src/app/negocio/pedidos/**'
+      - 'src/components/manual-orders/**'
+      - 'src/components/business/business-sidebar.tsx'
+      - 'src/lib/manual-orders/**'
+      - 'src/services/admin-orders.ts'
+      - 'src/services/business-orders.ts'
+      - 'src/test/manual-orders-*.test.ts'
+      - 'supabase/migrations/**manual_order**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.mts'
+      - '.github/workflows/manual-orders-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-orders-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Rechazar secretos y archivos de entorno
+        shell: bash
+        run: |
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '\.env\.example$'; then
+            echo 'No se permiten archivos de entorno versionados.' >&2
+            exit 1
+          fi
+          if git grep -nE 'sb_secret_[A-Za-z0-9_-]+|SUPABASE_SERVICE_ROLE_KEY=[^[:space:]]+|SUPABASE_SECRET_KEY=[^[:space:]]+' -- ':!*.example'; then
+            echo 'Se encontró un posible secreto privado.' >&2
+            exit 1
+          fi
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Auditar dependencias altas o críticas
+        run: npm audit --audit-level=high
+
+      - name: Probar contratos de pedidos manuales
+        run: npx vitest run src/test/manual-orders-schema.test.ts --reporter=verbose
+
+      - name: Probar arquitectura seguridad e idempotencia
+        run: npx vitest run src/test/manual-orders-architecture.test.ts --reporter=verbose
+
+      - name: Validar migraciones sin secretos ni creación de usuarios invitados
+        shell: bash
+        run: |
+          ! grep -RniE 'auth\.admin\.createUser|admin\.createUser|service_role[^)]*=' supabase/migrations/*manual_order*.sql
+          grep -q 'for update' supabase/migrations/20260721112000_confirm_manual_order_rpc.sql
+          grep -q 'idx_orders_manual_idempotency' supabase/migrations/20260721110000_manual_orders_schema.sql
+          grep -q 'enable row level security' supabase/migrations/20260721110000_manual_orders_schema.sql
+
+      - name: Compilar y validar TypeScript
+        run: npm run build
