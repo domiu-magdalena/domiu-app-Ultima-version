@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { SkeletonTable } from '@/components/ui/skeleton';
 import dynamic from 'next/dynamic';
 import type { EnterpriseColumn, EnterpriseTableProps } from '@/components/admin/enterprise-table';
@@ -17,7 +18,7 @@ import { adminService } from '@/services/admin';
 import { useAuth } from '@/contexts/AuthContext';
 import type { AdminOrder } from '@/services/admin';
 import type { OrderStatus } from '@/types/database';
-import { RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 
 const statusConfig: Record<string, 'warning' | 'info' | 'success' | 'destructive' | 'default'> = {
   pending: 'warning',
@@ -79,7 +80,7 @@ export default function AdminOrders() {
     { key: 'business_name', header: 'Negocio', sortable: true },
     {
       key: 'order_type', header: 'Tipo',
-      render: (o) => <Badge variant={o.order_type === 'manual_delivery' ? 'warning' : 'default'}>{o.order_type === 'manual_delivery' ? 'Domicilio' : 'Producto'}</Badge>,
+      render: (o) => <Badge variant={o.order_type === 'manual_delivery' || o.order_type === 'manual_order' ? 'warning' : 'default'}>{o.order_type === 'manual_delivery' || o.order_type === 'manual_order' ? 'Manual' : 'Producto'}</Badge>,
     },
     {
       key: 'status', header: 'Estado',
@@ -101,11 +102,14 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Gestión de Pedidos</h1>
           <p className="mt-1 text-sm text-muted-foreground">Visualiza y administra todos los pedidos de la plataforma</p>
         </div>
+        <Link href="/admin/pedidos/crear" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm">
+          <Plus className="h-4 w-4" /> Crear pedido manual
+        </Link>
       </div>
 
       {alert && <Alert variant={alert.type} title={alert.msg} dismissible onDismiss={() => setAlert(null)} />}
@@ -138,7 +142,7 @@ export default function AdminOrders() {
           <div className="space-y-3">
             <div><span className="text-sm text-muted-foreground">Cliente:</span> <span className="font-medium">{selected.customer_name || '—'}</span></div>
             <div><span className="text-sm text-muted-foreground">Negocio:</span> <span className="font-medium">{selected.business_name}</span></div>
-            <div><span className="text-sm text-muted-foreground">Tipo:</span> <Badge variant={selected.order_type === 'manual_delivery' ? 'warning' : 'default'}>{selected.order_type === 'manual_delivery' ? 'Domicilio manual' : 'Producto'}</Badge></div>
+            <div><span className="text-sm text-muted-foreground">Tipo:</span> <Badge variant={selected.order_type === 'manual_delivery' || selected.order_type === 'manual_order' ? 'warning' : 'default'}>{selected.order_type === 'manual_delivery' || selected.order_type === 'manual_order' ? 'Pedido manual' : 'Producto'}</Badge></div>
             <div><span className="text-sm text-muted-foreground">Estado actual:</span> <Badge variant={statusConfig[selected.status]}>{selected.status}</Badge></div>
             <div><span className="text-sm text-muted-foreground">Total:</span> <span className="font-medium">{formatCurrency(selected.total_amount)}</span></div>
             <div><span className="text-sm text-muted-foreground">Repartidor:</span> <span className="font-medium">{selected.courier_name || 'Sin asignar'}</span></div>
