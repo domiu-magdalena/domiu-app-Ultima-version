@@ -1,1 +1,0 @@
-Validación automática en PR.
