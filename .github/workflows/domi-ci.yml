@@ -1,18 +1,26 @@
-# Validación permanente de Domi AI Enterprise
+# Validación permanente de Domi AI Enterprise y pedidos manuales
 name: Domi CI
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, 'feat/domi-complete-agent-20260719']
     paths:
       - 'src/app/api/domi/**'
       - 'src/app/api/admin/domi/**'
       - 'src/app/api/health/**'
       - 'src/app/admin/domi/**'
+      - 'src/app/admin/pedidos/**'
+      - 'src/app/negocio/pedidos/**'
+      - 'src/app/actions/manual-orders.ts'
+      - 'src/app/actions/order-panel.ts'
       - 'src/components/domi/**'
+      - 'src/components/manual-orders/**'
+      - 'src/components/business/business-sidebar.tsx'
       - 'src/components/providers/RootProviders.tsx'
       - 'src/contexts/CartContext.tsx'
       - 'src/lib/domi/**'
+      - 'src/lib/orders/manual-order-**'
+      - 'src/lib/orders/order-panel-types.ts'
       - 'src/lib/auth/**'
       - 'src/lib/http/**'
       - 'src/lib/db/supabase.ts'
@@ -34,16 +42,24 @@ on:
       - 'docs/**'
       - '.github/workflows/domi-ci.yml'
   push:
-    branches: [master]
+    branches: [master, 'feat/manual-order-system-*']
     paths:
       - 'src/app/api/domi/**'
       - 'src/app/api/admin/domi/**'
       - 'src/app/api/health/**'
       - 'src/app/admin/domi/**'
+      - 'src/app/admin/pedidos/**'
+      - 'src/app/negocio/pedidos/**'
+      - 'src/app/actions/manual-orders.ts'
+      - 'src/app/actions/order-panel.ts'
       - 'src/components/domi/**'
+      - 'src/components/manual-orders/**'
+      - 'src/components/business/business-sidebar.tsx'
       - 'src/components/providers/RootProviders.tsx'
       - 'src/contexts/CartContext.tsx'
       - 'src/lib/domi/**'
+      - 'src/lib/orders/manual-order-**'
+      - 'src/lib/orders/order-panel-types.ts'
       - 'src/lib/auth/**'
       - 'src/lib/http/**'
       - 'src/lib/db/supabase.ts'
@@ -158,6 +174,9 @@ jobs:
           if ((prodCounts.high ?? 0) > 0 || (prodCounts.critical ?? 0) > 0) process.exit(1);
           if ((allCounts.high ?? 0) > 0 || (allCounts.critical ?? 0) > 0) process.exit(1);
           NODE
+
+      - name: Probar dominio de pedidos manuales
+        run: npx vitest run src/lib/orders/manual-order-domain.test.ts --reporter=verbose
 
       - name: Probar seguridad y contexto
         run: npx vitest run src/lib/domi/security.test.ts --reporter=verbose
