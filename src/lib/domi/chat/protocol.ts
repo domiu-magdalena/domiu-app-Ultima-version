@@ -46,6 +46,8 @@ export interface DomiAssistantResponse {
   suggestedActions: string[];
   navigation: DomiNavigationLink[];
   escalateToHuman: boolean;
+  generationModel: string | null;
+  generationProvider: string | null;
 }
 
 const ROLE_INTRO: Record<string, string> = {
@@ -78,6 +80,8 @@ export function buildDomiAssistantPayload(args: {
   toolData?: Record<string, unknown> | null;
   clientCommands?: DomiClientCommand[];
   escalateToHuman?: boolean;
+  generationModel?: string | null;
+  generationProvider?: string | null;
 }): DomiAssistantResponse {
   return {
     message: args.message,
@@ -94,6 +98,8 @@ export function buildDomiAssistantPayload(args: {
     suggestedActions: args.suggestedActions || [],
     navigation: args.navigation || [],
     escalateToHuman: Boolean(args.escalateToHuman),
+    generationModel: args.generationModel || null,
+    generationProvider: args.generationProvider || null,
   };
 }
 
@@ -158,6 +164,9 @@ export async function saveDomiMemory(
 }
 
 export function domiModelForAssistant(assistant: DomiAssistantResponse, mode: string) {
+  if (assistant.generationModel && assistant.generationProvider) {
+    return `${assistant.generationProvider}:${assistant.generationModel}`;
+  }
   if (assistant.requiresConfirmation || assistant.tool?.startsWith('action.')) return 'domi-secure-actions-v1';
   if (assistant.tool?.startsWith('agent.')) return 'domi-complete-agent-v1';
   if (mode === 'tool') return 'domi-secure-tools-v2';
@@ -186,6 +195,8 @@ export async function insertDomiAssistantMessage(args: {
       response: args.assistant,
       memoryCandidate: args.assistant.memoryCandidate,
       memoryState: args.memoryState || null,
+      generationProvider: args.assistant.generationProvider,
+      generationModel: args.assistant.generationModel,
     },
   });
   if (error) throw new Error('assistant_message_write_failed');
