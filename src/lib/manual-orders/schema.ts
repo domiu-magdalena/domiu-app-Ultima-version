@@ -31,7 +31,7 @@ export const manualOrderItemSchema = z.discriminatedUnion('isCustom', [
   }).strict(),
 ]);
 
-export const manualOrderPayloadSchema = z.object({
+const manualOrderPayloadObject = z.object({
   draftId: nullableUuid,
   businessId: z.string().uuid(),
   branchId: nullableUuid,
@@ -82,12 +82,25 @@ export const manualOrderPayloadSchema = z.object({
   adminOverride: z.boolean().default(false),
   addressWarningConfirmed: z.boolean().default(false),
   rawExternalText: cleanText(4000),
-}).strict().superRefine((value, context) => {
+}).strict();
+
+function manualOrderRefinements(
+  value: z.infer<typeof manualOrderPayloadObject>,
+  context: z.RefinementCtx,
+) {
   if (!value.customerId && (!value.customer.name || !value.customer.phone)) {
     context.addIssue({ code: 'custom', path: ['customer'], message: 'Completa nombre y teléfono del cliente invitado.' });
   }
   if (value.deliveryType === 'delivery' && !value.addressId && value.address.street.length < 5) {
     context.addIssue({ code: 'custom', path: ['address', 'street'], message: 'La dirección de entrega es obligatoria.' });
+  }
+  const hasCoordinates = value.address.latitude != null && value.address.longitude != null;
+  if (value.deliveryType === 'delivery' && !value.addressId && !hasCoordinates && !value.addressWarningConfirmed) {
+    context.addIssue({
+      code: 'custom',
+      path: ['addressWarningConfirmed'],
+      message: 'Confirma que revisaste la dirección aunque no tenga coordenadas.',
+    });
   }
   if (value.deliveryType === 'pickup' && value.deliveryFee !== 0) {
     context.addIssue({ code: 'custom', path: ['deliveryFee'], message: 'Los pedidos para recoger no tienen tarifa de domicilio.' });
@@ -101,13 +114,20 @@ export const manualOrderPayloadSchema = z.object({
   if (value.paymentStatus === 'completed' && value.paymentMethod !== 'cash' && value.paymentReference.length < 3) {
     context.addIssue({ code: 'custom', path: ['paymentReference'], message: 'La referencia es obligatoria para registrar este pago.' });
   }
-});
+}
 
-export const manualOrderQuoteSchema = manualOrderPayloadSchema.omit({
+export const manualOrderPayloadSchema = manualOrderPayloadObject.superRefine(manualOrderRefinements);
+
+export const manualOrderQuoteSchema = manualOrderPayloadObject.omit({
   draftId: true,
   initialStatus: true,
   courierId: true,
-});
+}).superRefine((value, context) => manualOrderRefinements({
+  ...value,
+  draftId: null,
+  initialStatus: 'confirmed',
+  courierId: null,
+}, context));
 
 export const manualOrderDraftSchema = z.object({
   id: nullableUuid,
