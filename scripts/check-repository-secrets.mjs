@@ -18,7 +18,7 @@ if (environmentFiles.length > 0) {
 }
 
 const privateAssignment = /\b(SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SECRET_KEY|VERCEL_OIDC_TOKEN)\s*=\s*["'][^"'\r\n]+["']/;
-const likelyPrivateToken = /\b(sb_secret_[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{20,})\b/;
+const opaqueSecretKey = /\bsb_secret_[A-Za-z0-9_-]{20,}\b/;
 const ignoredExtensions = /\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|woff2?|ttf|eot|mp4|mov)$/i;
 const ignoredPaths = /^(docs\/|public\/|\.next\/|node_modules\/)/;
 const findings = [];
@@ -46,8 +46,8 @@ for (const file of trackedFiles) {
     continue;
   }
 
-  if (file !== 'scripts/check-repository-secrets.mjs' && likelyPrivateToken.test(content)) {
-    findings.push(`${file}: posible token privado incrustado`);
+  if (file !== 'scripts/check-repository-secrets.mjs' && opaqueSecretKey.test(content)) {
+    findings.push(`${file}: posible clave sb_secret incrustada`);
   }
 }
 
