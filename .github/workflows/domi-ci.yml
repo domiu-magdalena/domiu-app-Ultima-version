@@ -110,8 +110,24 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Ejecutar lint
+        id: lint
+        continue-on-error: true
+        run: npm run lint > lint.txt 2>&1
+
+      - name: Publicar diagnóstico de lint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: domi-lint
+          path: lint.txt
+          retention-days: 1
+
       - name: Validar lint
-        run: npm run lint
+        if: steps.lint.outcome == 'failure'
+        run: |
+          cat lint.txt
+          exit 1
 
       - name: Generar auditorías npm
         id: npm_audit
