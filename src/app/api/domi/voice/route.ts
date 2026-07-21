@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '@/lib/auth/server-auth';
 import { getServiceClient } from '@/lib/db/supabase';
 import { getDomiUserSettings } from '@/lib/domi/user-settings';
+import { rejectUnsafeMutation } from '@/lib/http/request-security';
 
 export const runtime = 'nodejs';
 
@@ -27,6 +28,9 @@ const headers = {
 };
 
 export async function POST(request: NextRequest) {
+  const rejected = rejectUnsafeMutation(request);
+  if (rejected) return rejected;
+
   const auth = await requireAuth();
   if (auth.error) {
     return NextResponse.json({ error: auth.error.message }, { status: auth.error.status, headers });
@@ -91,15 +95,19 @@ export async function POST(request: NextRequest) {
     : parsed.data.action === 'interrupt'
       ? 'interrupted'
       : 'failed';
+  const update: Record<string, unknown> = {
+    status,
+    last_transcript: parsed.data.lastTranscript || null,
+    transcript_count: parsed.data.transcriptCount || 0,
+    ended_at: new Date().toISOString(),
+  };
+  if (parsed.data.conversationId !== undefined) {
+    update.conversation_id = parsed.data.conversationId;
+  }
+
   const { data, error } = await supabase
     .from('domi_voice_sessions')
-    .update({
-      status,
-      conversation_id: parsed.data.conversationId || undefined,
-      last_transcript: parsed.data.lastTranscript || null,
-      transcript_count: parsed.data.transcriptCount || 0,
-      ended_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq('id', parsed.data.sessionId)
     .eq('user_id', auth.session.user.id)
     .eq('status', 'active')
@@ -108,5 +116,8 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: 'No se pudo cerrar la sesión de voz.' }, { status: 500, headers });
   }
-  return NextResponse.json({ ok: Boolean(data), status }, { headers });
+  if (!data) {
+    return NextResponse.json({ error: 'La sesión de voz ya no está activa.' }, { status: 409, headers });
+  }
+  return NextResponse.json({ ok: true, status }, { headers });
 }
