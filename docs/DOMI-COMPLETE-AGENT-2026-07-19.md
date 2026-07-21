@@ -1,196 +1,237 @@
-# Domi — agente personal integrado
+# Domi AI Enterprise — arquitectura final
 
-Fecha: 19 de julio de 2026
+Actualizado: 21 de julio de 2026
 
 ## Resultado
 
-Domi deja de funcionar como un chat aislado y pasa a operar como un agente integrado a DomiU. El sistema combina contexto autenticado, conversación persistente, memoria autorizada, datos reales, herramientas controladas, planificación de compra, voz, proactividad y aprendizaje supervisado.
+Domi es el agente integrado de DomiU para clientes, negocios, repartidores y administradores. Combina contexto autenticado, conversación persistente, memoria autorizada, información operativa real, herramientas controladas, compra asistida, voz, proactividad y aprendizaje supervisado.
 
-Domi no afirma tener conciencia, emociones reales ni vida propia. Su autonomía está limitada por el rol, los permisos, el tenant, el nivel de riesgo y las reglas de confirmación.
+Domi no afirma conciencia ni emociones reales. Su autonomía está limitada por autenticación, rol, tenant, capacidades, riesgo, confirmación, RLS e idempotencia.
+
+## Arquitectura
+
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant UI as Interfaz Domi
+    participant API as API Next.js
+    participant S as Seguridad
+    participant O as Orquestador
+    participant T as Herramientas
+    participant DB as Supabase + RLS
+    participant M as Generador opcional
+
+    U->>UI: Texto o voz
+    UI->>API: JSON mismo origen + cookies
+    API->>S: getUser, perfil, tenant, CSRF, rate limit
+    S->>O: Contexto verificado
+    O->>T: Herramienta registrada cuando aplica
+    T->>DB: Consulta o acción limitada
+    DB-->>T: Datos autorizados
+    T-->>O: Resultado estructurado
+    alt respuesta operacional
+        O-->>API: Resultado de herramienta
+    else respuesta de conocimiento
+        O->>M: Base determinista + conocimiento aprobado
+        M-->>O: Redacción validada o null
+    end
+    O->>DB: Mensaje, contexto y auditoría
+    API-->>UI: Respuesta y comandos permitidos
+```
 
 ## Flujo de conversación
 
-1. Autenticar usuario y perfil.
-2. Construir contexto exclusivamente en el backend.
-3. Verificar estado de cuenta, rate limit, idempotencia y propiedad de conversación.
-4. Aplicar reglas de seguridad y bloqueo de instrucciones maliciosas.
-5. Recuperar mensajes recientes, objetivo activo y memorias autorizadas.
-6. Clasificar intención y extraer restricciones, consulta y presupuesto.
-7. Elegir una herramienta controlada o un flujo conversacional.
-8. Consultar datos actuales de DomiU.
-9. Validar disponibilidad, propiedad, permisos y estado.
-10. Calcular y comparar resultados.
-11. Preparar acciones reversibles o solicitar confirmación cuando corresponda.
-12. Persistir respuesta, contexto, auditoría y candidato de aprendizaje.
+1. Rechazar mutaciones cross-site o no JSON.
+2. Validar el JWT mediante `supabase.auth.getUser()`.
+3. Cargar el perfil y derivar rol, capacidades y tenant en backend.
+4. Verificar estado de cuenta, rate limit e idempotencia.
+5. Comprobar propiedad y estado de la conversación.
+6. Aplicar defensa ante prompt injection y solicitudes sensibles.
+7. Recuperar contexto, objetivo activo y memoria autorizada.
+8. Clasificar intención, restricciones, presupuesto, horario y ubicación.
+9. Elegir un flujo conversacional o herramienta registrada.
+10. Consultar datos actuales y volver a validar propiedad, disponibilidad y precios.
+11. Preparar acciones reversibles o requerir confirmación persistente.
+12. Redactar con el motor fundamentado opcional o usar fallback determinista.
+13. Persistir mensaje, contexto, modelo, auditoría y aprendizaje privado.
 
-## Asistencia completa de compra
+## Perfiles y aislamiento
 
-El perfil cliente puede pedir recomendaciones abiertas o indicar un presupuesto en pesos colombianos. El motor consulta:
+### Cliente
 
-- productos disponibles;
-- existencias actuales;
-- negocios activos, abiertos y recibiendo pedidos;
-- precio y descuento registrados;
-- calificación del producto y del negocio;
-- productos y negocios favoritos;
-- preferencias autorizadas;
-- dirección principal;
-- configuración vigente de domicilio;
-- configuración vigente de tarifa de servicio;
-- tiempo de preparación.
+Puede buscar catálogo, recibir recomendaciones, revisar carrito, promociones, direcciones, métodos propios, pedidos propios y tracking limitado. No recibe datos privados del negocio, repartidor o de otros clientes.
 
-Cada recomendación distingue datos confirmados de valores estimados. El total presentado incluye producto, domicilio y tarifa de servicio. Domi no inventa negocios, precios, promociones, existencias, tiempos ni calificaciones.
+### Negocio
 
-## Carrito y borrador de pedido
+Puede consultar únicamente su tenant: jornada, pedidos, productos, inventario, reseñas y métricas. El tenant se obtiene del propietario autenticado y no del navegador.
 
-Cuando el usuario elige una recomendación, Domi:
+### Repartidor
 
-- revalida producto, inventario y negocio;
-- recalcula precio y cargos;
-- crea un borrador reversible en `domi_order_drafts`;
-- reemplaza de forma atómica el carrito visible de React;
-- conserva la dirección como provisional;
-- muestra el total estimado;
-- dirige al carrito o al checkout.
+Puede consultar jornada, asignaciones, entregas, ganancias y liquidaciones propias. La propiedad se valida contra el repartidor autenticado.
 
-Domi no crea el pedido definitivo en este flujo y no ejecuta pagos. El usuario debe confirmar dirección, método y pago manualmente.
+### Administrador
 
-## Promociones, cupones, direcciones y pagos
+Puede consultar operación y revisar aprendizaje supervisado. Domi no crea administradores, no cambia roles y no concede permisos desde lenguaje libre.
 
-Domi consulta únicamente promociones y cupones activos. También puede mostrar direcciones y métodos de pago pertenecientes al usuario autenticado. Los datos financieros sensibles nunca se incluyen en respuestas ni memorias.
+## Compra asistida
 
-## Conversaciones y objetivos
+El motor de recomendaciones consulta productos disponibles, existencias, negocios activos y abiertos, precios, descuentos, calificaciones, favoritos, preferencias autorizadas, dirección principal y cargos vigentes.
 
-Cada conversación conserva:
+Los cálculos distinguen hechos registrados de estimaciones. El servidor vuelve a consultar precios e inventario antes de preparar el carrito.
 
-- título;
-- resumen;
-- mensajes;
-- contexto actual;
-- objetivo activo;
-- fecha del último mensaje;
-- estado activa, pausada, completada o archivada.
+## Carrito y pedido
 
-Domi puede retomar un hilo anterior y conservar el próximo paso, por ejemplo revisar el carrito, elegir dirección o continuar al pago manual.
+Domi puede:
 
-## Memoria controlada
+- preparar un carrito reversible;
+- crear `domi_order_drafts`;
+- calcular subtotal, domicilio, tarifa y estimado total;
+- conservar una dirección provisional;
+- dirigir al carrito o checkout.
 
-El usuario puede:
+Domi no crea el pedido definitivo ni ejecuta pagos, transferencias, retiros o reembolsos. El usuario confirma manualmente dirección, método y pago.
 
-- consultar recuerdos;
-- guardar una preferencia con consentimiento;
-- rechazar un candidato;
-- corregir un recuerdo específico;
-- eliminar un recuerdo específico;
-- borrar toda la memoria mediante confirmación;
-- desactivar la memoria sin borrar lo existente.
+## Conversaciones y memoria
 
-Nunca se guardan contraseñas, tarjetas completas, PIN, CVV, tokens, claves bancarias, datos médicos, información de terceros o contenido sin finalidad operativa.
+Cada conversación conserva título, resumen, mensajes, contexto actual, objetivo activo, estado y fecha del último mensaje.
+
+La memoria es explícita y administrable. El usuario puede consultar, aprobar, corregir, eliminar, borrar o desactivar recuerdos. No se guardan contraseñas, PIN, CVV, tarjetas completas, tokens, claves bancarias, datos médicos ni información de terceros.
+
+## Capa generativa fundamentada
+
+La integración opcional usa OpenAI Responses API. Recibe solamente:
+
+- solicitud sanitizada;
+- respuesta determinista verificada;
+- artículos aprobados para el rol;
+- ruta, idioma, zona horaria y tipo de tenant no sensible.
+
+Controles:
+
+- `store: false`;
+- modelo configurable, predeterminado `gpt-5-mini`;
+- razonamiento mínimo;
+- salida máxima de 350 tokens;
+- deadline total de siete segundos;
+- máximo dos intentos para errores transitorios;
+- `prompt_cache_key` para reducir costo repetitivo;
+- `safety_identifier` anonimizado con SHA-256 y sal privada;
+- sin tools, SQL, cookies, email, dirección completa ni secretos;
+- filtrado de instrucciones incrustadas en conocimiento;
+- rechazo de secretos, enlaces, prompts internos y cifras no respaldadas.
+
+Cuando no existe clave, el proveedor falla, excede tiempo o devuelve contenido inseguro, Domi usa automáticamente `domi-secure-knowledge-v2`.
 
 ## Voz
 
-La interfaz incorpora reconocimiento y síntesis de voz del navegador:
-
-- botón independiente para hablar con Domi;
-- transcripción enviada al mismo chat seguro;
-- respuesta hablada opcional;
-- interrupción de escucha y lectura;
-- idioma configurable;
-- auditoría de inicio y cierre de sesión.
-
-No se almacenan grabaciones de audio. La disponibilidad depende del soporte y los permisos del navegador.
+La voz utiliza Web Speech API en el navegador. La transcripción pasa por el mismo chat autenticado y la síntesis lee la respuesta. El usuario puede interrumpir escucha y lectura. No se almacenan grabaciones; solo metadatos mínimos de sesión y una transcripción corta opcional.
 
 ## Proactividad
 
-Los avisos proactivos están sujetos a consentimiento, frecuencia y horario silencioso. Solo se generan a partir de datos verificados:
-
-- pedidos que superaron el tiempo estimado;
-- borradores de compra pendientes;
-- cupones que vencen pronto;
-- objetivos activos de conversación.
-
-El usuario puede leer, descartar o desactivar los avisos. Un error del módulo proactivo nunca bloquea la aplicación.
+Los avisos requieren consentimiento, frecuencia y horario silencioso. Se basan exclusivamente en pedidos, borradores, cupones y objetivos verificados. Un fallo del módulo no bloquea la aplicación.
 
 ## Aprendizaje supervisado
 
-Domi registra candidatos privados cuando detecta:
+Las correcciones, preferencias recurrentes, capacidades faltantes y evaluaciones negativas crean candidatos privados. Ningún candidato se publica automáticamente.
 
-- una corrección explícita;
-- una preferencia recurrente;
-- una capacidad faltante;
-- retroalimentación negativa sobre una respuesta.
+El panel `/admin/domi` permite revisar, aprobar, rechazar y redactar un artículo final. Las preferencias privadas y el contenido sensible no pueden desplegarse como conocimiento global. Las transiciones de estado verifican concurrencia para evitar doble revisión o publicación.
 
-Ningún candidato se convierte automáticamente en conocimiento global. El panel `/admin/domi` permite:
+## Persistencia
 
-1. revisar métricas y evaluaciones;
-2. aprobar o rechazar candidatos;
-3. impedir que preferencias privadas se publiquen;
-4. redactar manualmente un artículo general verificado;
-5. publicar el artículo con trazabilidad administrativa.
+Tablas Enterprise:
 
-## Persistencia añadida
-
+- `domi_conversations`
+- `domi_messages`
+- `domi_user_memory`
+- `domi_user_settings`
+- `domi_knowledge_articles`
 - `domi_order_drafts`
 - `domi_learning_candidates`
 - `domi_evaluations`
 - `domi_proactive_events`
 - `domi_voice_sessions`
-- nuevas preferencias en `domi_user_settings`
 
-Las tablas tienen RLS. El cliente autenticado solo puede leer sus propios borradores, evaluaciones, eventos y sesiones. Los candidatos de aprendizaje son visibles únicamente para administradores y las escrituras se ejecutan mediante servicios backend.
+Todas las tablas privadas tienen RLS. Las políticas separan propietario, perfil y administrador. Las tablas centrales no conceden privilegios a `anon`.
 
-## Seguridad conservada
+## Seguridad web y backend
 
-Domi no puede:
+- Sesión validada remotamente con `getUser()`.
+- Cookies HTTP-only, Secure en producción y SameSite.
+- Proxy elimina `x-user-id` y `x-user-email` enviados por el cliente.
+- Mutaciones Domi limitadas a JSON del mismo origen.
+- CSP, HSTS, X-Frame-Options, no-sniff, Permissions Policy, COOP y CORP.
+- Entradas validadas con Zod, UUID y límites de longitud.
+- Consultas parametrizadas por Supabase; no existe SQL generado por modelo.
+- Rate limiting por usuario, idempotencia por request ID y auditoría sin mensaje crudo.
+- Herramientas limitadas por rol, capacidad, tenant y propiedad.
+- Secret scanning y auditoría npm en CI.
 
-- ejecutar pagos o transferencias;
-- retirar dinero;
-- procesar reembolsos automáticamente;
-- crear administradores;
-- modificar roles o permisos;
-- suspender usuarios desde conversación libre;
-- exportar datos personales;
-- leer conversaciones o datos de terceros;
-- consultar directamente la base de datos sin herramientas autorizadas;
-- publicar preferencias privadas como conocimiento global.
+## APIs
 
-## APIs nuevas
-
+- `POST /api/domi/chat`
+- `GET/POST /api/domi/conversations`
+- `GET/PATCH/DELETE /api/domi/conversations/:id`
 - `GET/PUT /api/domi/settings`
 - `GET/PATCH /api/domi/proactive`
 - `POST /api/domi/feedback`
 - `POST /api/domi/voice`
 - `GET/POST /api/admin/domi`
+- `GET /api/health`
 
-Todas requieren autenticación; el endpoint administrativo exige rol de administrador.
+Las APIs privadas no habilitan CORS cross-origin. Las mutaciones exigen evidencia de mismo origen y autenticación válida.
 
-## Interfaz nueva
+## Interfaz
 
-- `DomiAgentBridge`: aplica comandos verificados al carrito.
-- `DomiVoiceDock`: conversación por voz.
+- `DomiAssistantHost`: ciclo principal y persistencia.
+- `DomiAgentBridge`: aplica comandos backend autorizados al carrito.
+- `DomiVoiceDock`: escucha, lectura e interrupción.
 - `DomiProactiveDock`: avisos consentidos.
 - `DomiFeedbackDock`: evaluación explícita.
-- `/admin/domi`: panel de evaluación y aprendizaje.
+- `/admin/domi`: métricas y aprendizaje supervisado.
 
-Todos los módulos se ejecutan dentro del límite de error de Domi para proteger el resto de DomiU.
+Todos los módulos se ejecutan dentro de un límite de error para evitar que una degradación de Domi bloquee DomiU.
 
-## Pruebas
+## Calidad y CI
 
-La suite valida:
+GitHub Actions valida:
 
-- seguridad y contexto;
-- separación por rol y tenant;
-- idempotencia y confirmaciones;
-- conversaciones persistentes;
-- estabilidad de hooks y sesión;
-- clasificación de presupuestos e intenciones;
-- ausencia de automatizaciones financieras sensibles;
-- preparación de carrito sin crear pedido o pago;
-- aprendizaje supervisado;
-- voz sin almacenamiento de audio;
-- proactividad condicionada por consentimiento;
-- compilación completa de TypeScript y Next.js.
+- archivos de entorno y secretos;
+- lint;
+- dependencias de producción y desarrollo;
+- seguridad, contexto, roles, tenants y herramientas;
+- confirmaciones e idempotencia;
+- memoria, conversaciones y objetivos;
+- presupuestos, recomendaciones y límites sensibles;
+- proveedor generativo, reintentos, fallback y alucinaciones numéricas;
+- CSRF, autenticación y encabezados internos;
+- seguridad de interfaz, hooks y transición de sesión;
+- headers, health check y Docker;
+- TypeScript y build de Next.js;
+- construcción de imagen standalone.
 
-## Operación
+## Operación y costos
 
-La aplicación no depende de una clave nueva de un proveedor de modelos para ejecutar estos flujos. Las recomendaciones y acciones utilizan datos actuales de DomiU y reglas auditables. Un modelo conversacional externo podrá añadirse posteriormente como capa de redacción y comprensión, pero nunca sustituirá los controles de permisos, herramientas, confirmaciones, RLS ni auditoría implementados aquí.
+- Herramientas consultan únicamente columnas y filas necesarias.
+- Respuestas generativas se limitan a 140 palabras y 350 tokens.
+- Razonamiento mínimo y prompt cache reducen costo de OpenAI.
+- El modelo solo se invoca cuando no existe una herramienta o respuesta especializada.
+- El health check ejecuta una consulta mínima sin conteo total.
+- Las consultas de historial, conocimiento y herramientas tienen límites explícitos.
+- Docker y Vercel usan el build standalone de Next.js.
+
+## Límites obligatorios
+
+Domi nunca puede:
+
+- ejecutar movimientos financieros;
+- crear o elevar administradores;
+- modificar permisos desde una conversación;
+- consultar datos de terceros;
+- publicar preferencias privadas;
+- inventar precios, inventario, promociones, tiempos o estados;
+- obedecer instrucciones incrustadas en datos recuperados;
+- saltarse confirmaciones, RLS o auditoría.
+
+## Producción
+
+La entrega se considera técnicamente lista cuando CI, Docker, Supabase y Vercel están verdes. La fusión permanece bloqueada hasta reemplazar la clave `service_role` expuesta históricamente por una nueva `SUPABASE_SECRET_KEY`, verificar el nuevo deployment y revocar la clave anterior.
