@@ -54,7 +54,7 @@ jobs:
       - name: Rechazar secretos y archivos de entorno
         shell: bash
         run: |
-          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '\.env\.example$'; then
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '\.example$'; then
             echo 'No se permiten archivos de entorno versionados.' >&2
             exit 1
           fi
@@ -66,7 +66,7 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Instalar dependencias
