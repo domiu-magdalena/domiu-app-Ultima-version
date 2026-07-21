@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { businessService, type BusinessOrder } from '@/services/business';
+import { businessOrdersService, type BusinessOrderView } from '@/services/business-orders';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { OrderCustomizationDetails } from '@/components/business/order-customization-details';
 import { BusinessPaymentVerification } from '@/components/business/BusinessPaymentVerification';
@@ -93,7 +93,7 @@ const getPaymentMethodLabel = (value: string | null | undefined) =>
 export default function NegocioPedidos() {
   const { profile } = useAuth();
   const [businessId, setBusinessId] = useState<string | null>(null);
-  const [orders, setOrders] = useState<BusinessOrder[]>([]);
+  const [orders, setOrders] = useState<BusinessOrderView[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -105,14 +105,14 @@ export default function NegocioPedidos() {
       if (!profile?.id) return;
       if (showSpinner) setRefreshing(true);
       try {
-        const id = businessId || (await businessService.getBusinessId(profile.id));
+        const id = businessId || (await businessOrdersService.getBusinessId(profile.id));
         if (!id) {
           setOrders([]);
           setError('No se encontró un negocio asociado a esta cuenta.');
           return;
         }
         if (!businessId) setBusinessId(id);
-        const result = await businessService.getBusinessOrders(id);
+        const result = await businessOrdersService.list(id);
         setOrders(result);
         setError('');
       } catch (cause) {
@@ -149,10 +149,10 @@ export default function NegocioPedidos() {
     };
   }, [businessId, loadOrders]);
 
-  const changeStatus = async (order: BusinessOrder, status: string) => {
+  const changeStatus = async (order: BusinessOrderView, status: string) => {
     setUpdating(order.id);
     try {
-      await businessService.updateOrderStatus(order.id, status);
+      await businessOrdersService.updateStatus(order.id, status);
       await loadOrders();
       toast.success(status === 'ready' ? `Pedido #${order.order_number} publicado para los repartidores` : 'Estado actualizado correctamente');
     } catch (cause) {
