@@ -12,6 +12,7 @@ on:
       - 'src/contexts/CartContext.tsx'
       - 'src/lib/domi/**'
       - 'src/test/domi-**'
+      - 'scripts/check-repository-secrets.mjs'
       - 'supabase/migrations/**'
       - 'vitest.config.mts'
       - 'package.json'
@@ -29,6 +30,7 @@ on:
       - 'src/contexts/CartContext.tsx'
       - 'src/lib/domi/**'
       - 'src/test/domi-**'
+      - 'scripts/check-repository-secrets.mjs'
       - 'supabase/migrations/**'
       - 'vitest.config.mts'
       - 'package.json'
@@ -52,23 +54,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Bloquear secretos y archivos de entorno
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          forbidden_env_files="$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '(^|/)\.env\.example$' || true)"
-          if [[ -n "$forbidden_env_files" ]]; then
-            echo '::error::Hay archivos de entorno versionados en el repositorio.'
-            printf '%s\n' "$forbidden_env_files"
-            exit 1
-          fi
-
-          secret_assignments="$(git grep -InE '(SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SECRET_KEY|VERCEL_OIDC_TOKEN)[[:space:]]*=[[:space:]]*[\"'"'"'][^\"'"'"']+' -- . ':!*.example' ':!docs/**' || true)"
-          if [[ -n "$secret_assignments" ]]; then
-            echo '::error::Se detectaron posibles secretos privados escritos directamente en archivos.'
-            printf '%s\n' "$secret_assignments" | sed -E 's/=.*/=<redacted>/'
-            exit 1
-          fi
+        run: node scripts/check-repository-secrets.mjs
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
