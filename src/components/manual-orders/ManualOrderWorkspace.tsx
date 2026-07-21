@@ -12,17 +12,28 @@ import {
   saveManualOrderDraftAction,
   searchManualOrderCustomersAction,
 } from '@/app/actions/manual-orders';
+import {
+  getManualOrderBranchesAction,
+  getManualOrderCouriersAction,
+  type ManualOrderBranchOption,
+  type ManualOrderCourierOption,
+} from '@/app/actions/manual-order-options';
 import { calculateDeliveryPrice } from '@/lib/orders/delivery-pricing';
-import type { ManualOrderPanel, ManualOrderRequest } from '@/lib/orders/manual-order-domain';
+import type {
+  ManualOrderPanel,
+  ManualOrderRequest,
+} from '@/lib/orders/manual-order-domain';
 import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
+  MapPin,
   PackagePlus,
   Save,
   Search,
   ShoppingCart,
   Trash2,
+  Truck,
   UserRoundSearch,
 } from 'lucide-react';
 
@@ -45,16 +56,6 @@ interface ProductOption {
   categoryName: string;
 }
 
-interface CartLine {
-  key: string;
-  productId?: string;
-  name: string;
-  price: number;
-  quantity: number;
-  isCustomItem: boolean;
-  instructions: string;
-}
-
 interface CustomerResult {
   id: string;
   name: string;
@@ -62,8 +63,21 @@ interface CustomerResult {
   email: string;
 }
 
+interface CartLine {
+  key: string;
+  productId?: string;
+  name: string;
+  description?: string;
+  price: number;
+  quantity: number;
+  isCustomItem: boolean;
+  instructions: string;
+}
+
 interface WorkspaceState {
   businessId: string;
+  branchId: string;
+  courierId: string;
   customerKind: 'guest' | 'registered';
   customerId: string;
   customerName: string;
@@ -76,6 +90,8 @@ interface WorkspaceState {
   neighborhood: string;
   city: string;
   reference: string;
+  latitude: string;
+  longitude: string;
   distanceKm: string;
   deliveryFeeSource: 'automatic' | 'manual' | 'not_applicable';
   deliveryFeeAmount: string;
@@ -95,12 +111,15 @@ interface WorkspaceState {
   productSearch: string;
   customerSearch: string;
   customName: string;
+  customDescription: string;
   customPrice: string;
   customQuantity: string;
 }
 
 const EMPTY_STATE: WorkspaceState = {
   businessId: '',
+  branchId: '',
+  courierId: '',
   customerKind: 'guest',
   customerId: '',
   customerName: '',
@@ -113,6 +132,8 @@ const EMPTY_STATE: WorkspaceState = {
   neighborhood: '',
   city: 'Santa Marta',
   reference: '',
+  latitude: '',
+  longitude: '',
   distanceKm: '',
   deliveryFeeSource: 'automatic',
   deliveryFeeAmount: '0',
@@ -132,12 +153,13 @@ const EMPTY_STATE: WorkspaceState = {
   productSearch: '',
   customerSearch: '',
   customName: '',
+  customDescription: '',
   customPrice: '',
   customQuantity: '1',
 };
 
 const inputClass =
-  'w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20';
+  'w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60';
 const labelClass = 'mb-1 block text-xs font-semibold text-muted-foreground';
 const sectionClass = 'space-y-4 rounded-2xl border bg-card p-4 shadow-sm';
 
@@ -154,36 +176,60 @@ function toInteger(value: string): number {
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
 }
 
+function optionalCoordinate(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
   const router = useRouter();
   const [state, setState] = React.useState<WorkspaceState>(EMPTY_STATE);
   const [businesses, setBusinesses] = React.useState<BusinessOption[]>([]);
+  const [branches, setBranches] = React.useState<ManualOrderBranchOption[]>([]);
+  const [couriers, setCouriers] = React.useState<ManualOrderCourierOption[]>([]);
   const [products, setProducts] = React.useState<ProductOption[]>([]);
   const [cart, setCart] = React.useState<CartLine[]>([]);
   const [customerResults, setCustomerResults] = React.useState<CustomerResult[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [loadingProducts, setLoadingProducts] = React.useState(false);
-  const [submitting, setSubmitting] = React.useState(false);
-  const [savingDraft, setSavingDraft] = React.useState(false);
+  const [loadingBusinessData, setLoadingBusinessData] = React.useState(false);
   const [searchingCustomers, setSearchingCustomers] = React.useState(false);
-  const [draftRecovered, setDraftRecovered] = React.useState(false);
+  const [savingDraft, setSavingDraft] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [draftRecoveredFor, setDraftRecoveredFor] = React.useState<string | null>(null);
   const [idempotencyKey, setIdempotencyKey] = React.useState('');
 
-  const patch = <K extends keyof WorkspaceState>(key: K, value: WorkspaceState[K]) =>
-    setState((current) => ({ ...current, [key]: value }));
+  const patch = React.useCallback(
+    <K extends keyof WorkspaceState>(key: K, value: WorkspaceState[K]) => {
+      setState((current) => ({ ...current, [key]: value }));
+    },
+    [],
+  );
 
   React.useEffect(() => {
     setIdempotencyKey(globalThis.crypto?.randomUUID?.() || '');
     void (async () => {
-      const context = await getManualOrderContextAction(panel);
+      const [context, courierResult] = await Promise.all([
+        getManualOrderContextAction(panel),
+        panel === 'admin'
+          ? getManualOrderCouriersAction(panel)
+          : Promise.resolve({ success: true, couriers: [] as ManualOrderCourierOption[] }),
+      ]);
+
       if (!context.success) {
         toast.error(context.error || 'No se pudo cargar el formulario');
         setLoading(false);
         return;
       }
+
       setBusinesses(context.businesses);
+      if (courierResult.success) setCouriers(courierResult.couriers);
+      else toast.warning(courierResult.error || 'No se pudieron cargar los repartidores');
+
       const firstBusiness = panel === 'business' ? context.businesses[0] : undefined;
-      if (firstBusiness) setState((current) => ({ ...current, businessId: firstBusiness.id }));
+      if (firstBusiness) {
+        setState((current) => ({ ...current, businessId: firstBusiness.id }));
+      }
       setLoading(false);
     })();
   }, [panel]);
@@ -191,69 +237,148 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
   React.useEffect(() => {
     if (!state.businessId) {
       setProducts([]);
+      setBranches([]);
       return;
     }
-    setLoadingProducts(true);
+
+    setLoadingBusinessData(true);
     void (async () => {
-      const result = await getManualOrderProductsAction(panel, state.businessId);
-      setLoadingProducts(false);
-      if (!result.success) {
-        toast.error(result.error || 'No se pudieron cargar los productos');
+      const [productResult, branchResult, draftResult] = await Promise.all([
+        getManualOrderProductsAction(panel, state.businessId),
+        getManualOrderBranchesAction(panel, state.businessId),
+        loadManualOrderDraftAction(panel, state.businessId),
+      ]);
+
+      setLoadingBusinessData(false);
+
+      if (!productResult.success) {
+        toast.error(productResult.error || 'No se pudieron cargar los productos');
         return;
       }
-      setProducts(result.products);
+      if (!branchResult.success) {
+        toast.error(branchResult.error || 'No se pudieron cargar las sucursales');
+        return;
+      }
 
-      const draftResult = await loadManualOrderDraftAction(panel, state.businessId);
-      if (draftResult.success && draftResult.draft && !draftRecovered) {
-        const payload = draftResult.draft.payload as { state?: WorkspaceState; cart?: CartLine[] };
-        if (payload.state) setState((current) => ({ ...current, ...payload.state, businessId: state.businessId }));
+      setProducts(productResult.products);
+      setBranches(branchResult.branches);
+
+      const primaryBranch =
+        branchResult.branches.find((branch) => branch.isPrimary) || branchResult.branches[0];
+
+      if (
+        draftResult.success &&
+        draftResult.draft &&
+        draftRecoveredFor !== state.businessId
+      ) {
+        const payload = draftResult.draft.payload as {
+          state?: Partial<WorkspaceState>;
+          cart?: CartLine[];
+        };
+        setState((current) => ({
+          ...current,
+          ...(payload.state || {}),
+          businessId: state.businessId,
+          branchId:
+            payload.state?.branchId || primaryBranch?.id || current.branchId,
+        }));
         if (Array.isArray(payload.cart)) setCart(payload.cart);
-        setDraftRecovered(true);
+        setDraftRecoveredFor(state.businessId);
         toast.info('Se recuperó tu borrador de pedido manual');
+      } else {
+        setState((current) => ({
+          ...current,
+          branchId:
+            branchResult.branches.some((branch) => branch.id === current.branchId)
+              ? current.branchId
+              : primaryBranch?.id || '',
+        }));
       }
     })();
-  }, [draftRecovered, panel, state.businessId]);
+  }, [draftRecoveredFor, panel, state.businessId]);
 
   React.useEffect(() => {
     if (state.deliveryType === 'pickup') {
       setState((current) => ({
         ...current,
+        courierId: '',
         deliveryFeeSource: 'not_applicable',
         deliveryFeeAmount: '0',
         distanceKm: '',
       }));
       return;
     }
+
     if (state.deliveryFeeSource === 'not_applicable') {
       patch('deliveryFeeSource', 'automatic');
     }
-  }, [state.deliveryType]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [patch, state.deliveryType, state.deliveryFeeSource]);
 
   React.useEffect(() => {
-    if (state.deliveryType !== 'delivery' || state.deliveryFeeSource !== 'automatic') return;
-    const distance = Number(state.distanceKm || 0);
-    const calculated = calculateDeliveryPrice(distance).finalPrice;
-    patch('deliveryFeeAmount', String(calculated));
-  }, [state.deliveryFeeSource, state.deliveryType, state.distanceKm]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (
+      state.deliveryType !== 'delivery' ||
+      state.deliveryFeeSource !== 'automatic'
+    ) {
+      return;
+    }
 
-  const selectedBusiness = businesses.find((business) => business.id === state.businessId);
-  const filteredProducts = products.filter((product) => {
+    const quote = calculateDeliveryPrice(Number(state.distanceKm || 0));
+    patch('deliveryFeeAmount', String(quote.finalPrice));
+  }, [patch, state.deliveryFeeSource, state.deliveryType, state.distanceKm]);
+
+  const selectedBusiness = businesses.find(
+    (business) => business.id === state.businessId,
+  );
+  const selectedBranch = branches.find((branch) => branch.id === state.branchId);
+  const selectedCourier = couriers.find((courier) => courier.id === state.courierId);
+
+  const filteredProducts = React.useMemo(() => {
     const query = state.productSearch.trim().toLowerCase();
-    if (!query) return true;
-    return `${product.name} ${product.sku} ${product.categoryName}`.toLowerCase().includes(query);
-  });
+    if (!query) return products;
+    return products.filter((product) =>
+      `${product.name} ${product.sku} ${product.categoryName}`
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [products, state.productSearch]);
 
-  const subtotal = cart.reduce((sum, line) => sum + line.price * line.quantity, 0);
-  const deliveryFee = state.deliveryType === 'pickup' ? 0 : toInteger(state.deliveryFeeAmount);
+  const subtotal = cart.reduce(
+    (sum, line) => sum + line.price * line.quantity,
+    0,
+  );
+  const deliveryFee =
+    state.deliveryType === 'pickup' ? 0 : toInteger(state.deliveryFeeAmount);
   const tip = toInteger(state.tipAmount);
   const surcharge = toInteger(state.surchargeAmount);
   const total = subtotal + deliveryFee + tip + surcharge;
+  const paidAmount = toInteger(state.paidAmount);
+  const outstanding = Math.max(0, total - paidAmount);
+  const distance = Number(state.distanceKm || 0);
+  const outsideCoverage = Boolean(
+    state.deliveryType === 'delivery' &&
+      selectedBranch?.serviceRadiusKm &&
+      distance > selectedBranch.serviceRadiusKm,
+  );
+
+  const handleBusinessChange = (businessId: string) => {
+    setState((current) => ({
+      ...EMPTY_STATE,
+      businessId,
+      customerKind: current.customerKind,
+      city: current.city || 'Santa Marta',
+    }));
+    setCart([]);
+    setCustomerResults([]);
+    setDraftRecoveredFor(null);
+    setIdempotencyKey(globalThis.crypto.randomUUID());
+  };
 
   const addProduct = (product: ProductOption) => {
     if (product.status !== 'available' || product.availableQuantity <= 0) {
       toast.error('Este producto no está disponible');
       return;
     }
+
     setCart((current) => {
       const existing = current.find((line) => line.productId === product.id);
       if (existing) {
@@ -262,9 +387,12 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
           return current;
         }
         return current.map((line) =>
-          line.key === existing.key ? { ...line, quantity: line.quantity + 1 } : line,
+          line.key === existing.key
+            ? { ...line, quantity: line.quantity + 1 }
+            : line,
         );
       }
+
       return [
         ...current,
         {
@@ -284,22 +412,31 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
     const name = state.customName.trim();
     const price = toInteger(state.customPrice);
     const quantity = Math.max(1, toInteger(state.customQuantity));
+
     if (!name || price <= 0) {
       toast.error('Escribe el nombre y precio del artículo personalizado');
       return;
     }
+
     setCart((current) => [
       ...current,
       {
         key: `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         name,
+        description: state.customDescription.trim() || undefined,
         price,
         quantity,
         isCustomItem: true,
         instructions: '',
       },
     ]);
-    setState((current) => ({ ...current, customName: '', customPrice: '', customQuantity: '1' }));
+    setState((current) => ({
+      ...current,
+      customName: '',
+      customDescription: '',
+      customPrice: '',
+      customQuantity: '1',
+    }));
   };
 
   const updateLine = (key: string, changes: Partial<CartLine>) => {
@@ -307,12 +444,11 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
       current.map((line) => {
         if (line.key !== key) return line;
         const next = { ...line, ...changes };
-        if (next.productId) {
-          const product = products.find((item) => item.id === next.productId);
-          next.quantity = Math.min(Math.max(1, next.quantity), product?.availableQuantity || 1);
-        } else {
-          next.quantity = Math.min(Math.max(1, next.quantity), 99);
-        }
+        const product = next.productId
+          ? products.find((item) => item.id === next.productId)
+          : undefined;
+        const max = product?.availableQuantity || 99;
+        next.quantity = Math.min(Math.max(1, next.quantity), max);
         return next;
       }),
     );
@@ -323,15 +459,24 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
       toast.warning('Escribe al menos 3 caracteres');
       return;
     }
+
     setSearchingCustomers(true);
-    const result = await searchManualOrderCustomersAction(panel, state.businessId, state.customerSearch);
+    const result = await searchManualOrderCustomersAction(
+      panel,
+      state.businessId,
+      state.customerSearch,
+    );
     setSearchingCustomers(false);
+
     if (!result.success) {
       toast.error(result.error || 'No se pudo buscar el cliente');
       return;
     }
+
     setCustomerResults(result.customers);
-    if (result.customers.length === 0) toast.info('No se encontraron clientes registrados');
+    if (result.customers.length === 0) {
+      toast.info('No se encontraron clientes registrados');
+    }
   };
 
   const selectCustomer = (customer: CustomerResult) => {
@@ -349,10 +494,12 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
   const buildPayload = (): ManualOrderRequest => ({
     panel,
     businessId: state.businessId,
+    branchId: state.branchId || undefined,
     idempotencyKey: idempotencyKey || globalThis.crypto.randomUUID(),
     customer: {
       kind: state.customerKind,
-      customerId: state.customerKind === 'registered' ? state.customerId : undefined,
+      customerId:
+        state.customerKind === 'registered' ? state.customerId : undefined,
       name: state.customerName,
       phone: state.customerPhone,
       email: state.customerEmail || undefined,
@@ -365,10 +512,24 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
       neighborhood: state.neighborhood || undefined,
       city: state.city || undefined,
       reference: state.reference || undefined,
-      distanceKm: state.deliveryType === 'delivery' ? Number(state.distanceKm || 0) : undefined,
+      latitude:
+        state.deliveryType === 'delivery'
+          ? optionalCoordinate(state.latitude)
+          : undefined,
+      longitude:
+        state.deliveryType === 'delivery'
+          ? optionalCoordinate(state.longitude)
+          : undefined,
+      distanceKm:
+        state.deliveryType === 'delivery'
+          ? Number(state.distanceKm || 0)
+          : undefined,
     },
     deliveryFee: {
-      source: state.deliveryType === 'pickup' ? 'not_applicable' : state.deliveryFeeSource,
+      source:
+        state.deliveryType === 'pickup'
+          ? 'not_applicable'
+          : state.deliveryFeeSource,
       amount: deliveryFee,
       overrideReason: state.deliveryFeeReason || undefined,
     },
@@ -376,8 +537,12 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
     salesChannelDetail: state.salesChannelDetail || undefined,
     paymentMethod: state.paymentMethod,
     paymentStatus: state.paymentStatus,
-    paidAmount: toInteger(state.paidAmount),
+    paidAmount,
     initialStatus: state.initialStatus,
+    courierId:
+      panel === 'admin' && state.deliveryType === 'delivery' && state.courierId
+        ? state.courierId
+        : undefined,
     adminReason: panel === 'admin' ? state.adminReason || undefined : undefined,
     preparationNotes: state.preparationNotes || undefined,
     courierNotes: state.courierNotes || undefined,
@@ -388,6 +553,7 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
       productId: line.isCustomItem ? undefined : line.productId,
       isCustomItem: line.isCustomItem,
       customName: line.isCustomItem ? line.name : undefined,
+      customDescription: line.isCustomItem ? line.description : undefined,
       customUnitPrice: line.isCustomItem ? line.price : undefined,
       quantity: line.quantity,
       instructions: line.instructions || undefined,
@@ -399,6 +565,7 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
       toast.error('Selecciona el negocio');
       return;
     }
+
     setSavingDraft(true);
     const result = await saveManualOrderDraftAction({
       panel,
@@ -406,34 +573,110 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
       payload: { state, cart },
     });
     setSavingDraft(false);
-    result.success ? toast.success('Borrador guardado') : toast.error(result.error || 'No se pudo guardar');
+
+    if (result.success) toast.success('Borrador guardado');
+    else toast.error(result.error || 'No se pudo guardar el borrador');
   };
 
   const deleteDraft = async () => {
     if (!state.businessId) return;
     const result = await deleteManualOrderDraftAction(panel, state.businessId);
-    if (result.success) {
-      setCart([]);
-      setState((current) => ({ ...EMPTY_STATE, businessId: current.businessId }));
-      toast.success('Borrador eliminado');
-    } else {
+
+    if (!result.success) {
       toast.error(result.error || 'No se pudo eliminar el borrador');
+      return;
     }
+
+    setCart([]);
+    setState((current) => ({
+      ...EMPTY_STATE,
+      businessId: current.businessId,
+      branchId:
+        branches.find((branch) => branch.isPrimary)?.id || branches[0]?.id || '',
+    }));
+    setDraftRecoveredFor(state.businessId);
+    toast.success('Borrador eliminado');
   };
 
   const submit = async () => {
+    if (!state.businessId) {
+      toast.error('Selecciona el negocio');
+      return;
+    }
+    if (!state.branchId) {
+      toast.error('Selecciona una sucursal activa');
+      return;
+    }
+    if (!state.customerName.trim() || !state.customerPhone.trim()) {
+      toast.error('Completa el nombre y teléfono del cliente');
+      return;
+    }
     if (cart.length === 0) {
       toast.error('Agrega al menos un producto');
       return;
     }
-    if (!globalThis.confirm(`Confirma la creación del pedido por ${money(total)}.`)) return;
+    if (panel === 'admin' && !state.adminReason.trim()) {
+      toast.error('Escribe el motivo administrativo de creación');
+      return;
+    }
+    if (state.deliveryType === 'delivery' && !state.address.trim()) {
+      toast.error('Completa la dirección de entrega');
+      return;
+    }
+    if (
+      state.deliveryType === 'delivery' &&
+      state.deliveryFeeSource === 'automatic' &&
+      distance <= 0
+    ) {
+      toast.error('Ingresa una distancia válida para calcular el domicilio');
+      return;
+    }
+    if (
+      state.deliveryType === 'delivery' &&
+      state.deliveryFeeSource === 'manual' &&
+      !state.deliveryFeeReason.trim()
+    ) {
+      toast.error('Explica por qué modificaste la tarifa');
+      return;
+    }
+    if (state.paymentStatus === 'completed' && paidAmount !== total) {
+      toast.error('Para marcarlo pagado, el valor pagado debe coincidir con el total');
+      return;
+    }
+
+    const warnings: string[] = [];
+    if (
+      state.deliveryType === 'delivery' &&
+      (!state.latitude.trim() || !state.longitude.trim())
+    ) {
+      warnings.push('la dirección no tiene coordenadas exactas');
+    }
+    if (state.deliveryType === 'delivery' && selectedBranch?.deliveryAvailable === false) {
+      warnings.push('la sucursal no está habilitada para domicilios');
+    }
+    if (outsideCoverage) {
+      warnings.push(
+        `la distancia supera la cobertura de ${selectedBranch?.serviceRadiusKm} km`,
+      );
+    }
+
+    const warningText = warnings.length
+      ? `\nAdvertencias: ${warnings.join('; ')}.`
+      : '';
+    const confirmed = globalThis.confirm(
+      `Confirma la creación del pedido por ${money(total)}.${warningText}`,
+    );
+    if (!confirmed) return;
+
     setSubmitting(true);
     const result = await createManualOrderAction(buildPayload());
     setSubmitting(false);
+
     if (!result.success) {
       toast.error(result.error || 'No se pudo crear el pedido');
       return;
     }
+
     toast.success(
       result.idempotentReplay
         ? `El pedido #${result.orderNumber} ya había sido creado`
@@ -466,9 +709,12 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
       <div className="space-y-5">
         <section className={sectionClass}>
           <div>
-            <h2 className="font-semibold">1. Negocio y canal</h2>
-            <p className="text-xs text-muted-foreground">El pedido solo puede contener productos del negocio seleccionado.</p>
+            <h2 className="font-semibold">1. Operación y origen</h2>
+            <p className="text-xs text-muted-foreground">
+              Negocio, sucursal, canal externo y asignación logística inicial.
+            </p>
           </div>
+
           <div className="grid gap-3 md:grid-cols-2">
             <label>
               <span className={labelClass}>Negocio</span>
@@ -476,23 +722,47 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
                 className={inputClass}
                 value={state.businessId}
                 disabled={panel === 'business'}
-                onChange={(event) => {
-                  patch('businessId', event.target.value);
-                  setCart([]);
-                  setDraftRecovered(false);
-                }}
+                onChange={(event) => handleBusinessChange(event.target.value)}
               >
                 <option value="">Selecciona un negocio</option>
                 {businesses.map((business) => (
                   <option key={business.id} value={business.id}>
-                    {business.name}{business.isVerified ? ' · Verificado' : ''}
+                    {business.name}
+                    {business.isVerified ? ' · Verificado' : ''}
                   </option>
                 ))}
               </select>
             </label>
+
+            <label>
+              <span className={labelClass}>Sucursal o local</span>
+              <select
+                className={inputClass}
+                value={state.branchId}
+                disabled={!state.businessId || loadingBusinessData}
+                onChange={(event) => patch('branchId', event.target.value)}
+              >
+                <option value="">Selecciona una sucursal</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}{branch.isPrimary ? ' · Principal' : ''} — {branch.address}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <label>
               <span className={labelClass}>Canal de origen</span>
-              <select className={inputClass} value={state.salesChannel} onChange={(event) => patch('salesChannel', event.target.value as WorkspaceState['salesChannel'])}>
+              <select
+                className={inputClass}
+                value={state.salesChannel}
+                onChange={(event) =>
+                  patch(
+                    'salesChannel',
+                    event.target.value as WorkspaceState['salesChannel'],
+                  )
+                }
+              >
                 <option value="whatsapp">WhatsApp</option>
                 <option value="phone">Llamada telefónica</option>
                 <option value="in_person">Presencial</option>
@@ -502,69 +772,162 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
                 <option value="other">Otro</option>
               </select>
             </label>
+
+            {panel === 'admin' && (
+              <label>
+                <span className={labelClass}>Repartidor inicial opcional</span>
+                <select
+                  className={inputClass}
+                  value={state.courierId}
+                  disabled={state.deliveryType === 'pickup'}
+                  onChange={(event) => patch('courierId', event.target.value)}
+                >
+                  <option value="">Sin asignar · usar búsqueda normal</option>
+                  {couriers.map((courier) => (
+                    <option key={courier.id} value={courier.id}>
+                      {courier.name} · {courier.vehicleType}
+                      {courier.vehiclePlate ? ` ${courier.vehiclePlate}` : ''}
+                      {courier.isAvailable ? ' · Disponible' : ' · Ocupado'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
+
           {state.salesChannel === 'other' && (
             <label>
               <span className={labelClass}>Descripción del canal</span>
-              <input className={inputClass} value={state.salesChannelDetail} onChange={(event) => patch('salesChannelDetail', event.target.value)} />
+              <input
+                className={inputClass}
+                value={state.salesChannelDetail}
+                onChange={(event) => patch('salesChannelDetail', event.target.value)}
+              />
             </label>
           )}
+
           {panel === 'admin' && (
             <label>
               <span className={labelClass}>Motivo administrativo de creación</span>
-              <textarea className={inputClass} rows={2} value={state.adminReason} onChange={(event) => patch('adminReason', event.target.value)} />
+              <textarea
+                className={inputClass}
+                rows={2}
+                value={state.adminReason}
+                onChange={(event) => patch('adminReason', event.target.value)}
+              />
             </label>
+          )}
+
+          {state.businessId && branches.length === 0 && !loadingBusinessData && (
+            <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
+              Este negocio no tiene una sucursal activa. Debes configurarla antes de crear pedidos.
+            </div>
           )}
         </section>
 
         <section className={sectionClass}>
           <div>
             <h2 className="font-semibold">2. Cliente</h2>
-            <p className="text-xs text-muted-foreground">Un invitado no genera una cuenta de autenticación.</p>
+            <p className="text-xs text-muted-foreground">
+              Un cliente invitado no genera una cuenta de autenticación.
+            </p>
           </div>
+
           <div className="flex flex-wrap gap-2">
             {(['guest', 'registered'] as const).map((kind) => (
               <button
                 type="button"
                 key={kind}
-                onClick={() => patch('customerKind', kind)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${state.customerKind === kind ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                onClick={() =>
+                  setState((current) => ({
+                    ...current,
+                    customerKind: kind,
+                    customerId: kind === 'guest' ? '' : current.customerId,
+                  }))
+                }
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  state.customerKind === kind
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted'
+                }`}
               >
                 {kind === 'guest' ? 'Cliente invitado' : 'Cliente registrado'}
               </button>
             ))}
           </div>
+
           {state.customerKind === 'registered' && (
             <div className="space-y-2 rounded-xl bg-muted/40 p-3">
               <div className="flex gap-2">
-                <input className={inputClass} placeholder="Nombre, teléfono o correo" value={state.customerSearch} onChange={(event) => patch('customerSearch', event.target.value)} />
-                <button type="button" onClick={() => void searchCustomers()} className="rounded-xl bg-primary px-3 text-primary-foreground" disabled={searchingCustomers}>
-                  {searchingCustomers ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRoundSearch className="h-4 w-4" />}
+                <input
+                  className={inputClass}
+                  placeholder="Nombre, teléfono o correo"
+                  value={state.customerSearch}
+                  onChange={(event) => patch('customerSearch', event.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => void searchCustomers()}
+                  className="rounded-xl bg-primary px-3 text-primary-foreground"
+                  disabled={searchingCustomers}
+                  aria-label="Buscar cliente registrado"
+                >
+                  {searchingCustomers ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserRoundSearch className="h-4 w-4" />
+                  )}
                 </button>
               </div>
+
               {customerResults.map((customer) => (
-                <button key={customer.id} type="button" onClick={() => selectCustomer(customer)} className="block w-full rounded-lg border bg-background p-2 text-left text-xs">
-                  <strong>{customer.name}</strong><br />{customer.phone || customer.email}
+                <button
+                  key={customer.id}
+                  type="button"
+                  onClick={() => selectCustomer(customer)}
+                  className="block w-full rounded-lg border bg-background p-2 text-left text-xs"
+                >
+                  <strong>{customer.name}</strong>
+                  <br />
+                  {customer.phone || customer.email}
                 </button>
               ))}
             </div>
           )}
+
           <div className="grid gap-3 md:grid-cols-2">
             <label>
               <span className={labelClass}>Nombre completo</span>
-              <input className={inputClass} value={state.customerName} onChange={(event) => patch('customerName', event.target.value)} />
+              <input
+                className={inputClass}
+                value={state.customerName}
+                onChange={(event) => patch('customerName', event.target.value)}
+              />
             </label>
             <label>
               <span className={labelClass}>Teléfono</span>
-              <input className={inputClass} value={state.customerPhone} onChange={(event) => patch('customerPhone', event.target.value)} />
+              <input
+                className={inputClass}
+                value={state.customerPhone}
+                onChange={(event) => patch('customerPhone', event.target.value)}
+              />
             </label>
             <label>
               <span className={labelClass}>Correo opcional</span>
-              <input type="email" className={inputClass} value={state.customerEmail} onChange={(event) => patch('customerEmail', event.target.value)} />
+              <input
+                type="email"
+                className={inputClass}
+                value={state.customerEmail}
+                onChange={(event) => patch('customerEmail', event.target.value)}
+              />
             </label>
             <label>
               <span className={labelClass}>Notas del cliente</span>
-              <input className={inputClass} value={state.customerNotes} onChange={(event) => patch('customerNotes', event.target.value)} />
+              <input
+                className={inputClass}
+                value={state.customerNotes}
+                onChange={(event) => patch('customerNotes', event.target.value)}
+              />
             </label>
           </div>
         </section>
@@ -572,46 +935,164 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
         <section className={sectionClass}>
           <div>
             <h2 className="font-semibold">3. Entrega</h2>
-            <p className="text-xs text-muted-foreground">La tarifa de domicilio se cobra al cliente final.</p>
+            <p className="text-xs text-muted-foreground">
+              La tarifa de domicilio la asume el cliente final y se valida en PostgreSQL.
+            </p>
           </div>
+
           <div className="grid gap-3 md:grid-cols-3">
             <label>
-              <span className={labelClass}>Tipo</span>
-              <select className={inputClass} value={state.deliveryType} onChange={(event) => patch('deliveryType', event.target.value as WorkspaceState['deliveryType'])}>
+              <span className={labelClass}>Tipo de entrega</span>
+              <select
+                className={inputClass}
+                value={state.deliveryType}
+                onChange={(event) =>
+                  patch(
+                    'deliveryType',
+                    event.target.value as WorkspaceState['deliveryType'],
+                  )
+                }
+              >
                 <option value="delivery">Domicilio</option>
                 <option value="pickup">Recoger en el local</option>
               </select>
             </label>
+
             {state.deliveryType === 'delivery' && (
               <>
                 <label>
                   <span className={labelClass}>Cálculo de tarifa</span>
-                  <select className={inputClass} value={state.deliveryFeeSource} onChange={(event) => patch('deliveryFeeSource', event.target.value as WorkspaceState['deliveryFeeSource'])}>
+                  <select
+                    className={inputClass}
+                    value={state.deliveryFeeSource}
+                    onChange={(event) =>
+                      patch(
+                        'deliveryFeeSource',
+                        event.target.value as WorkspaceState['deliveryFeeSource'],
+                      )
+                    }
+                  >
                     <option value="automatic">Automática por distancia</option>
                     <option value="manual">Manual con motivo</option>
                   </select>
                 </label>
                 <label>
                   <span className={labelClass}>Distancia en km</span>
-                  <input type="number" min="0" step="0.1" className={inputClass} value={state.distanceKm} onChange={(event) => patch('distanceKm', event.target.value)} />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    className={inputClass}
+                    value={state.distanceKm}
+                    onChange={(event) => patch('distanceKm', event.target.value)}
+                  />
                 </label>
               </>
             )}
           </div>
-          {state.deliveryType === 'delivery' && (
+
+          {state.deliveryType === 'pickup' ? (
+            <div className="rounded-xl bg-primary/10 p-3 text-sm text-primary">
+              <MapPin className="mr-1 inline h-4 w-4" />
+              Recogida en {selectedBranch?.name || 'la sucursal seleccionada'} ·{' '}
+              {selectedBranch?.address || 'dirección pendiente'}
+            </div>
+          ) : (
             <div className="grid gap-3 md:grid-cols-2">
               <label className="md:col-span-2">
                 <span className={labelClass}>Dirección</span>
-                <input className={inputClass} value={state.address} onChange={(event) => patch('address', event.target.value)} />
+                <input
+                  className={inputClass}
+                  value={state.address}
+                  onChange={(event) => patch('address', event.target.value)}
+                />
               </label>
-              <label><span className={labelClass}>Complemento</span><input className={inputClass} value={state.complement} onChange={(event) => patch('complement', event.target.value)} /></label>
-              <label><span className={labelClass}>Barrio o sector</span><input className={inputClass} value={state.neighborhood} onChange={(event) => patch('neighborhood', event.target.value)} /></label>
-              <label><span className={labelClass}>Ciudad</span><input className={inputClass} value={state.city} onChange={(event) => patch('city', event.target.value)} /></label>
-              <label><span className={labelClass}>Referencia</span><input className={inputClass} value={state.reference} onChange={(event) => patch('reference', event.target.value)} /></label>
-              <label><span className={labelClass}>Tarifa calculada</span><input type="number" min="0" className={inputClass} readOnly={state.deliveryFeeSource === 'automatic'} value={state.deliveryFeeAmount} onChange={(event) => patch('deliveryFeeAmount', event.target.value)} /></label>
+              <label>
+                <span className={labelClass}>Complemento</span>
+                <input
+                  className={inputClass}
+                  value={state.complement}
+                  onChange={(event) => patch('complement', event.target.value)}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Barrio o sector</span>
+                <input
+                  className={inputClass}
+                  value={state.neighborhood}
+                  onChange={(event) => patch('neighborhood', event.target.value)}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Ciudad o municipio</span>
+                <input
+                  className={inputClass}
+                  value={state.city}
+                  onChange={(event) => patch('city', event.target.value)}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Referencia de ubicación</span>
+                <input
+                  className={inputClass}
+                  value={state.reference}
+                  onChange={(event) => patch('reference', event.target.value)}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Latitud opcional</span>
+                <input
+                  type="number"
+                  step="any"
+                  className={inputClass}
+                  value={state.latitude}
+                  onChange={(event) => patch('latitude', event.target.value)}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Longitud opcional</span>
+                <input
+                  type="number"
+                  step="any"
+                  className={inputClass}
+                  value={state.longitude}
+                  onChange={(event) => patch('longitude', event.target.value)}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Tarifa de domicilio</span>
+                <input
+                  type="number"
+                  min="0"
+                  className={inputClass}
+                  readOnly={state.deliveryFeeSource === 'automatic'}
+                  value={state.deliveryFeeAmount}
+                  onChange={(event) =>
+                    patch('deliveryFeeAmount', event.target.value)
+                  }
+                />
+              </label>
               {state.deliveryFeeSource === 'manual' && (
-                <label><span className={labelClass}>Motivo de modificación</span><input className={inputClass} value={state.deliveryFeeReason} onChange={(event) => patch('deliveryFeeReason', event.target.value)} /></label>
+                <label>
+                  <span className={labelClass}>Motivo de modificación</span>
+                  <input
+                    className={inputClass}
+                    value={state.deliveryFeeReason}
+                    onChange={(event) =>
+                      patch('deliveryFeeReason', event.target.value)
+                    }
+                  />
+                </label>
               )}
+            </div>
+          )}
+
+          {outsideCoverage && (
+            <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
+              <AlertTriangle className="mr-1 inline h-4 w-4" />
+              La distancia supera la cobertura configurada de{' '}
+              {selectedBranch?.serviceRadiusKm} km. El comercio no podrá continuar;
+              administración requiere un motivo explícito.
             </div>
           )}
         </section>
@@ -619,39 +1100,143 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
         <section className={sectionClass}>
           <div>
             <h2 className="font-semibold">4. Productos</h2>
-            <p className="text-xs text-muted-foreground">Precios e inventario se validan nuevamente en backend al confirmar.</p>
+            <p className="text-xs text-muted-foreground">
+              Precios, negocio e inventario se vuelven a validar al confirmar.
+            </p>
           </div>
+
           <div className="relative">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input className={`${inputClass} pl-9`} placeholder="Buscar por nombre, SKU o categoría" value={state.productSearch} onChange={(event) => patch('productSearch', event.target.value)} />
+            <input
+              className={`${inputClass} pl-9`}
+              placeholder="Buscar por nombre, SKU o categoría"
+              value={state.productSearch}
+              onChange={(event) => patch('productSearch', event.target.value)}
+            />
           </div>
-          {loadingProducts ? (
+
+          {loadingBusinessData ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
             <div className="grid max-h-72 gap-2 overflow-y-auto md:grid-cols-2">
               {filteredProducts.map((product) => (
-                <button type="button" key={product.id} onClick={() => addProduct(product)} className="flex items-center justify-between gap-3 rounded-xl border p-3 text-left disabled:opacity-50" disabled={product.status !== 'available' || product.availableQuantity <= 0}>
-                  <span><strong className="block text-sm">{product.name}</strong><small className="text-muted-foreground">{product.sku} · Stock {product.availableQuantity}</small></span>
+                <button
+                  type="button"
+                  key={product.id}
+                  onClick={() => addProduct(product)}
+                  className="flex items-center justify-between gap-3 rounded-xl border p-3 text-left disabled:opacity-50"
+                  disabled={
+                    product.status !== 'available' || product.availableQuantity <= 0
+                  }
+                >
+                  <span>
+                    <strong className="block text-sm">{product.name}</strong>
+                    <small className="text-muted-foreground">
+                      {product.sku} · Stock {product.availableQuantity}
+                    </small>
+                  </span>
                   <span className="text-sm font-bold">{money(product.price)}</span>
                 </button>
               ))}
             </div>
           )}
+
           {(panel === 'admin' || selectedBusiness?.allowCustomItems) && (
-            <div className="grid gap-2 rounded-xl border border-dashed p-3 md:grid-cols-[1fr_150px_90px_auto]">
-              <input className={inputClass} placeholder="Artículo personalizado" value={state.customName} onChange={(event) => patch('customName', event.target.value)} />
-              <input type="number" min="0" className={inputClass} placeholder="Precio" value={state.customPrice} onChange={(event) => patch('customPrice', event.target.value)} />
-              <input type="number" min="1" max="99" className={inputClass} value={state.customQuantity} onChange={(event) => patch('customQuantity', event.target.value)} />
-              <button type="button" onClick={addCustomItem} className="rounded-xl bg-muted px-3 text-sm font-semibold"><PackagePlus className="inline h-4 w-4" /> Agregar</button>
+            <div className="grid gap-2 rounded-xl border border-dashed p-3 md:grid-cols-2">
+              <input
+                className={inputClass}
+                placeholder="Nombre del artículo personalizado"
+                value={state.customName}
+                onChange={(event) => patch('customName', event.target.value)}
+              />
+              <input
+                className={inputClass}
+                placeholder="Descripción opcional"
+                value={state.customDescription}
+                onChange={(event) =>
+                  patch('customDescription', event.target.value)
+                }
+              />
+              <input
+                type="number"
+                min="0"
+                className={inputClass}
+                placeholder="Precio unitario"
+                value={state.customPrice}
+                onChange={(event) => patch('customPrice', event.target.value)}
+              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="99"
+                  className={inputClass}
+                  value={state.customQuantity}
+                  onChange={(event) =>
+                    patch('customQuantity', event.target.value)
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={addCustomItem}
+                  className="whitespace-nowrap rounded-xl bg-muted px-3 text-sm font-semibold"
+                >
+                  <PackagePlus className="mr-1 inline h-4 w-4" /> Agregar
+                </button>
+              </div>
             </div>
           )}
+
           <div className="space-y-2">
             {cart.map((line) => (
-              <div key={line.key} className="grid gap-2 rounded-xl bg-muted/40 p-3 md:grid-cols-[1fr_90px_140px_auto]">
-                <div><strong className="text-sm">{line.name}</strong><input className="mt-1 w-full bg-transparent text-xs outline-none" placeholder="Instrucciones del producto" value={line.instructions} onChange={(event) => updateLine(line.key, { instructions: event.target.value })} /></div>
-                <input type="number" min="1" max="99" className={inputClass} value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: Number(event.target.value || 1) })} />
-                <strong className="self-center text-sm">{money(line.price * line.quantity)}</strong>
-                <button type="button" onClick={() => setCart((current) => current.filter((item) => item.key !== line.key))} className="rounded-lg p-2 text-destructive"><Trash2 className="h-4 w-4" /></button>
+              <div
+                key={line.key}
+                className="grid gap-2 rounded-xl bg-muted/40 p-3 md:grid-cols-[1fr_90px_140px_auto]"
+              >
+                <div>
+                  <strong className="text-sm">
+                    {line.name}
+                    {line.isCustomItem ? ' · personalizado' : ''}
+                  </strong>
+                  {line.description && (
+                    <p className="text-xs text-muted-foreground">{line.description}</p>
+                  )}
+                  <input
+                    className="mt-1 w-full bg-transparent text-xs outline-none"
+                    placeholder="Instrucciones del producto"
+                    value={line.instructions}
+                    onChange={(event) =>
+                      updateLine(line.key, { instructions: event.target.value })
+                    }
+                  />
+                </div>
+                <input
+                  type="number"
+                  min="1"
+                  max="99"
+                  className={inputClass}
+                  value={line.quantity}
+                  onChange={(event) =>
+                    updateLine(line.key, {
+                      quantity: Number(event.target.value || 1),
+                    })
+                  }
+                />
+                <strong className="self-center text-sm">
+                  {money(line.price * line.quantity)}
+                </strong>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCart((current) =>
+                      current.filter((item) => item.key !== line.key),
+                    )
+                  }
+                  className="rounded-lg p-2 text-destructive"
+                  aria-label={`Eliminar ${line.name}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             ))}
           </div>
@@ -659,41 +1244,237 @@ export function ManualOrderWorkspace({ panel }: { panel: ManualOrderPanel }) {
 
         <section className={sectionClass}>
           <h2 className="font-semibold">5. Pago y notas</h2>
+
           <div className="grid gap-3 md:grid-cols-3">
-            <label><span className={labelClass}>Método de pago</span><select className={inputClass} value={state.paymentMethod} onChange={(event) => patch('paymentMethod', event.target.value as WorkspaceState['paymentMethod'])}><option value="cash">Efectivo</option><option value="transfer">Transferencia</option><option value="credit_card">Tarjeta crédito</option><option value="debit_card">Tarjeta débito</option><option value="wallet">Billetera</option></select></label>
-            <label><span className={labelClass}>Estado del pago</span><select className={inputClass} value={state.paymentStatus} onChange={(event) => patch('paymentStatus', event.target.value as WorkspaceState['paymentStatus'])}><option value="pending">Pendiente</option><option value="completed">Pagado</option></select></label>
-            <label><span className={labelClass}>Valor pagado</span><input type="number" min="0" className={inputClass} value={state.paidAmount} onChange={(event) => patch('paidAmount', event.target.value)} /></label>
-            <label><span className={labelClass}>Estado inicial</span><select className={inputClass} value={state.initialStatus} onChange={(event) => patch('initialStatus', event.target.value as WorkspaceState['initialStatus'])}><option value="confirmed">Confirmado</option><option value="pending">Pendiente</option></select></label>
-            <label><span className={labelClass}>Propina</span><input type="number" min="0" className={inputClass} value={state.tipAmount} onChange={(event) => patch('tipAmount', event.target.value)} /></label>
-            <label><span className={labelClass}>Recargo autorizado</span><input type="number" min="0" className={inputClass} value={state.surchargeAmount} onChange={(event) => patch('surchargeAmount', event.target.value)} /></label>
+            <label>
+              <span className={labelClass}>Método de pago</span>
+              <select
+                className={inputClass}
+                value={state.paymentMethod}
+                onChange={(event) =>
+                  patch(
+                    'paymentMethod',
+                    event.target.value as WorkspaceState['paymentMethod'],
+                  )
+                }
+              >
+                <option value="cash">Efectivo</option>
+                <option value="transfer">Transferencia</option>
+                <option value="credit_card">Tarjeta de crédito</option>
+                <option value="debit_card">Tarjeta débito</option>
+                <option value="wallet">Billetera</option>
+              </select>
+            </label>
+            <label>
+              <span className={labelClass}>Estado del pago</span>
+              <select
+                className={inputClass}
+                value={state.paymentStatus}
+                onChange={(event) =>
+                  patch(
+                    'paymentStatus',
+                    event.target.value as WorkspaceState['paymentStatus'],
+                  )
+                }
+              >
+                <option value="pending">Pendiente o parcial</option>
+                <option value="completed">Pagado</option>
+              </select>
+            </label>
+            <label>
+              <span className={labelClass}>Valor pagado</span>
+              <input
+                type="number"
+                min="0"
+                className={inputClass}
+                value={state.paidAmount}
+                onChange={(event) => patch('paidAmount', event.target.value)}
+              />
+            </label>
+            <label>
+              <span className={labelClass}>Estado inicial</span>
+              <select
+                className={inputClass}
+                value={state.initialStatus}
+                onChange={(event) =>
+                  patch(
+                    'initialStatus',
+                    event.target.value as WorkspaceState['initialStatus'],
+                  )
+                }
+              >
+                <option value="confirmed">Confirmado</option>
+                <option value="pending">Pendiente</option>
+              </select>
+            </label>
+            <label>
+              <span className={labelClass}>Propina</span>
+              <input
+                type="number"
+                min="0"
+                className={inputClass}
+                value={state.tipAmount}
+                onChange={(event) => patch('tipAmount', event.target.value)}
+              />
+            </label>
+            <label>
+              <span className={labelClass}>Recargo autorizado</span>
+              <input
+                type="number"
+                min="0"
+                className={inputClass}
+                value={state.surchargeAmount}
+                onChange={(event) => patch('surchargeAmount', event.target.value)}
+              />
+            </label>
           </div>
+
           <div className="grid gap-3 md:grid-cols-3">
-            <label><span className={labelClass}>Notas de preparación</span><textarea rows={3} className={inputClass} value={state.preparationNotes} onChange={(event) => patch('preparationNotes', event.target.value)} /></label>
-            <label><span className={labelClass}>Notas para repartidor</span><textarea rows={3} className={inputClass} value={state.courierNotes} onChange={(event) => patch('courierNotes', event.target.value)} /></label>
-            <label><span className={labelClass}>Notas internas</span><textarea rows={3} className={inputClass} value={state.internalNotes} onChange={(event) => patch('internalNotes', event.target.value)} /></label>
+            <label>
+              <span className={labelClass}>Notas de preparación</span>
+              <textarea
+                rows={3}
+                className={inputClass}
+                value={state.preparationNotes}
+                onChange={(event) => patch('preparationNotes', event.target.value)}
+              />
+            </label>
+            <label>
+              <span className={labelClass}>Notas para repartidor</span>
+              <textarea
+                rows={3}
+                className={inputClass}
+                value={state.courierNotes}
+                onChange={(event) => patch('courierNotes', event.target.value)}
+              />
+            </label>
+            <label>
+              <span className={labelClass}>Notas internas</span>
+              <textarea
+                rows={3}
+                className={inputClass}
+                value={state.internalNotes}
+                onChange={(event) => patch('internalNotes', event.target.value)}
+              />
+            </label>
           </div>
         </section>
       </div>
 
       <aside className="h-fit space-y-4 rounded-2xl border bg-card p-4 shadow-sm xl:sticky xl:top-4">
-        <div className="flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary" /><h2 className="font-semibold">Confirmación</h2></div>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between"><span>Cliente</span><strong className="max-w-48 truncate">{state.customerName || 'Sin completar'}</strong></div>
-          <div className="flex justify-between"><span>Productos</span><strong>{cart.reduce((sum, line) => sum + line.quantity, 0)}</strong></div>
-          <div className="flex justify-between"><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
-          <div className="flex justify-between"><span>Domicilio</span><strong>{money(deliveryFee)}</strong></div>
-          {tip > 0 && <div className="flex justify-between"><span>Propina</span><strong>{money(tip)}</strong></div>}
-          {surcharge > 0 && <div className="flex justify-between"><span>Recargo</span><strong>{money(surcharge)}</strong></div>}
-          <div className="flex justify-between border-t pt-3 text-base"><span>Total</span><strong>{money(total)}</strong></div>
+        <div className="flex items-center gap-2">
+          <ShoppingCart className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold">Confirmación</h2>
         </div>
-        <div className="rounded-xl bg-primary/10 p-3 text-xs text-primary"><CheckCircle2 className="mb-1 h-4 w-4" />El backend recalculará precios, stock, domicilio y total antes de guardar.</div>
-        <button type="button" onClick={() => void submit()} disabled={submitting || !state.businessId || cart.length === 0} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50">
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between gap-3">
+            <span>Negocio</span>
+            <strong className="max-w-48 truncate">
+              {selectedBusiness?.name || 'Sin seleccionar'}
+            </strong>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Sucursal</span>
+            <strong className="max-w-48 truncate">
+              {selectedBranch?.name || 'Sin seleccionar'}
+            </strong>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Cliente</span>
+            <strong className="max-w-48 truncate">
+              {state.customerName || 'Sin completar'}
+            </strong>
+          </div>
+          <div className="flex justify-between">
+            <span>Productos</span>
+            <strong>
+              {cart.reduce((sum, line) => sum + line.quantity, 0)}
+            </strong>
+          </div>
+          <div className="flex justify-between">
+            <span>Subtotal</span>
+            <strong>{money(subtotal)}</strong>
+          </div>
+          <div className="flex justify-between">
+            <span>Domicilio</span>
+            <strong>{money(deliveryFee)}</strong>
+          </div>
+          {tip > 0 && (
+            <div className="flex justify-between">
+              <span>Propina</span>
+              <strong>{money(tip)}</strong>
+            </div>
+          )}
+          {surcharge > 0 && (
+            <div className="flex justify-between">
+              <span>Recargo</span>
+              <strong>{money(surcharge)}</strong>
+            </div>
+          )}
+          <div className="flex justify-between border-t pt-3 text-base">
+            <span>Total</span>
+            <strong>{money(total)}</strong>
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Pagado</span>
+            <strong>{money(paidAmount)}</strong>
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Pendiente</span>
+            <strong>{money(outstanding)}</strong>
+          </div>
+        </div>
+
+        {selectedCourier && (
+          <div className="rounded-xl bg-muted/50 p-3 text-xs">
+            <Truck className="mr-1 inline h-4 w-4" />
+            Asignación inicial: <strong>{selectedCourier.name}</strong>
+          </div>
+        )}
+
+        <div className="rounded-xl bg-primary/10 p-3 text-xs text-primary">
+          <CheckCircle2 className="mb-1 h-4 w-4" />
+          El backend recalculará precios, inventario, domicilio, distribución y total antes de guardar.
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void submit()}
+          disabled={
+            submitting ||
+            !state.businessId ||
+            !state.branchId ||
+            cart.length === 0
+          }
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50"
+        >
+          {submitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4" />
+          )}
           Crear pedido manual
         </button>
+
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => void saveDraft()} disabled={savingDraft} className="rounded-xl border px-3 py-2 text-xs font-semibold"><Save className="mr-1 inline h-3.5 w-3.5" />Guardar</button>
-          <button type="button" onClick={() => void deleteDraft()} className="rounded-xl border px-3 py-2 text-xs font-semibold text-destructive"><Trash2 className="mr-1 inline h-3.5 w-3.5" />Eliminar</button>
+          <button
+            type="button"
+            onClick={() => void saveDraft()}
+            disabled={savingDraft}
+            className="rounded-xl border px-3 py-2 text-xs font-semibold"
+          >
+            <Save className="mr-1 inline h-3.5 w-3.5" />
+            Guardar
+          </button>
+          <button
+            type="button"
+            onClick={() => void deleteDraft()}
+            className="rounded-xl border px-3 py-2 text-xs font-semibold text-destructive"
+          >
+            <Trash2 className="mr-1 inline h-3.5 w-3.5" />
+            Eliminar
+          </button>
         </div>
       </aside>
     </div>
