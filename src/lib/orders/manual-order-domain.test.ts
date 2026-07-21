@@ -50,7 +50,10 @@ describe('manual order domain', () => {
   });
 
   it('requires an administrative creation reason', () => {
-    const result = manualOrderRequestSchema.safeParse({ ...baseInput, adminReason: undefined });
+    const result = manualOrderRequestSchema.safeParse({
+      ...baseInput,
+      adminReason: undefined,
+    });
     expect(result.success).toBe(false);
   });
 
@@ -71,6 +74,16 @@ describe('manual order domain', () => {
     expect(result.success).toBe(false);
   });
 
+  it('prevents courier assignment for pickup orders', () => {
+    const result = manualOrderRequestSchema.safeParse({
+      ...baseInput,
+      delivery: { type: 'pickup' },
+      deliveryFee: { source: 'not_applicable', amount: 0 },
+      courierId: '44444444-4444-4444-8444-444444444444',
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('requires a description for the other sales channel', () => {
     const result = manualOrderRequestSchema.safeParse({
       ...baseInput,
@@ -81,8 +94,20 @@ describe('manual order domain', () => {
 
   it('calculates integer COP totals without trusting frontend totals', () => {
     const items: ResolvedManualOrderItem[] = [
-      { name: 'Hamburguesa', productId: '1', quantity: 2, unitPrice: 18_000, isCustomItem: false },
-      { name: 'Gaseosa', productId: '2', quantity: 1, unitPrice: 5_000, isCustomItem: false },
+      {
+        name: 'Hamburguesa',
+        productId: '1',
+        quantity: 2,
+        unitPrice: 18_000,
+        isCustomItem: false,
+      },
+      {
+        name: 'Gaseosa',
+        productId: '2',
+        quantity: 1,
+        unitPrice: 5_000,
+        isCustomItem: false,
+      },
     ];
     expect(
       calculateManualOrderTotals(items, {
