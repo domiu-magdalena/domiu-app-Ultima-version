@@ -2,11 +2,11 @@ import { ManualOrderWorkspace } from '@/components/manual-orders/ManualOrderWork
 import { PackagePlus } from 'lucide-react';
 
 export const metadata = {
-  title: 'Crear pedido manual - DomiU Admin',
-  description: 'Registrar pedidos externos con productos, cliente invitado, entrega, pago y auditoría',
+  title: 'Crear pedido manual - DomiU Negocio',
+  description: 'Registrar pedidos externos recibidos por el comercio',
 };
 
-export default function CrearPedidoManualAdminPage() {
+export default function CrearPedidoManualNegocioPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -14,14 +14,14 @@ export default function CrearPedidoManualAdminPage() {
           <PackagePlus className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Crear pedido manual</h1>
+          <h1 className="text-2xl font-bold">Crear pedido manual</h1>
           <p className="text-sm text-muted-foreground">
-            Registra pedidos recibidos por WhatsApp, llamada, atención presencial o redes sociales.
+            Registra pedidos recibidos fuera de DomiU sin crear una cuenta artificial para el cliente.
           </p>
         </div>
       </div>
 
-      <ManualOrderWorkspace panel="admin" />
+      <ManualOrderWorkspace panel="business" />
     </div>
   );
 }
