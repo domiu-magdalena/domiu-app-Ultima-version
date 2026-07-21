@@ -1,0 +1,1 @@
+Preparación cerrada.
