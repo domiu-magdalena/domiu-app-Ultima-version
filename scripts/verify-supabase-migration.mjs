@@ -10,6 +10,15 @@ for (const key of required) {
   if (!process.env[key]) throw new Error(`Missing required environment variable: ${key}`)
 }
 
+function assertLegacyServiceRole(name, value) {
+  if (value.split('.').length !== 3) {
+    throw new Error(`${name} must be the legacy service_role JWT from Legacy API Keys`)
+  }
+}
+
+assertLegacyServiceRole('SOURCE_SERVICE_ROLE_KEY', process.env.SOURCE_SERVICE_ROLE_KEY)
+assertLegacyServiceRole('TARGET_SERVICE_ROLE_KEY', process.env.TARGET_SERVICE_ROLE_KEY)
+
 const source = createClient(process.env.SOURCE_SUPABASE_URL, process.env.SOURCE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 })
