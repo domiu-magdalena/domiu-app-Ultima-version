@@ -139,7 +139,10 @@ jobs:
         env:
           SOURCE_SERVICE_ROLE_KEY: ${{ secrets.SOURCE_SERVICE_ROLE_KEY }}
           TARGET_SERVICE_ROLE_KEY: ${{ secrets.TARGET_SERVICE_ROLE_KEY }}
-        run: node scripts/verify-supabase-migration.mjs | tee migration-work/service-verification.txt
+        run: |
+          set -Eeuo pipefail
+          mkdir -p migration-work
+          node scripts/verify-supabase-migration.mjs | tee migration-work/service-verification.txt
 
       - name: Comparar conteos de base de datos
         if: inputs.operation == 'verify' || inputs.operation == 'all'
