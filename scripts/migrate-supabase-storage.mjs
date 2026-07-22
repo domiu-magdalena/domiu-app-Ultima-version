@@ -12,7 +12,7 @@ fs.mkdirSync('migration-work', { recursive: true })
 const diagnosticPath = 'migration-work/service-verification.txt'
 fs.writeFileSync(
   diagnosticPath,
-  `# Migración de Storage\nFecha UTC: ${new Date().toISOString()}\n`,
+  `# Migración de Storage\nFecha UTC: ${new Date().toISOString()}\nModo: legacy service_role JWT\n`,
 )
 
 function diagnostic(message, level = 'info') {
