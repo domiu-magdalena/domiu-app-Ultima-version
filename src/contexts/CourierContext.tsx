@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { orderService, type OrderData, type OrderStatus } from '@/services/orders';
 import { assignmentService, type CourierDriver, type AssignmentRequest } from '@/services/assignment';
+import { operationsService } from '@/services/operations';
 import type { DriverStatus } from '@/types/database';
 import { getBrowserClient } from '@/lib/db/supabase';
 
@@ -53,133 +54,113 @@ export function CourierProvider({
   const [loading, setLoading] = useState(true);
   const [pendingRequests, setPendingRequests] = useState<AssignmentRequest[]>([]);
 
+  const clearOperationalLists = useCallback(() => {
+    setAvailableOrders([]);
+    setActiveDeliveries([]);
+    setDeliveryHistory([]);
+    setEarnings([]);
+    setPendingRequests([]);
+  }, []);
+
   const refresh = useCallback(async () => {
     if (!courierId) {
+      setCourier(null);
+      clearOperationalLists();
       setLoading(false);
       return;
     }
 
     try {
-      const [c, avail, courierOrders, reqs] = await Promise.all([
+      const [courierProfile, shift] = await Promise.all([
         assignmentService.getCourierById(courierId),
+        operationsService.getCourierShift(courierId),
+      ]);
+
+      setCourier(courierProfile ?? null);
+
+      // Una jornada cerrada no debe heredar pedidos, historial ni solicitudes de jornadas anteriores.
+      if (!shift.isOpen || !shift.startedAt) {
+        clearOperationalLists();
+        return;
+      }
+
+      const [available, courierOrders, requests] = await Promise.all([
         orderService.getAvailableOrders(),
         orderService.getCourierOrders(courierId),
         assignmentService.getPendingRequests(courierId),
       ]);
 
-      setCourier(c ?? null);
-      setAvailableOrders(avail);
-      setActiveDeliveries(courierOrders.filter((o) => !['delivered', 'cancelled'].includes(o.status)));
-      setDeliveryHistory(courierOrders.filter((o) => ['delivered', 'cancelled'].includes(o.status)));
-      setPendingRequests(reqs);
+      const shiftStartedAt = new Date(shift.startedAt).getTime();
+      const belongsToCurrentShift = (value: string) => {
+        const timestamp = new Date(value).getTime();
+        return Number.isFinite(timestamp) && timestamp >= shiftStartedAt;
+      };
 
-      const earned: DeliveryEarning[] = courierOrders
-        .filter((o) => o.status === 'delivered')
-        .map((o) => ({
-          id: `earn-${o.id}`,
-          order_id: o.id,
-          order_number: o.order_number,
+      const shiftOrders = courierOrders.filter((order) => belongsToCurrentShift(order.updated_at));
+      const shiftRequests = requests.filter((request) => belongsToCurrentShift(request.created_at));
+
+      setAvailableOrders(available);
+      setActiveDeliveries(shiftOrders.filter((order) => !['delivered', 'cancelled'].includes(order.status)));
+      setDeliveryHistory(shiftOrders.filter((order) => ['delivered', 'cancelled'].includes(order.status)));
+      setPendingRequests(shiftRequests);
+
+      const earned: DeliveryEarning[] = shiftOrders
+        .filter((order) => order.status === 'delivered')
+        .map((order) => ({
+          id: `earn-${order.id}`,
+          order_id: order.id,
+          order_number: order.order_number,
           amount: assignmentService.calculateEarnings(3.0, 2.5),
-          date: o.updated_at,
-          business_name: o.business_name,
+          date: order.updated_at,
+          business_name: order.business_name,
         }));
       setEarnings(earned);
-    } catch (err) {
-      console.error('[CourierContext] refresh error:', err);
+    } catch (error) {
+      console.error('[CourierContext] refresh error:', error);
+      clearOperationalLists();
     } finally {
       setLoading(false);
     }
-  }, [courierId]);
+  }, [clearOperationalLists, courierId]);
 
   useEffect(() => {
-    refresh(); // eslint-disable-line react-hooks/set-state-in-effect
-  }, [courierId]); // eslint-disable-line react-hooks/exhaustive-deps
+    void refresh();
+  }, [refresh]);
 
-  // Realtime subscription
   useEffect(() => {
-    const unsub = orderService.subscribe((order) => {
-      setActiveDeliveries((prev) => {
-        const exists = prev.findIndex((o) => o.id === order.id);
-        if (exists >= 0) {
-          const next = [...prev];
-          next[exists] = order;
-          return next;
-        }
-        if (order.courier_id === courierId && !['delivered', 'cancelled'].includes(order.status)) {
-          return [...prev, order];
-        }
-        return prev;
-      });
-
-      setDeliveryHistory((prev) => {
-        if (['delivered', 'cancelled'].includes(order.status) && order.courier_id === courierId) {
-          const exists = prev.findIndex((o) => o.id === order.id);
-          if (exists >= 0) {
-            const next = [...prev];
-            next[exists] = order;
-            return next;
-          }
-          return [...prev, order];
-        }
-        return prev;
-      });
-
-      setAvailableOrders((prev) => {
-        const isAvailable =
-          (['confirmed', 'ready'].includes(order.status) && !order.courier_id) ||
-          (order.status === 'pending' && order.order_type === 'manual_delivery' && !order.courier_id);
-        if (isAvailable) {
-          const exists = prev.findIndex((o) => o.id === order.id);
-          if (exists >= 0) {
-            const next = [...prev];
-            next[exists] = order;
-            return next;
-          }
-          return [order, ...prev];
-        }
-        if (order.courier_id || ['delivered', 'cancelled'].includes(order.status)) {
-          return prev.filter((o) => o.id !== order.id);
-        }
-        return prev;
-      });
+    const unsubscribeOrder = orderService.subscribe(() => {
+      void refresh();
     });
 
-    const unsubReq = assignmentService.subscribeRequests((req) => {
-      if (req.courier_id === courierId) {
-        setPendingRequests((prev) => {
-          const exists = prev.findIndex((r) => r.id === req.id);
-          if (exists >= 0) {
-            const next = [...prev];
-            next[exists] = req;
-            return next;
-          }
-          return [...prev, req];
-        });
-      }
+    const unsubscribeRequest = assignmentService.subscribeRequests((request) => {
+      if (request.courier_id === courierId) void refresh();
     });
 
-    // Only create Supabase Realtime channel when we have a valid courierId
     let channel: ReturnType<ReturnType<typeof getBrowserClient>['channel']> | null = null;
 
     if (courierId) {
       const supabase = getBrowserClient();
-      const channelName = `courier-orders-realtime-${courierId}`;
-
       channel = supabase
-        .channel(channelName)
-        .on('postgres_changes',
+        .channel(`courier-orders-realtime-${courierId}`)
+        .on(
+          'postgres_changes',
           { event: '*', schema: 'public', table: 'orders' },
-          () => { refresh(); }
+          () => void refresh(),
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'courier_shifts', filter: `courier_id=eq.${courierId}` },
+          () => void refresh(),
         )
         .subscribe();
     }
 
     return () => {
-      unsub();
-      unsubReq();
+      unsubscribeOrder();
+      unsubscribeRequest();
       if (channel) {
         const supabase = getBrowserClient();
-        supabase.removeChannel(channel);
+        void supabase.removeChannel(channel);
       }
     };
   }, [courierId, refresh]);
@@ -211,8 +192,8 @@ export function CourierProvider({
   const todayEarnings = useMemo(
     () =>
       earnings
-        .filter((e) => new Date(e.date).toDateString() === new Date().toDateString())
-        .reduce((sum, e) => sum + e.amount, 0),
+        .filter((earning) => new Date(earning.date).toDateString() === new Date().toDateString())
+        .reduce((sum, earning) => sum + earning.amount, 0),
     [earnings],
   );
 
@@ -221,18 +202,25 @@ export function CourierProvider({
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - now.getDay());
     return earnings
-      .filter((e) => new Date(e.date) >= weekStart)
-      .reduce((sum, e) => sum + e.amount, 0);
+      .filter((earning) => new Date(earning.date) >= weekStart)
+      .reduce((sum, earning) => sum + earning.amount, 0);
   }, [earnings]);
 
   const monthEarnings = useMemo(() => {
     const now = new Date();
     return earnings
-      .filter((e) => new Date(e.date).getMonth() === now.getMonth() && new Date(e.date).getFullYear() === now.getFullYear())
-      .reduce((sum, e) => sum + e.amount, 0);
+      .filter(
+        (earning) =>
+          new Date(earning.date).getMonth() === now.getMonth() &&
+          new Date(earning.date).getFullYear() === now.getFullYear(),
+      )
+      .reduce((sum, earning) => sum + earning.amount, 0);
   }, [earnings]);
 
-  const totalEarnings = useMemo(() => earnings.reduce((sum, e) => sum + e.amount, 0), [earnings]);
+  const totalEarnings = useMemo(
+    () => earnings.reduce((sum, earning) => sum + earning.amount, 0),
+    [earnings],
+  );
 
   const value = useMemo(
     () => ({
@@ -279,7 +267,7 @@ export function CourierProvider({
 }
 
 export function useCourier(): CourierContextValue {
-  const ctx = useContext(CourierContext);
-  if (!ctx) throw new Error('useCourier must be used within a CourierProvider');
-  return ctx;
+  const context = useContext(CourierContext);
+  if (!context) throw new Error('useCourier must be used within a CourierProvider');
+  return context;
 }
