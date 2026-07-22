@@ -18,7 +18,7 @@ fs.mkdirSync('migration-work', { recursive: true })
 const diagnosticPath = 'migration-work/service-verification.txt'
 fs.writeFileSync(
   diagnosticPath,
-  `# Migración de Storage\nFecha UTC: ${new Date().toISOString()}\nDestino: Supabase S3\nRed: IPv4 preferido\n`,
+  `# Migración de Storage\nFecha UTC: ${new Date().toISOString()}\nDestino: Supabase S3\nRed: IPv4 preferido\nChecksums: solo cuando sean obligatorios\n`,
 )
 
 function diagnostic(message, level = 'info') {
@@ -31,7 +31,10 @@ function diagnostic(message, level = 'info') {
 function formatError(error) {
   if (!(error instanceof Error)) return String(error)
   const cause = error.cause instanceof Error ? ` | cause=${error.cause.message}` : ''
-  return `${error.stack ?? error.message}${cause}`
+  const metadata = error.$metadata
+    ? ` | status=${error.$metadata.httpStatusCode ?? 'unknown'} requestId=${error.$metadata.requestId ?? 'unknown'}`
+    : ''
+  return `${error.stack ?? error.message}${cause}${metadata}`
 }
 
 async function withRetry(label, operation, attempts = 4) {
@@ -67,6 +70,8 @@ try {
     forcePathStyle: true,
     region: process.env.TARGET_S3_REGION,
     endpoint: process.env.TARGET_S3_ENDPOINT,
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
     credentials: {
       accessKeyId: process.env.TARGET_S3_ACCESS_KEY_ID,
       secretAccessKey: process.env.TARGET_S3_SECRET_ACCESS_KEY,
@@ -131,6 +136,7 @@ async function copyFile(bucket, file) {
         Bucket: bucket,
         Key: file.path,
         Body: bytes,
+        ContentLength: bytes.length,
         ContentType: contentType,
         CacheControl: `max-age=${cacheControl}`,
       }),
