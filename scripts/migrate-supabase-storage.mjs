@@ -37,6 +37,39 @@ function formatError(error) {
   return `${error.stack ?? error.message}${cause}${metadata}`
 }
 
+async function readResponseBody(body) {
+  if (!body) return ''
+  try {
+    if (typeof body.transformToString === 'function') return await body.transformToString()
+    if (typeof body.text === 'function') return await body.text()
+    if (typeof body[Symbol.asyncIterator] === 'function') {
+      const chunks = []
+      for await (const chunk of body) chunks.push(Buffer.from(chunk))
+      return Buffer.concat(chunks).toString('utf8')
+    }
+  } catch {
+    return ''
+  }
+  return ''
+}
+
+async function normalizeS3Error(error) {
+  if (!(error instanceof Error)) return new Error(String(error))
+
+  const response = error.$response
+  const status = response?.statusCode ?? error.$metadata?.httpStatusCode ?? 'unknown'
+  const contentType = response?.headers?.['content-type'] ?? 'unknown'
+  const body = (await readResponseBody(response?.body)).slice(0, 1200)
+  const bodyDetail = body ? ` | response=${body}` : ''
+
+  const normalized = new Error(
+    `S3 request failed: status=${status} content-type=${contentType}${bodyDetail}`,
+  )
+  normalized.cause = error
+  normalized.$metadata = error.$metadata
+  return normalized
+}
+
 async function withRetry(label, operation, attempts = 4) {
   let lastError
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -119,6 +152,23 @@ async function listAllFiles(bucket, path = '') {
   return files
 }
 
+async function putObject(bucket, filePath, bytes, contentType, cacheControl) {
+  try {
+    return await targetS3.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: filePath,
+        Body: bytes,
+        ContentLength: bytes.length,
+        ContentType: contentType,
+        CacheControl: `max-age=${cacheControl}`,
+      }),
+    )
+  } catch (error) {
+    throw await normalizeS3Error(error)
+  }
+}
+
 async function copyFile(bucket, file) {
   const { data, error: downloadError } = await withRetry(
     `Download ${bucket}/${file.path}`,
@@ -131,16 +181,7 @@ async function copyFile(bucket, file) {
   const cacheControl = file.metadata?.cacheControl ?? '3600'
 
   await withRetry(`S3 PutObject ${bucket}/${file.path}`, () =>
-    targetS3.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: file.path,
-        Body: bytes,
-        ContentLength: bytes.length,
-        ContentType: contentType,
-        CacheControl: `max-age=${cacheControl}`,
-      }),
-    ),
+    putObject(bucket, file.path, bytes, contentType, cacheControl),
   )
 }
 
