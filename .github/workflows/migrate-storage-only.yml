@@ -41,6 +41,7 @@ jobs:
           test -n "$TARGET_S3_ACCESS_KEY_ID"
           test -n "$TARGET_S3_SECRET_ACCESS_KEY"
 
+      # Esta ejecución copia únicamente los archivos físicos; no toca la base, Auth ni Vercel.
       - name: Copiar archivos físicos de Storage
         env:
           SOURCE_SUPABASE_URL: https://vuwaqmwgvldqmmgkpyjh.supabase.co
