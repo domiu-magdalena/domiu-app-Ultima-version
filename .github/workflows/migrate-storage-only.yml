@@ -1,0 +1,56 @@
+name: Migrar Storage Supabase
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/workflows/migrate-storage-only.yml'
+      - 'scripts/migrate-supabase-storage.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  migrate-storage:
+    if: github.head_ref == 'chore/migrate-supabase-free-20260722'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Validar secretos
+        env:
+          SOURCE_SERVICE_ROLE_KEY: ${{ secrets.SOURCE_SERVICE_ROLE_KEY }}
+          TARGET_SERVICE_ROLE_KEY: ${{ secrets.TARGET_SERVICE_ROLE_KEY }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$SOURCE_SERVICE_ROLE_KEY"
+          test -n "$TARGET_SERVICE_ROLE_KEY"
+
+      - name: Copiar archivos físicos de Storage
+        env:
+          SOURCE_SUPABASE_URL: https://vuwaqmwgvldqmmgkpyjh.supabase.co
+          TARGET_SUPABASE_URL: https://muikwpyjaojeolwcuvqf.supabase.co
+          SOURCE_SERVICE_ROLE_KEY: ${{ secrets.SOURCE_SERVICE_ROLE_KEY }}
+          TARGET_SERVICE_ROLE_KEY: ${{ secrets.TARGET_SERVICE_ROLE_KEY }}
+          NODE_OPTIONS: --dns-result-order=ipv4first
+        run: node scripts/migrate-supabase-storage.mjs
+
+      - name: Publicar diagnóstico no sensible
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-storage-only-summary
+          path: migration-work/service-verification.txt
+          if-no-files-found: ignore
+          retention-days: 3
