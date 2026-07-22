@@ -54,7 +54,6 @@ async function withRetry(label, operation, attempts = 4) {
 }
 
 let source
-let target
 
 try {
   for (const key of required) {
@@ -75,11 +74,7 @@ try {
     process.env.SOURCE_SUPABASE_URL,
     process.env.SOURCE_SERVICE_ROLE_KEY,
   )
-  target = createStorageClient(
-    process.env.TARGET_SUPABASE_URL,
-    process.env.TARGET_SERVICE_ROLE_KEY,
-  )
-  diagnostic('Storage clients initialized')
+  diagnostic('Source Storage client initialized; target uploads will use raw HTTP')
 } catch (error) {
   diagnostic(error instanceof Error ? error.stack ?? error.message : String(error), 'error')
   process.exit(1)
@@ -120,6 +115,35 @@ async function listAllFiles(bucket, path = '') {
   return files
 }
 
+function encodeStoragePath(value) {
+  return value
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
+}
+
+async function uploadRaw(bucket, path, body, contentType, cacheControl) {
+  const endpoint = `${process.env.TARGET_SUPABASE_URL}/storage/v1/object/${encodeURIComponent(bucket)}/${encodeStoragePath(path)}`
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      apikey: process.env.TARGET_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.TARGET_SERVICE_ROLE_KEY}`,
+      'Content-Type': contentType || 'application/octet-stream',
+      'Cache-Control': `max-age=${cacheControl || '3600'}`,
+      'x-upsert': 'true',
+    },
+    body,
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(
+      `HTTP ${response.status} ${response.statusText}${text ? `: ${text.slice(0, 500)}` : ''}`,
+    )
+  }
+}
+
 async function copyFile(bucket, file) {
   const { data, error: downloadError } = await withRetry(
     `Download ${bucket}/${file.path}`,
@@ -129,16 +153,13 @@ async function copyFile(bucket, file) {
     throw new Error(`Download ${bucket}/${file.path}: ${downloadError.message}`)
   }
 
-  const { error: uploadError } = await withRetry(`Upload ${bucket}/${file.path}`, () =>
-    target.from(bucket).upload(file.path, data, {
-      upsert: true,
-      contentType: file.metadata?.mimetype ?? data.type ?? undefined,
-      cacheControl: file.metadata?.cacheControl ?? '3600',
-    }),
+  const bytes = Buffer.from(await data.arrayBuffer())
+  const contentType = file.metadata?.mimetype ?? data.type ?? 'application/octet-stream'
+  const cacheControl = file.metadata?.cacheControl ?? '3600'
+
+  await withRetry(`Upload ${bucket}/${file.path}`, () =>
+    uploadRaw(bucket, file.path, bytes, contentType, cacheControl),
   )
-  if (uploadError) {
-    throw new Error(`Upload ${bucket}/${file.path}: ${uploadError.message}`)
-  }
 }
 
 async function runPool(items, worker, concurrency) {
