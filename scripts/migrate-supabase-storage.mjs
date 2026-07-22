@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 
 const required = [
@@ -11,6 +12,20 @@ for (const key of required) {
   if (!process.env[key]) {
     throw new Error(`Missing required environment variable: ${key}`)
   }
+}
+
+fs.mkdirSync('migration-work', { recursive: true })
+const diagnosticPath = 'migration-work/service-verification.txt'
+fs.writeFileSync(
+  diagnosticPath,
+  `# Migración de Storage\nFecha UTC: ${new Date().toISOString()}\n`,
+)
+
+function diagnostic(message, level = 'info') {
+  const safeMessage = String(message)
+  fs.appendFileSync(diagnosticPath, `${level.toUpperCase()}: ${safeMessage}\n`)
+  if (level === 'error') console.error(safeMessage)
+  else console.log(safeMessage)
 }
 
 const source = createClient(
@@ -64,7 +79,11 @@ async function ensureBucket(bucket) {
     allowedMimeTypes: bucket.allowed_mime_types ?? undefined,
   }
 
-  const { data: existing } = await target.storage.getBucket(bucket.id)
+  const { data: existing, error: getError } = await target.storage.getBucket(bucket.id)
+  if (getError && !String(getError.message).toLowerCase().includes('not found')) {
+    throw new Error(`Get bucket ${bucket.id}: ${getError.message}`)
+  }
+
   if (!existing) {
     const { error } = await target.storage.createBucket(bucket.id, options)
     if (error) throw new Error(`Create bucket ${bucket.id}: ${error.message}`)
@@ -106,7 +125,7 @@ async function runPool(items, worker, concurrency) {
         await worker(items[index], index)
       } catch (error) {
         errors.push(error)
-        console.error(error instanceof Error ? error.message : String(error))
+        diagnostic(error instanceof Error ? error.message : String(error), 'error')
       }
     }
   }
@@ -117,25 +136,32 @@ async function runPool(items, worker, concurrency) {
   }
 }
 
-const { data: buckets, error: bucketsError } = await source.storage.listBuckets()
-if (bucketsError) throw new Error(`List buckets: ${bucketsError.message}`)
+try {
+  const { data: buckets, error: bucketsError } = await source.storage.listBuckets()
+  if (bucketsError) throw new Error(`List buckets: ${bucketsError.message}`)
 
-let copied = 0
-for (const bucket of buckets ?? []) {
-  console.log(`Preparing bucket: ${bucket.id}`)
-  await ensureBucket(bucket)
-  const files = await listAllFiles(bucket.id)
-  console.log(`Copying ${files.length} objects from ${bucket.id}`)
+  diagnostic(`Buckets found: ${(buckets ?? []).length}`)
 
-  await runPool(
-    files,
-    async (file) => {
-      await copyFile(bucket.id, file)
-      copied += 1
-      if (copied % 25 === 0) console.log(`Copied ${copied} objects`)
-    },
-    CONCURRENCY,
-  )
+  let copied = 0
+  for (const bucket of buckets ?? []) {
+    diagnostic(`Preparing bucket: ${bucket.id}`)
+    await ensureBucket(bucket)
+    const files = await listAllFiles(bucket.id)
+    diagnostic(`Objects discovered in ${bucket.id}: ${files.length}`)
+
+    await runPool(
+      files,
+      async (file) => {
+        await copyFile(bucket.id, file)
+        copied += 1
+        if (copied % 25 === 0) diagnostic(`Objects copied: ${copied}`)
+      },
+      CONCURRENCY,
+    )
+  }
+
+  diagnostic(`Storage migration completed. Objects copied: ${copied}`)
+} catch (error) {
+  diagnostic(error instanceof Error ? error.stack ?? error.message : String(error), 'error')
+  process.exit(1)
 }
-
-console.log(`Storage migration completed. Objects copied: ${copied}`)
