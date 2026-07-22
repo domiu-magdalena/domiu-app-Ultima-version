@@ -8,12 +8,6 @@ const required = [
   'TARGET_SERVICE_ROLE_KEY',
 ]
 
-for (const key of required) {
-  if (!process.env[key]) {
-    throw new Error(`Missing required environment variable: ${key}`)
-  }
-}
-
 fs.mkdirSync('migration-work', { recursive: true })
 const diagnosticPath = 'migration-work/service-verification.txt'
 fs.writeFileSync(
@@ -28,16 +22,46 @@ function diagnostic(message, level = 'info') {
   else console.log(safeMessage)
 }
 
-const source = createClient(
-  process.env.SOURCE_SUPABASE_URL,
-  process.env.SOURCE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false, autoRefreshToken: false } },
-)
-const target = createClient(
-  process.env.TARGET_SUPABASE_URL,
-  process.env.TARGET_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false, autoRefreshToken: false } },
-)
+function keyKind(value) {
+  if (value.startsWith('sb_secret_')) return 'sb_secret'
+  if (value.split('.').length === 3) return 'legacy_jwt'
+  return 'unknown'
+}
+
+let source
+let target
+
+try {
+  for (const key of required) {
+    if (!process.env[key]) {
+      throw new Error(`Missing required environment variable: ${key}`)
+    }
+  }
+
+  diagnostic(`Source URL host: ${new URL(process.env.SOURCE_SUPABASE_URL).host}`)
+  diagnostic(`Target URL host: ${new URL(process.env.TARGET_SUPABASE_URL).host}`)
+  diagnostic(
+    `Source key type: ${keyKind(process.env.SOURCE_SERVICE_ROLE_KEY)}; length: ${process.env.SOURCE_SERVICE_ROLE_KEY.length}`,
+  )
+  diagnostic(
+    `Target key type: ${keyKind(process.env.TARGET_SERVICE_ROLE_KEY)}; length: ${process.env.TARGET_SERVICE_ROLE_KEY.length}`,
+  )
+
+  source = createClient(
+    process.env.SOURCE_SUPABASE_URL,
+    process.env.SOURCE_SERVICE_ROLE_KEY,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  )
+  target = createClient(
+    process.env.TARGET_SUPABASE_URL,
+    process.env.TARGET_SERVICE_ROLE_KEY,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  )
+  diagnostic('Supabase clients initialized')
+} catch (error) {
+  diagnostic(error instanceof Error ? error.stack ?? error.message : String(error), 'error')
+  process.exit(1)
+}
 
 const PAGE_SIZE = 1000
 const CONCURRENCY = 4
