@@ -1,5 +1,8 @@
+import dns from 'node:dns'
 import fs from 'node:fs'
 import { StorageClient } from '@supabase/storage-js'
+
+dns.setDefaultResultOrder('ipv4first')
 
 const required = [
   'SOURCE_SUPABASE_URL',
@@ -12,7 +15,7 @@ fs.mkdirSync('migration-work', { recursive: true })
 const diagnosticPath = 'migration-work/service-verification.txt'
 fs.writeFileSync(
   diagnosticPath,
-  `# Migración de Storage\nFecha UTC: ${new Date().toISOString()}\nModo: legacy service_role JWT\n`,
+  `# Migración de Storage\nFecha UTC: ${new Date().toISOString()}\nModo: legacy service_role JWT\nRed: IPv4 preferido\n`,
 )
 
 function diagnostic(message, level = 'info') {
@@ -20,6 +23,12 @@ function diagnostic(message, level = 'info') {
   fs.appendFileSync(diagnosticPath, `${level.toUpperCase()}: ${safeMessage}\n`)
   if (level === 'error') console.error(safeMessage)
   else console.log(safeMessage)
+}
+
+function formatError(error) {
+  if (!(error instanceof Error)) return String(error)
+  const cause = error.cause instanceof Error ? ` | cause=${error.cause.message}` : ''
+  return `${error.stack ?? error.message}${cause}`
 }
 
 function assertLegacyServiceRole(name, value) {
@@ -76,7 +85,7 @@ try {
   )
   diagnostic('Source Storage client initialized; target uploads will use raw HTTP')
 } catch (error) {
-  diagnostic(error instanceof Error ? error.stack ?? error.message : String(error), 'error')
+  diagnostic(formatError(error), 'error')
   process.exit(1)
 }
 
@@ -174,7 +183,7 @@ async function runPool(items, worker, concurrency) {
         await worker(items[index], index)
       } catch (error) {
         errors.push(error)
-        diagnostic(error instanceof Error ? error.message : String(error), 'error')
+        diagnostic(formatError(error), 'error')
       }
     }
   }
@@ -213,6 +222,6 @@ try {
 
   diagnostic(`Storage migration completed. Objects copied: ${copied}`)
 } catch (error) {
-  diagnostic(error instanceof Error ? error.stack ?? error.message : String(error), 'error')
+  diagnostic(formatError(error), 'error')
   process.exit(1)
 }
