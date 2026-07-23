@@ -11,16 +11,40 @@ function getAdminClient() {
   });
 }
 
+async function getActiveTurnStart(supabase: ReturnType<typeof getAdminClient>) {
+  const { data, error } = await supabase
+    .from("turnos")
+    .select("id, opened_at, created_at")
+    .eq("activo", true)
+    .order("opened_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: data.id,
+    startedAt: data.opened_at || data.created_at,
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const supabase = getAdminClient();
     const url = new URL(req.url);
     const estado = url.searchParams.get("estado");
+    const scope = url.searchParams.get("scope") || "current";
 
     let query = supabase
       .from("pedidos_cliente")
       .select("*, negocios!inner(nombre), repartidores!left(nombre, vehiculo, telefono)")
       .order("created_at", { ascending: false });
+
+    if (scope !== "history") {
+      const activeTurn = await getActiveTurnStart(supabase);
+      if (!activeTurn?.startedAt) return NextResponse.json([]);
+      query = query.gte("created_at", activeTurn.startedAt);
+    }
 
     if (estado) query = query.eq("estado", estado);
 
