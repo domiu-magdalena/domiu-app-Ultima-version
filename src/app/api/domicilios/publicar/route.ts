@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     const { data: pedido, error: pedidoError } = await supabase
       .from("pedidos_cliente")
-      .select("codigo, cliente_nombre, cliente_telefono, cliente_direccion, domicilio, nota, negocios(nombre, direccion, latitud, longitud)")
+      .select("codigo, cliente_nombre, cliente_telefono, cliente_direccion, domicilio, negocios(nombre, direccion, latitud, longitud)")
       .eq("id", pedido_cliente_id)
       .single();
     if (pedidoError || !pedido) {
@@ -100,7 +100,6 @@ export async function POST(req: Request) {
       cliente_telefono: pedido.cliente_telefono,
       negocio_nombre: negocio.nombre || "Negocio",
       pedido_codigo: pedido.codigo,
-      nota: pedido.nota || "",
       origen_lat: originCoords?.lat ?? null,
       origen_lng: originCoords?.lng ?? null,
       estado: "disponible",
