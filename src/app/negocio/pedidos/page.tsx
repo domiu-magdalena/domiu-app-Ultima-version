@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { businessService, type BusinessOrder } from '@/services/business';
+import { updateBusinessOrderStatusAction } from '@/app/actions/business-order-status';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { OrderCustomizationDetails } from '@/components/business/order-customization-details';
 import { BusinessPaymentVerification } from '@/components/business/BusinessPaymentVerification';
@@ -155,7 +156,8 @@ export default function NegocioPedidos() {
   const changeStatus = async (order: BusinessOrder, status: string) => {
     setUpdating(order.id);
     try {
-      await businessService.updateOrderStatus(order.id, status);
+      const result = await updateBusinessOrderStatusAction(order.id, status);
+      if (!result.success) throw new Error(result.error);
       await loadOrders();
       if (status === 'ready') {
         toast.success(`Pedido #${order.order_number} publicado para los repartidores`);

@@ -1,0 +1,99 @@
+name: Dispatch Shift Role CI
+
+on:
+  push:
+    branches:
+      - fix/dispatch-shift-role-integrity-20260722
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dispatch-shift-role-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-key
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+      SUPER_ADMIN_EMAIL: domiumagdalena@gmail.com
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate lint report
+        id: lint
+        continue-on-error: true
+        run: >-
+          npx eslint
+          src/app/actions/admin-user-roles.ts
+          src/app/actions/business-order-status.ts
+          src/app/admin/usuarios/page.tsx
+          src/app/api/profile/route.ts
+          src/app/negocio/pedidos/page.tsx
+          src/contexts/CourierContext.tsx
+          src/lib/auth/supabase.ts
+          src/test/dispatch-shift-role-integrity.test.ts
+          --format json --output-file lint-report.json
+
+      - name: Run regression tests and capture output
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          npx vitest run src/test/dispatch-shift-role-integrity.test.ts > test-report.txt 2>&1
+          status=$?
+          echo "$status" > test-status.txt
+          exit 0
+
+      - name: Run production build and capture output
+        id: build
+        shell: bash
+        run: |
+          set +e
+          npm run build > build-report.txt 2>&1
+          status=$?
+          echo "$status" > build-status.txt
+          exit 0
+
+      - name: Upload validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-shift-role-validation
+          path: |
+            lint-report.json
+            test-report.txt
+            test-status.txt
+            build-report.txt
+            build-status.txt
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Enforce validation result
+        shell: bash
+        run: |
+          test_status=$(cat test-status.txt)
+          build_status=$(cat build-status.txt)
+          if [ "${{ steps.lint.outcome }}" = "failure" ] || [ "$test_status" -ne 0 ] || [ "$build_status" -ne 0 ]; then
+            echo "Validation failed: lint=${{ steps.lint.outcome }}, tests=$test_status, build=$build_status"
+            exit 1
+          fi

@@ -22,12 +22,26 @@ export class SupabaseAuthService {
   }> {
     logger.debug('[Auth] register start', { email: credentials.email, role: credentials.role });
     try {
+      // El autorregistro público es exclusivamente para clientes. Los demás roles
+      // se asignan desde el panel administrativo con validación y perfil operativo.
+      if (credentials.role !== 'customer') {
+        return {
+          user: null,
+          profile: null,
+          error: 'El registro público solo puede crear cuentas de cliente. El rol seleccionado debe asignarse desde Administración.',
+        };
+      }
+
       const supabase = getBrowserClient();
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: credentials.email,
         password: credentials.password,
         options: {
-          data: { firstName: credentials.firstName, lastName: credentials.lastName },
+          data: {
+            firstName: credentials.firstName,
+            lastName: credentials.lastName,
+            role: 'customer',
+          },
         },
       });
 
@@ -53,7 +67,7 @@ export class SupabaseAuthService {
         };
       }
 
-      logger.debug('[Auth] register creating profile');
+      logger.debug('[Auth] register creating customer profile');
 
       const profileRes = await fetch('/api/profile', {
         method: 'POST',
@@ -77,7 +91,11 @@ export class SupabaseAuthService {
       }
 
       const { profile } = await profileRes.json();
-      logger.debug('[Auth] register success with profile');
+      if (profile?.role !== 'customer') {
+        return { user: null, profile: null, error: 'La cuenta no confirmó el rol de cliente esperado.' };
+      }
+
+      logger.debug('[Auth] register success with customer profile');
       return { user: authData.user, profile, error: null };
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Error desconocido';
