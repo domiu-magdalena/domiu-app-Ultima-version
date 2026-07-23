@@ -386,23 +386,31 @@ export async function createManualDeliveryAction(input: CreateManualDeliveryInpu
     });
 
     if (business.owner_id !== actor.auth.user.id) {
-      await supabase.rpc('create_notification', {
-        p_recipient_id: business.owner_id,
-        p_notification_type: 'new_order',
-        p_title: 'Nuevo domicilio manual',
-        p_message: `Se creó el domicilio #${orderNumber}`,
-        p_order_id: order.id,
-      }).catch(() => undefined);
+      try {
+        await supabase.rpc('create_notification', {
+          p_recipient_id: business.owner_id,
+          p_notification_type: 'new_order',
+          p_title: 'Nuevo domicilio manual',
+          p_message: `Se creó el domicilio #${orderNumber}`,
+          p_order_id: order.id,
+        });
+      } catch {
+        // La creación del domicilio no depende de una notificación secundaria.
+      }
     }
 
     if (courierId) {
-      await supabase.rpc('create_notification', {
-        p_recipient_id: courierId,
-        p_notification_type: 'order_assigned',
-        p_title: 'Domicilio asignado',
-        p_message: `Se te asignó el domicilio #${orderNumber}`,
-        p_order_id: order.id,
-      }).catch(() => undefined);
+      try {
+        await supabase.rpc('create_notification', {
+          p_recipient_id: courierId,
+          p_notification_type: 'order_assigned',
+          p_title: 'Domicilio asignado',
+          p_message: `Se te asignó el domicilio #${orderNumber}`,
+          p_order_id: order.id,
+        });
+      } catch {
+        // La creación del domicilio no depende de una notificación secundaria.
+      }
     }
 
     await serverAudit.logAction(
