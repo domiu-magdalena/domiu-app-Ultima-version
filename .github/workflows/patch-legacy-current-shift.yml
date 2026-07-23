@@ -1,0 +1,242 @@
+name: Patch Legacy Current Shift
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/patch-legacy-current-shift.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: placeholder-maps-key
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch legacy rider queries
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          page_path = Path('src/app/repartidor/page.tsx')
+          page = page_path.read_text(encoding='utf-8')
+
+          state_old = '  const [activeTurnoId, setActiveTurnoId] = useState<string | null>(null);'
+          state_new = '''  const [activeTurnoId, setActiveTurnoId] = useState<string | null>(null);
+            const [activeTurnoStartedAt, setActiveTurnoStartedAt] = useState<string | null>(null);'''.replace('            const', '  const')
+          if state_old not in page:
+              raise SystemExit('No se encontró el estado activeTurnoId esperado')
+          page = page.replace(state_old, state_new, 1)
+
+          start_marker = '        // Obtener turno activo\n'
+          end_marker = '      }\n      const { data: locs }'
+          start = page.index(start_marker)
+          end = page.index(end_marker, start)
+
+          replacement = '''        // Obtener el turno operativo más reciente. Sin turno activo, el panel debe quedar vacío.
+            const { data: turnosActivos } = await sb
+              .from("turnos")
+              .select("id, created_at")
+              .eq("activo", true)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            const turnoActivo = turnosActivos?.[0] || null;
+            const turnoId = turnoActivo?.id || null;
+            const turnoStartedAt = turnoActivo?.created_at || null;
+            setActiveTurnoId(turnoId);
+            setActiveTurnoStartedAt(turnoStartedAt);
+
+            if (!turnoId || !turnoStartedAt) {
+              setPedidos([]);
+              setPcPedidos([]);
+            } else {
+              // Pedidos manuales: únicamente los vinculados al turno actual.
+              const { data: peds } = await sb
+                .from("pedidos")
+                .select("*")
+                .eq("repartidor_id", rider.id)
+                .eq("turno_id", turnoId)
+                .order("created_at", { ascending: false });
+              setPedidos(peds || []);
+
+              // Marketplace/InDriver: la tabla legacy no tiene turno_id, por eso se aísla
+              // por la fecha exacta de apertura del turno activo.
+              const { data: pc } = await sb
+                .from("pedidos_cliente")
+                .select("id, codigo, cliente_nombre, cliente_telefono, cliente_direccion, total, domicilio, estado, created_at, nota")
+                .eq("repartidor_id", rider.id)
+                .gte("created_at", turnoStartedAt)
+                .order("created_at", { ascending: false });
+              setPcPedidos(pc || []);
+            }
+'''.replace('            ', '        ', 1)
+          page = page[:start] + replacement + page[end:]
+
+          marketplace_old = '<RiderMarketplace riderId={riderData.id} riderName={riderData.nombre} />'
+          marketplace_new = '<RiderMarketplace riderId={riderData.id} riderName={riderData.nombre} turnoStartedAt={activeTurnoStartedAt} />'
+          if marketplace_old not in page:
+              raise SystemExit('No se encontró la llamada de RiderMarketplace esperada')
+          page = page.replace(marketplace_old, marketplace_new, 1)
+          page_path.write_text(page, encoding='utf-8')
+
+          marketplace_path = Path('src/components/RiderMarketplace.tsx')
+          marketplace = marketplace_path.read_text(encoding='utf-8')
+          props_old = '''interface Props {
+            riderId: string;
+            riderName: string;
+          }
+
+          export default function RiderMarketplace({ riderId, riderName }: Props) {'''.replace('          ', '')
+          props_new = '''interface Props {
+            riderId: string;
+            riderName: string;
+            turnoStartedAt: string | null;
+          }
+
+          export default function RiderMarketplace({ riderId, riderName, turnoStartedAt }: Props) {'''.replace('          ', '')
+          if props_old not in marketplace:
+              raise SystemExit('No se encontró la interfaz de RiderMarketplace esperada')
+          marketplace = marketplace.replace(props_old, props_new, 1)
+
+          fetch_old = '''  const fetchPedidos = useCallback(async () => {
+            if (!sb || !riderId) return;
+            const { data } = await sb
+              .from("pedidos_cliente")
+              .select("*, negocios(nombre)")
+              .eq("repartidor_id", riderId)
+              .order("created_at", { ascending: false });
+            if (data) setPedidos(data);
+            setLoading(false);
+          }, [sb, riderId]);'''.replace('          ', '')
+          fetch_new = '''  const fetchPedidos = useCallback(async () => {
+            if (!sb || !riderId || !turnoStartedAt) {
+              setPedidos([]);
+              setLoading(false);
+              return;
+            }
+            const { data } = await sb
+              .from("pedidos_cliente")
+              .select("*, negocios(nombre)")
+              .eq("repartidor_id", riderId)
+              .gte("created_at", turnoStartedAt)
+              .order("created_at", { ascending: false });
+            setPedidos(data || []);
+            setLoading(false);
+          }, [sb, riderId, turnoStartedAt]);'''.replace('          ', '')
+          if fetch_old not in marketplace:
+              raise SystemExit('No se encontró fetchPedidos legacy esperado')
+          marketplace = marketplace.replace(fetch_old, fetch_new, 1)
+
+          realtime_old = '    if (!sb || !riderId) return;'
+          realtime_new = '    if (!sb || !riderId || !turnoStartedAt) return;'
+          realtime_pos = marketplace.index('// Realtime')
+          before = marketplace[:realtime_pos]
+          after = marketplace[realtime_pos:]
+          if realtime_old not in after:
+              raise SystemExit('No se encontró validación Realtime esperada')
+          after = after.replace(realtime_old, realtime_new, 1)
+          after = after.replace('  }, [sb, riderId, fetchPedidos]);', '  }, [sb, riderId, turnoStartedAt, fetchPedidos]);', 1)
+          marketplace = before + after
+          marketplace_path.write_text(marketplace, encoding='utf-8')
+
+          route_path = Path('src/app/api/domicilios/disponibles/route.ts')
+          route_path.write_text('''import { createClient } from "@supabase/supabase-js";
+          import { NextResponse } from "next/server";
+
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+          const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+          function getAdmin() {
+            if (!serviceKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY no configurada");
+            return createClient(supabaseUrl, serviceKey, {
+              auth: { autoRefreshToken: false, persistSession: false },
+            });
+          }
+
+          function noStore(data: unknown, status = 200) {
+            return NextResponse.json(data, {
+              status,
+              headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+            });
+          }
+
+          export async function GET(req: Request) {
+            try {
+              const supabase = getAdmin();
+              const { searchParams } = new URL(req.url);
+              const repartidorId = searchParams.get("repartidor_id");
+              const onlyMine = searchParams.get("mis_aceptados") === "true";
+
+              const { data: activeTurnos, error: turnoError } = await supabase
+                .from("turnos")
+                .select("id, created_at")
+                .eq("activo", true)
+                .order("created_at", { ascending: false })
+                .limit(1);
+              if (turnoError) throw turnoError;
+
+              const activeTurno = activeTurnos?.[0] || null;
+              if (!activeTurno?.created_at) return noStore([]);
+
+              if (onlyMine && repartidorId) {
+                const { data, error } = await supabase
+                  .from("domicilios_disponibles")
+                  .select("*")
+                  .eq("repartidor_id", repartidorId)
+                  .neq("estado", "cancelado")
+                  .gte("created_at", activeTurno.created_at)
+                  .order("created_at", { ascending: false });
+                if (error) throw error;
+                return noStore(data || []);
+              }
+
+              const { data, error } = await supabase
+                .from("domicilios_disponibles")
+                .select("*")
+                .eq("estado", "disponible")
+                .gte("created_at", activeTurno.created_at)
+                .order("created_at", { ascending: false });
+              if (error) throw error;
+              return noStore(data || []);
+            } catch (error: any) {
+              return noStore({ error: error.message }, 500);
+            }
+          }
+          '''.replace('          ', ''), encoding='utf-8')
+
+          print('Parche legacy aplicado correctamente')
+          PY
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate production build
+        run: npm run build
+
+      - name: Commit corrected legacy app
+        shell: bash
+        run: |
+          git config user.name "DomiU Engineering Bot"
+          git config user.email "domiu-engineering@users.noreply.github.com"
+          git add src/app/repartidor/page.tsx src/components/RiderMarketplace.tsx src/app/api/domicilios/disponibles/route.ts
+          git commit -m "fix: limpiar pedidos legacy al abrir un nuevo turno"
+          git push origin main
