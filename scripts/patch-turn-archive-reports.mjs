@@ -22,10 +22,9 @@ function patchAdminApp() {
     );
   }
 
-  const loadPedidosClientePattern = /  const loadPedidosCliente = useCallback\(async \(\) => \{[\s\S]*?  \}, \[\]\);/;
   source = replaceRequired(
     source,
-    loadPedidosClientePattern,
+    /  const loadPedidosCliente = useCallback\(async \(\) => \{[\s\S]*?  \}, \[\]\);/,
     `  const loadPedidosCliente = useCallback(async () => {
     try {
       const { data: activeTurns, error: turnError } = await sb
@@ -45,7 +44,7 @@ function patchAdminApp() {
 
       const { data, error } = await sb
         .from("pedidos_cliente")
-        .select("id, codigo, cliente_nombre, cliente_direccion, domicilio, estado, estado_negocio, negocio_id, created_at")
+        .select("id, codigo, cliente_nombre, cliente_direccion, domicilio, total, estado, estado_negocio, negocio_id, created_at, metodo_pago, pago_repartidor, comision_empresa, ganancia_empresa")
         .gte("created_at", startedAt)
         .order("created_at", { ascending: false })
         .limit(100);
@@ -60,10 +59,9 @@ function patchAdminApp() {
   );
 
   if (!source.includes("const loadReportesOperativos")) {
-    const loadDomiPattern = /(  const loadDomiDisponibles = useCallback\(async \(\) => \{[\s\S]*?  \}, \[\]\);)/;
     source = replaceRequired(
       source,
-      loadDomiPattern,
+      /(  const loadDomiDisponibles = useCallback\(async \(\) => \{[\s\S]*?  \}, \[\]\);)/,
       `$1
 
   const loadReportesOperativos = useCallback(async () => {
@@ -94,20 +92,15 @@ function patchAdminApp() {
     '  useEffect(() => { load(); loadPedidosCliente(); loadDomiDisponibles(); }, [load, loadPedidosCliente, loadDomiDisponibles]);',
     '  useEffect(() => { load(); loadPedidosCliente(); loadDomiDisponibles(); loadReportesOperativos(); }, [load, loadPedidosCliente, loadDomiDisponibles, loadReportesOperativos]);',
   );
-  source = source.replace(
-    '    const interval = setInterval(() => { load(); loadPedidosCliente(); loadDomiDisponibles(); }, 30000);',
-    '    const interval = setInterval(() => { load(); loadPedidosCliente(); loadDomiDisponibles(); }, 30000);',
-  );
 
   source = source.replace(
     '.on("postgres_changes", { event: "*", schema: "public", table: "repartidores" }, () => load())\n      .subscribe();',
     '.on("postgres_changes", { event: "*", schema: "public", table: "repartidores" }, () => load())\n      .on("postgres_changes", { event: "*", schema: "public", table: "pedidos_cliente" }, () => { loadPedidosCliente(); loadReportesOperativos(); })\n      .on("postgres_changes", { event: "*", schema: "public", table: "domicilios_disponibles" }, () => { loadDomiDisponibles(); loadReportesOperativos(); })\n      .on("postgres_changes", { event: "*", schema: "public", table: "turnos" }, () => { load(); loadPedidosCliente(); loadDomiDisponibles(); loadReportesOperativos(); })\n      .subscribe();',
   );
 
-  const openTurnPattern = /  const abrirTurno = async \(\) => \{[\s\S]*?  \};\n  const cerrarTurno/;
   source = replaceRequired(
     source,
-    openTurnPattern,
+    /  const abrirTurno = async \(\) => \{[\s\S]*?  \};\n  const cerrarTurno/,
     `  const abrirTurno = async () => {
     const { data: existingTurns, error: existingError } = await sb
       .from("turnos")
@@ -120,11 +113,7 @@ function patchAdminApp() {
     const openedAt = new Date().toISOString();
     const { data: nuevoTurno, error } = await sb
       .from("turnos")
-      .insert({
-        user_id: user?.id,
-        activo: true,
-        opened_at: openedAt,
-      })
+      .insert({ user_id: user?.id, activo: true, opened_at: openedAt })
       .select()
       .single();
     if (error) return fail(error.message);
@@ -140,10 +129,9 @@ function patchAdminApp() {
     "apertura no destructiva del turno",
   );
 
-  const closeTurnPattern = /  const cerrarTurno = async \(\) => \{[\s\S]*?  \};\n\n  \/\* ======================== PEDIDOS/;
   source = replaceRequired(
     source,
-    closeTurnPattern,
+    /  const cerrarTurno = async \(\) => \{[\s\S]*?  \};\n\n  \/\* ======================== PEDIDOS/,
     `  const cerrarTurno = async () => {
     if (!turnoActivo) return fail("No hay turno activo");
 
@@ -187,69 +175,86 @@ function patchAdminApp() {
   );
 
   if (!source.includes("Historial operativo por turnos")) {
-    source = replaceRequired(
-      source,
-      `          {tab === "reportes" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`,
-      `          {tab === "reportes" && (
-            <div className="space-y-6">
-              <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-6">
-                <div className="flex items-center justify-between gap-3 mb-5">
-                  <div>
-                    <h3 className="font-bold text-white text-lg flex items-center gap-2"><History size={20} className="text-[#10B981]" /> Historial operativo por turnos</h3>
-                    <p className="text-xs text-slate-500 mt-1">Pedidos manuales, Marketplace y domicilios publicados permanecen archivados aquí.</p>
-                  </div>
-                  <button onClick={loadReportesOperativos} className="px-3 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-2"><RefreshCw size={14} /> Actualizar</button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="border-b border-slate-800 text-slate-500">
-                      <th className="text-left py-3 px-3">Turno</th>
-                      <th className="text-center py-3 px-3">Manual</th>
-                      <th className="text-center py-3 px-3">Marketplace</th>
-                      <th className="text-center py-3 px-3">InDriver</th>
-                      <th className="text-center py-3 px-3">Entregados</th>
-                      <th className="text-right py-3 px-3">Vendido</th>
-                      <th className="text-right py-3 px-3">Empresa</th>
-                      <th className="text-center py-3 px-3">Exportar</th>
-                    </tr></thead>
-                    <tbody>
-                      {reportesOperativos.map((reporte: any) => (
-                        <tr key={reporte.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                          <td className="py-3 px-3">
-                            <p className="text-xs font-semibold text-white">{reporte.id === "legacy" ? "Histórico anterior" : reporte.opened_at ? new Date(reporte.opened_at).toLocaleString("es-CO") : "Sin fecha"}</p>
-                            <p className={`text-[10px] ${reporte.active ? "text-green-400" : "text-slate-500"}`}>{reporte.active ? "Turno activo" : reporte.closed_at ? `Cerrado: ${new Date(reporte.closed_at).toLocaleString("es-CO")}` : "Archivado"}</p>
-                          </td>
-                          <td className="py-3 px-3 text-center text-white font-bold">{reporte.manual_count || 0}</td>
-                          <td className="py-3 px-3 text-center text-yellow-400 font-bold">{reporte.marketplace_count || 0}</td>
-                          <td className="py-3 px-3 text-center text-cyan-400 font-bold">{reporte.indriver_count || 0}</td>
-                          <td className="py-3 px-3 text-center text-green-400 font-bold">{reporte.delivered || 0}</td>
-                          <td className="py-3 px-3 text-right text-[#10B981] font-bold">{fmt(reporte.total_sold || 0)}</td>
-                          <td className="py-3 px-3 text-right text-blue-400 font-bold">{fmt(reporte.company_earnings || 0)}</td>
-                          <td className="py-3 px-3 text-center">
-                            <div className="flex justify-center gap-2">
-                              <button onClick={() => exportarExcel((reporte.details || []).map((item: any) => ({ ...item, fecha: item.created_at ? new Date(item.created_at).toLocaleString("es-CO") : "" })), `Turno_${reporte.id}`, [
-                                { header: "Origen", key: "source" }, { header: "Código", key: "codigo" }, { header: "Cliente", key: "cliente" }, { header: "Estado", key: "estado" }, { header: "Total", key: "total" }, { header: "Domicilio", key: "domicilio" }, { header: "Empresa", key: "empresa" }, { header: "Repartidor", key: "repartidor" }, { header: "Fecha", key: "fecha" },
-                              ])} className="p-2 rounded-lg bg-green-500/10 text-green-400"><FileSpreadsheet size={14} /></button>
-                              <button onClick={() => exportarPDF((reporte.details || []).map((item: any) => ({ ...item, total: fmt(item.total), domicilio: fmt(item.domicilio), empresa: fmt(item.empresa), repartidor: fmt(item.repartidor), fecha: item.created_at ? new Date(item.created_at).toLocaleString("es-CO") : "" })), `Reporte turno ${reporte.id}`, [
-                                { header: "Origen", key: "source" }, { header: "Código", key: "codigo" }, { header: "Cliente", key: "cliente" }, { header: "Estado", key: "estado" }, { header: "Total", key: "total" }, { header: "Domicilio", key: "domicilio" }, { header: "Empresa", key: "empresa" }, { header: "Repartidor", key: "repartidor" }, { header: "Fecha", key: "fecha" },
-                              ])} className="p-2 rounded-lg bg-red-500/10 text-red-400"><FileDown size={14} /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {reportesOperativos.length === 0 && <tr><td colSpan={8} className="text-center py-8 text-slate-500">No hay turnos archivados</td></tr>}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+    const search = [
+      '          {tab === "reportes" && (',
+      '            <div className="space-y-6">',
+      '              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">',
+    ].join("\n");
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`,
-      "tabla histórica de reportes",
-    );
+    const replacement = [
+      '          {tab === "reportes" && (',
+      '            <div className="space-y-6">',
+      '              <div className="bg-[#1E293B]/70 backdrop-blur-sm rounded-2xl border border-white/[0.06] p-6">',
+      '                <div className="flex items-center justify-between gap-3 mb-5">',
+      '                  <div>',
+      '                    <h3 className="font-bold text-white text-lg flex items-center gap-2"><History size={20} className="text-[#10B981]" /> Historial operativo por turnos</h3>',
+      '                    <p className="text-xs text-slate-500 mt-1">Pedidos manuales, Marketplace y domicilios publicados permanecen archivados aquí.</p>',
+      '                  </div>',
+      '                  <button onClick={loadReportesOperativos} className="px-3 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-2"><RefreshCw size={14} /> Actualizar</button>',
+      '                </div>',
+      '                <div className="overflow-x-auto">',
+      '                  <table className="w-full text-sm">',
+      '                    <thead><tr className="border-b border-slate-800 text-slate-500">',
+      '                      <th className="text-left py-3 px-3">Turno</th>',
+      '                      <th className="text-center py-3 px-3">Manual</th>',
+      '                      <th className="text-center py-3 px-3">Marketplace</th>',
+      '                      <th className="text-center py-3 px-3">InDriver</th>',
+      '                      <th className="text-center py-3 px-3">Entregados</th>',
+      '                      <th className="text-right py-3 px-3">Vendido</th>',
+      '                      <th className="text-right py-3 px-3">Empresa</th>',
+      '                      <th className="text-center py-3 px-3">Exportar</th>',
+      '                    </tr></thead>',
+      '                    <tbody>',
+      '                      {reportesOperativos.map((reporte: any) => (',
+      '                        <tr key={reporte.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">',
+      '                          <td className="py-3 px-3">',
+      '                            <p className="text-xs font-semibold text-white">{reporte.id === "legacy" ? "Histórico anterior" : reporte.opened_at ? new Date(reporte.opened_at).toLocaleString("es-CO") : "Sin fecha"}</p>',
+      '                            <p className={"text-[10px] " + (reporte.active ? "text-green-400" : "text-slate-500")}>{reporte.active ? "Turno activo" : reporte.closed_at ? "Cerrado: " + new Date(reporte.closed_at).toLocaleString("es-CO") : "Archivado"}</p>',
+      '                          </td>',
+      '                          <td className="py-3 px-3 text-center text-white font-bold">{reporte.manual_count || 0}</td>',
+      '                          <td className="py-3 px-3 text-center text-yellow-400 font-bold">{reporte.marketplace_count || 0}</td>',
+      '                          <td className="py-3 px-3 text-center text-cyan-400 font-bold">{reporte.indriver_count || 0}</td>',
+      '                          <td className="py-3 px-3 text-center text-green-400 font-bold">{reporte.delivered || 0}</td>',
+      '                          <td className="py-3 px-3 text-right text-[#10B981] font-bold">{fmt(reporte.total_sold || 0)}</td>',
+      '                          <td className="py-3 px-3 text-right text-blue-400 font-bold">{fmt(reporte.company_earnings || 0)}</td>',
+      '                          <td className="py-3 px-3 text-center">',
+      '                            <div className="flex justify-center gap-2">',
+      '                              <button onClick={() => exportarExcel((reporte.details || []).map((item: any) => ({ ...item, fecha: item.created_at ? new Date(item.created_at).toLocaleString("es-CO") : "" })), "Turno_" + reporte.id, [',
+      '                                { header: "Origen", key: "source" }, { header: "Código", key: "codigo" }, { header: "Cliente", key: "cliente" }, { header: "Estado", key: "estado" }, { header: "Total", key: "total" }, { header: "Domicilio", key: "domicilio" }, { header: "Empresa", key: "empresa" }, { header: "Repartidor", key: "repartidor" }, { header: "Fecha", key: "fecha" },',
+      '                              ])} className="p-2 rounded-lg bg-green-500/10 text-green-400"><FileSpreadsheet size={14} /></button>',
+      '                              <button onClick={() => exportarPDF((reporte.details || []).map((item: any) => ({ ...item, total: fmt(item.total), domicilio: fmt(item.domicilio), empresa: fmt(item.empresa), repartidor: fmt(item.repartidor), fecha: item.created_at ? new Date(item.created_at).toLocaleString("es-CO") : "" })), "Reporte turno " + reporte.id, [',
+      '                                { header: "Origen", key: "source" }, { header: "Código", key: "codigo" }, { header: "Cliente", key: "cliente" }, { header: "Estado", key: "estado" }, { header: "Total", key: "total" }, { header: "Domicilio", key: "domicilio" }, { header: "Empresa", key: "empresa" }, { header: "Repartidor", key: "repartidor" }, { header: "Fecha", key: "fecha" },',
+      '                              ])} className="p-2 rounded-lg bg-red-500/10 text-red-400"><FileDown size={14} /></button>',
+      '                            </div>',
+      '                          </td>',
+      '                        </tr>',
+      '                      ))}',
+      '                      {reportesOperativos.length === 0 && <tr><td colSpan={8} className="text-center py-8 text-slate-500">No hay turnos archivados</td></tr>}',
+      '                    </tbody>',
+      '                  </table>',
+      '                </div>',
+      '              </div>',
+      '',
+      '              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">',
+    ].join("\n");
+
+    source = replaceRequired(source, search, replacement, "tabla histórica de reportes");
   }
 
+  writeFileSync(path, source, "utf8");
+}
+
+function patchMarketplaceAdmin() {
+  const path = "src/components/MarketplaceAdmin.tsx";
+  let source = readFileSync(path, "utf8");
+  source = source.replace(
+    '  const res = await fetch(`/api/admin/marketplace${params}`);',
+    '  const res = await fetch(`/api/admin/marketplace${params}`, { cache: "no-store" });',
+  );
+  source = source.replace(
+    '    const sub = sb.channel("admin-marketplace").on("postgres_changes", { event: "*", schema: "public", table: "pedidos_cliente" }, () => fetchPedidos()).subscribe();',
+    '    const sub = sb.channel("admin-marketplace")\n      .on("postgres_changes", { event: "*", schema: "public", table: "pedidos_cliente" }, () => fetchPedidos())\n      .on("postgres_changes", { event: "*", schema: "public", table: "turnos" }, () => fetchPedidos())\n      .subscribe();',
+  );
   writeFileSync(path, source, "utf8");
 }
 
@@ -308,5 +313,6 @@ export async function GET(req: Request) {
 }
 
 patchAdminApp();
+patchMarketplaceAdmin();
 patchAvailableDeliveriesRoute();
 console.log("Archivo histórico por turnos aplicado a Marketplace, InDriver y Reportes.");
