@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/patch-legacy-current-shift.mjs",
+    "prebuild": "node scripts/patch-legacy-current-shift.mjs && node scripts/patch-map-loader.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
