@@ -39,10 +39,10 @@ if (!source.includes("const descargarPdfSeguro")) {
 
   source = replaceRequired(
     source,
-    `    doc.save(\`${titulo}_${new Date().toISOString().slice(0, 10)}.pdf\`);
+    `    doc.save(\`${"${titulo}"}_${"${new Date().toISOString().slice(0, 10)}"}.pdf\`);
     ok("PDF exportado");`,
     `    try {
-      descargarPdfSeguro(doc, \`${titulo}_${new Date().toISOString().slice(0, 10)}.pdf\`);
+      descargarPdfSeguro(doc, \`${"${titulo}"}_${"${new Date().toISOString().slice(0, 10)}"}.pdf\`);
       ok("PDF exportado");
     } catch (error) {
       console.error("Error exportando PDF:", error);
@@ -73,7 +73,7 @@ if (!source.includes("CUENTAS PARA CONSIGNAR A DOMIU")) {
     doc.setFontSize(11);
     doc.text("CUENTAS PARA CONSIGNAR A DOMIU", 20, y + 10);
     doc.setTextColor(180, 83, 9);
-    doc.text(\`Valor a consignar: ${f(totalEmpresa)}\`, 190, y + 10, { align: "right" });
+    doc.text(\`Valor a consignar: ${"${f(totalEmpresa)}"}\`, 190, y + 10, { align: "right" });
 
     doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
@@ -87,7 +87,7 @@ if (!source.includes("CUENTAS PARA CONSIGNAR A DOMIU")) {
     let cuentaY = y + 19;
     cuentasPago.forEach(([etiqueta, valor]) => {
       doc.setFont("helvetica", "bold");
-      doc.text(\`${etiqueta}:\`, 20, cuentaY);
+      doc.text(\`${"${etiqueta}"}:\`, 20, cuentaY);
       doc.setFont("helvetica", "normal");
       doc.text(valor, 82, cuentaY);
       cuentaY += 6;
@@ -111,10 +111,10 @@ if (!source.includes("CUENTAS PARA CONSIGNAR A DOMIU")) {
 if (!source.includes("const nombreSeguro = String(rep.nombre")) {
   source = replaceRequired(
     source,
-    `    doc.save(\`Desprendible_${rep.nombre.replace(/\\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf\`);
+    `    doc.save(\`Desprendible_${"${rep.nombre.replace(/\\s+/g, \"_\")}"}_${"${new Date().toISOString().slice(0, 10)}"}.pdf\`);
     ok("Desprendible descargado");`,
     `    const nombreSeguro = String(rep.nombre || "Repartidor").trim().replace(/[^a-zA-Z0-9_-]+/g, "_");
-    const nombreArchivo = \`Desprendible_${nombreSeguro}_${new Date().toISOString().slice(0, 10)}.pdf\`;
+    const nombreArchivo = \`Desprendible_${"${nombreSeguro}"}_${"${new Date().toISOString().slice(0, 10)}"}.pdf\`;
     try {
       descargarPdfSeguro(doc, nombreArchivo);
       ok("Desprendible descargado");
@@ -130,7 +130,7 @@ if (!source.includes("Descargar desprendible de ${l.rep.nombre}")) {
   source = replaceRequired(
     source,
     `                            <button onClick={() => descargarDesprendible(l.rep.id)} disabled={l.count === 0} className="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold disabled:opacity-30 hover:bg-red-500/20 border border-red-500/20"><FileDown size={14} /></button>`,
-    `                            <button type="button" onClick={() => descargarDesprendible(l.rep.id)} disabled={l.count === 0} title={l.count === 0 ? "Sin domicilios entregados" : "Descargar desprendible PDF"} aria-label={\`Descargar desprendible de ${l.rep.nombre}\`} className="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold disabled:opacity-30 hover:bg-red-500/20 border border-red-500/20"><FileDown size={14} /></button>`,
+    `                            <button type="button" onClick={() => descargarDesprendible(l.rep.id)} disabled={l.count === 0} title={l.count === 0 ? "Sin domicilios entregados" : "Descargar desprendible PDF"} aria-label={\`Descargar desprendible de ${"${l.rep.nombre}"}\`} className="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold disabled:opacity-30 hover:bg-red-500/20 border border-red-500/20"><FileDown size={14} /></button>`,
     "botón de descarga del desprendible",
   );
 }
